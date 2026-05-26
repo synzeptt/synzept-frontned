@@ -1,6 +1,13 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
 const TOKEN_KEY = "synzept_access_token";
 const REFRESH_KEY = "synzept_refresh_token";
+
+function backendUrl(path: string): string {
+  if (!API_BASE) {
+    throw new Error("Synzept is missing its backend URL. Set NEXT_PUBLIC_API_URL and redeploy.");
+  }
+  return `${API_BASE}${path}`;
+}
 
 export function getAccessToken(): string | null {
   if (typeof window === "undefined") return null;
@@ -31,7 +38,7 @@ async function refreshAccessToken(): Promise<boolean> {
   const refresh = getRefreshToken();
   if (!refresh) return false;
   try {
-    const response = await fetch(`${API_BASE}/api/v1/auth/refresh`, {
+    const response = await fetch(backendUrl("/api/v1/auth/refresh"), {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
@@ -52,7 +59,7 @@ async function request<T>(path: string, options?: RequestInit, retry = true): Pr
   }
   let response: Response;
   try {
-    response = await fetch(`${API_BASE}${path}`, {
+    response = await fetch(backendUrl(path), {
       ...options,
       credentials: "include",
       headers: {
@@ -63,7 +70,7 @@ async function request<T>(path: string, options?: RequestInit, retry = true): Pr
     });
   } catch (err) {
     if (err instanceof Error && err.name === "AbortError") throw err;
-    throw new Error("Synzept could not reach the backend. Your workspace is safe; try again once the local server is ready.");
+    throw new Error("Synzept could not reach the backend. Your workspace is safe; please try again in a moment.");
   }
   if (response.status === 401 && retry) {
     const refreshed = await refreshAccessToken();
@@ -522,7 +529,7 @@ export const api = {
     }
     let response: Response;
     try {
-      response = await fetch(`${API_BASE}/api/v1/chat/stream`, {
+      response = await fetch(backendUrl("/api/v1/chat/stream"), {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json", ...authHeaders() },
@@ -536,7 +543,7 @@ export const api = {
     if (response.status === 401) {
       const refreshed = await refreshAccessToken();
       if (refreshed) {
-        response = await fetch(`${API_BASE}/api/v1/chat/stream`, {
+        response = await fetch(backendUrl("/api/v1/chat/stream"), {
           method: "POST",
           credentials: "include",
           headers: { "Content-Type": "application/json", ...authHeaders() },
