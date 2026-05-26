@@ -1,0 +1,2 @@
+-- Synzept V1 schema
+-- Run the contents of backend/migrations/001_initial.sql in Supabase SQL editor.

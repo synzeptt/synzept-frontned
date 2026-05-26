@@ -1,0 +1,53 @@
+﻿Γû▓ Next.js 16.2.6 (Turbopack)
+
+  Creating an optimized production build ...
+Γ£ô Compiled successfully in 45s
+  Running TypeScript ...
+node.exe : Failed to type check.
+At line:1 char:38
++ ... us\synzept; & 'C:\Program Files\nodejs\node.exe' 'C:\Users\piyus\synz ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Failed to type check.:String) [], 
+    RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+./src/app/api/chat/route.ts:45:5
+Type error: No overload matches this call.
+  Overload 1 of 3, '(body: ChatCompletionCreateParamsNonStreaming, options?: 
+RequestOptions | undefined): APIPromise<ChatCompletion>', gave the following 
+error.
+    Type '{ role: string; content: any; }[]' is not assignable to type 
+'ChatCompletionMessageParam[]'.
+      Type '{ role: string; content: any; }' is not assignable to type 
+'ChatCompletionMessageParam'.
+        Property 'name' is missing in type '{ role: string; content: any; }' 
+but required in type 'ChatCompletionFunctionMessageParam'.
+  Overload 2 of 3, '(body: ChatCompletionCreateParamsStreaming, options?: 
+RequestOptions | undefined): APIPromise<Stream<ChatCompletionChunk>>', gave 
+the following error.
+    Type '{ role: string; content: any; }[]' is not assignable to type 
+'ChatCompletionMessageParam[]'.
+      Type '{ role: string; content: any; }' is not assignable to type 
+'ChatCompletionMessageParam'.
+        Property 'name' is missing in type '{ role: string; content: any; }' 
+but required in type 'ChatCompletionFunctionMessageParam'.
+  Overload 3 of 3, '(body: ChatCompletionCreateParamsBase, options?: 
+RequestOptions | undefined): APIPromise<ChatCompletion | Stream<...>>', gave 
+the following error.
+    Type '{ role: string; content: any; }[]' is not assignable to type 
+'ChatCompletionMessageParam[]'.
+      Type '{ role: string; content: any; }' is not assignable to type 
+'ChatCompletionMessageParam'.
+        Property 'name' is missing in type '{ role: string; content: any; }' 
+but required in type 'ChatCompletionFunctionMessageParam'.
+
+  [90m43 |[0m   [36mconst[0m completion = [36mawait[0m 
+openai.chat.completions.create({
+  [90m44 |[0m     model: [32m"gpt-4.1-mini"[0m,
+[31m[1m>[0m [90m45 |[0m     messages: conversation,
+  [90m   |[0m     [31m[1m^[0m
+  [90m46 |[0m     temperature: [35m0.2[0m,
+  [90m47 |[0m     max_tokens: [35m800[0m,
+  [90m48 |[0m   });
+Next.js build worker exited with code: 1 and signal: null

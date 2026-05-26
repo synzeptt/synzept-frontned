@@ -1,0 +1,182 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  --color-surface: 247 246 242;
+  --color-surface-raised: 255 255 255;
+  --color-surface-overlay: 240 238 232;
+  --color-border: 32 31 28;
+  --color-border-strong: 32 31 28;
+  --color-accent: 63 95 74;
+  --color-accent-muted: 63 95 74;
+  --color-accent-foreground: 47 73 56;
+  --color-muted: 138 135 128;
+  --color-muted-foreground: 98 95 88;
+  --background: rgb(var(--color-surface));
+  --foreground: #24231f;
+  --accent: #3f5f4a;
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --color-surface: 24 24 22;
+  --color-surface-raised: 35 35 32;
+  --color-surface-overlay: 44 43 39;
+  --color-border: 245 245 244;
+  --color-border-strong: 245 245 244;
+  --color-accent: 143 176 151;
+  --color-accent-muted: 143 176 151;
+  --color-accent-foreground: 190 214 195;
+  --color-muted: 166 160 148;
+  --color-muted-foreground: 210 204 193;
+  --background: rgb(var(--color-surface));
+  --foreground: #f5f4ef;
+  --accent: #9bbfa5;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+::selection {
+  background: rgb(var(--color-accent-muted) / 0.2);
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgb(var(--color-border-strong) / 0.2);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--color-muted) / 0.36);
+}
+
+html[data-theme="dark"] .bg-white {
+  background-color: rgb(var(--color-surface-raised));
+}
+
+html[data-theme="dark"] .bg-stone-50,
+html[data-theme="dark"] .bg-stone-100 {
+  background-color: rgb(var(--color-surface-overlay));
+}
+
+html[data-theme="dark"] .bg-stone-200 {
+  background-color: rgb(68 66 60);
+}
+
+html[data-theme="dark"] .hover\:bg-stone-50:hover,
+html[data-theme="dark"] .hover\:bg-stone-100:hover {
+  background-color: rgb(var(--color-surface-overlay));
+}
+
+html[data-theme="dark"] .text-stone-950,
+html[data-theme="dark"] .text-stone-900,
+html[data-theme="dark"] .text-stone-800 {
+  color: rgb(245 244 239);
+}
+
+html[data-theme="dark"] .text-stone-700,
+html[data-theme="dark"] .text-stone-600 {
+  color: rgb(226 222 213);
+}
+
+html[data-theme="dark"] .text-stone-500,
+html[data-theme="dark"] .text-stone-400 {
+  color: rgb(var(--color-muted));
+}
+
+html[data-theme="dark"] .hover\:text-stone-950:hover,
+html[data-theme="dark"] .hover\:text-stone-900:hover,
+html[data-theme="dark"] .hover\:text-stone-800:hover {
+  color: rgb(255 255 255);
+}
+
+html[data-theme="dark"] input,
+html[data-theme="dark"] textarea,
+html[data-theme="dark"] select {
+  background-color: rgb(var(--color-surface-raised));
+  color: rgb(245 244 239);
+}
+
+html[data-theme="dark"] input::placeholder,
+html[data-theme="dark"] textarea::placeholder {
+  color: rgb(var(--color-muted));
+}
+
+/* Markdown prose */
+.prose-synzept {
+  @apply text-[15px] leading-relaxed text-stone-700;
+}
+
+.prose-synzept p {
+  @apply my-2.5;
+}
+
+.prose-synzept h1,
+.prose-synzept h2,
+.prose-synzept h3 {
+  @apply mt-4 mb-2 font-semibold text-stone-950;
+}
+
+.prose-synzept h2 {
+  @apply text-lg;
+}
+
+.prose-synzept ul,
+.prose-synzept ol {
+  @apply my-2 ml-4 space-y-1;
+}
+
+.prose-synzept li {
+  @apply text-stone-700;
+}
+
+.prose-synzept code {
+  @apply rounded bg-stone-100 px-1.5 py-0.5 font-mono text-sm text-accent-foreground;
+}
+
+.prose-synzept pre {
+  @apply my-3 overflow-x-auto rounded-xl border border-border bg-white p-4;
+}
+
+.prose-synzept pre code {
+  @apply bg-transparent p-0 text-stone-700;
+}
+
+.prose-synzept a {
+  @apply text-accent underline-offset-2 hover:underline;
+}
+
+.prose-synzept blockquote {
+  @apply border-l-2 border-accent/40 pl-4 text-muted-foreground italic;
+}

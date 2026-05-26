@@ -1,0 +1,43 @@
+# Local development stack — PostgreSQL + pgvector (+ optional Redis worker)
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: synzept
+      POSTGRES_PASSWORD: synzept
+      POSTGRES_DB: synzept
+    volumes:
+      - synzept_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U synzept"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    profiles:
+      - worker
+
+  worker:
+    build:
+      context: .
+    command: dramatiq app.workers.tasks --processes 1 --threads 2
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://synzept:synzept@db:5432/synzept
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    profiles:
+      - worker
+
+volumes:
+  synzept_pgdata:
