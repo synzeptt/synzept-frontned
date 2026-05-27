@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { cn } from "@/lib/cn";
 import { useAuthStore } from "@/stores/auth";
 
 const CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
@@ -44,6 +43,7 @@ export function GoogleSignIn({ mode = "signin" }: { mode?: "signin" | "signup" }
       if (cancelled || !window.google?.accounts?.id || !ref.current) return;
       window.google.accounts.id.initialize({
         client_id: CLIENT_ID,
+        ux_mode: "popup",
         callback: async (response: { credential?: string }) => {
           if (!response.credential) {
             setError("Google did not return a sign-in token. Please try again.");
@@ -66,7 +66,7 @@ export function GoogleSignIn({ mode = "signin" }: { mode?: "signin" | "signup" }
         type: "standard",
         theme: "outline",
         size: "large",
-        width: ref.current.offsetWidth || 360,
+        width: Math.max(ref.current.offsetWidth || 0, 320),
         text: "continue_with",
         shape: "rectangular",
         logo_alignment: "left",
@@ -104,43 +104,30 @@ export function GoogleSignIn({ mode = "signin" }: { mode?: "signin" | "signup" }
 
   return (
     <div className="space-y-2">
-      <div
-        role="button"
-        tabIndex={CLIENT_ID && ready && !loading ? 0 : -1}
-        aria-disabled={!CLIENT_ID || !ready || loading}
-        className={cn(
-          "relative flex h-11 w-full items-center justify-center overflow-hidden rounded-lg border border-border bg-white px-4 text-sm font-medium text-stone-800 transition hover:bg-stone-50 hover:text-stone-950",
-          (!CLIENT_ID || (!ready && !loading)) && "cursor-not-allowed opacity-80",
-        )}
-      >
-        <span className="pointer-events-none flex items-center gap-3">
-          {!ready && CLIENT_ID ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <GoogleIcon />
-          )}
-          Continue with Google
-        </span>
-        {CLIENT_ID && !ready && (
-          <span className="pointer-events-none absolute right-4 text-xs font-normal text-muted">
-            loading
-          </span>
-        )}
-        {loading && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/80 text-sm text-stone-700 backdrop-blur-sm">
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            Continuing...
-          </div>
+      <div className="relative min-h-11 w-full overflow-hidden rounded-lg">
+        {!ready && (
+          <button
+            type="button"
+            disabled
+            className="flex h-11 w-full cursor-not-allowed items-center justify-center rounded-lg border border-border bg-white px-4 text-sm font-medium text-stone-700 opacity-80"
+          >
+            {CLIENT_ID ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            Continue with Google
+          </button>
         )}
         {CLIENT_ID && (
           <div
             ref={ref}
-            className={cn(
-              "absolute inset-0 z-20 w-full opacity-0 [&>div]:h-11 [&>div]:w-full [&_iframe]:!m-0",
-              !ready && "pointer-events-none",
-            )}
-            aria-hidden="true"
+            className={`min-h-11 w-full [&>div]:mx-auto [&>div]:!w-full [&_iframe]:!m-0 ${
+              ready ? "" : "pointer-events-none absolute inset-0 opacity-0"
+            }`}
           />
+        )}
+        {loading && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-white/80 text-sm text-stone-700 backdrop-blur-sm">
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            Continuing...
+          </div>
         )}
       </div>
       {error && (
@@ -152,29 +139,6 @@ export function GoogleSignIn({ mode = "signin" }: { mode?: "signin" | "signup" }
         {mode === "signup" ? "New Google users still set up their continuity workspace." : "Use the same Google account to return to your workspace."}
       </p>
     </div>
-  );
-}
-
-function GoogleIcon() {
-  return (
-    <svg className="h-4 w-4" viewBox="0 0 18 18" aria-hidden="true">
-      <path
-        fill="#4285F4"
-        d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"
-      />
-      <path
-        fill="#34A853"
-        d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.34A9 9 0 0 0 9 18z"
-      />
-      <path
-        fill="#FBBC05"
-        d="M3.97 10.72A5.4 5.4 0 0 1 3.68 9c0-.6.1-1.18.29-1.72V4.94H.96A9 9 0 0 0 0 9c0 1.45.35 2.82.96 4.06l3.01-2.34z"
-      />
-      <path
-        fill="#EA4335"
-        d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.9 11.43 0 9 0A9 9 0 0 0 .96 4.94l3.01 2.34C4.68 5.16 6.66 3.58 9 3.58z"
-      />
-    </svg>
   );
 }
 
