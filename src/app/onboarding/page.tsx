@@ -41,6 +41,7 @@ const COMM_STYLES = [
 ];
 
 const WORK_TYPES = ["Building", "Managing", "Studying", "Creative", "Operations"];
+const MOMENTUM_FOCUS = ["Startup", "Learning", "Research", "Content creation", "Personal organization"];
 
 type StepId = (typeof STEPS)[number]["id"];
 
@@ -274,6 +275,22 @@ export default function OnboardingPage() {
                 <GuidanceCard title="How to think about setup">
                   Add only context you want Synzept to reuse: active goals, priorities, and one place where work should continue. Everything can be edited later.
                 </GuidanceCard>
+                <Field label="What are you working on right now?">
+                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                    {MOMENTUM_FOCUS.map((item) => (
+                      <button
+                        key={item}
+                        type="button"
+                        onClick={() => setWorkType(item)}
+                        className={`rounded-md border px-3 py-3 text-left text-sm transition ${
+                          workType === item ? "border-accent/40 bg-accent-muted text-stone-950" : "border-border bg-white text-stone-600 hover:bg-stone-50"
+                        }`}
+                      >
+                        {item}
+                      </button>
+                    ))}
+                  </div>
+                </Field>
                 <div className="flex flex-col gap-3 sm:flex-row">
                   <Button onClick={onWelcomeNext} disabled={busy}>
                     {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
@@ -304,7 +321,7 @@ export default function OnboardingPage() {
                   </div>
                   <Field label="Which mode are you in most often?">
                     <div className="flex flex-wrap gap-2">
-                      {WORK_TYPES.map((item) => (
+                      {[...MOMENTUM_FOCUS, ...WORK_TYPES].map((item) => (
                         <button
                           key={item}
                           type="button"

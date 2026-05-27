@@ -68,14 +68,14 @@ export default function Home() {
         <div className="mx-auto grid min-h-[calc(100vh-80px)] max-w-7xl items-center gap-12 px-5 py-16 sm:px-8 lg:min-h-[700px] lg:grid-cols-[0.95fr_1.05fr]">
           <div>
             <p className="mb-5 inline-flex rounded-full border border-border bg-white px-3 py-1 text-sm text-muted-foreground shadow-soft">
-              Continuity workspace for ongoing work
+              AI workspace with memory
             </p>
             <h1 className="max-w-4xl text-5xl font-semibold leading-[1.05] tracking-normal text-stone-950 sm:text-6xl">
-              A continuity-first AI workspace for ongoing life and work.
+              An AI workspace that remembers your projects, ideas, and conversations over time.
             </h1>
             <p className="mt-6 max-w-2xl text-lg leading-8 text-stone-600">
-              Synzept is a continuity-first AI workspace that keeps memory, projects, tasks, and conversations connected
-              so you can return to your priorities with less mental overhead.
+              Synzept keeps memory, projects, notes, and AI conversations connected so every return feels like continuing,
+              not starting over.
             </p>
             <div className="mt-9 flex flex-col gap-3 sm:flex-row">
               <Link href="/signup" className={cn(buttonVariants({ size: "lg" }), "gap-2")}>

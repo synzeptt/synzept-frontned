@@ -33,6 +33,7 @@ from app.models.user import User
 from app.models.user_profile import UserProfile
 from app.schemas.auth import SignupRequest, TokenResponse
 from app.services.email_service import EmailService
+from app.services.starter_workspace_service import StarterWorkspaceService
 
 
 class AuthService:
@@ -77,6 +78,7 @@ class AuthService:
                 communication_preferences={"style": "direct", "response_depth": "balanced"},
             )
         )
+        await StarterWorkspaceService(self.session).ensure_for_user(user)
         tokens = await self._issue_tokens(user.id)
         return tokens, user
 

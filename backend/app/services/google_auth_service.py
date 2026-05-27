@@ -13,6 +13,7 @@ from app.models.user import User
 from app.models.user_profile import UserProfile
 from app.schemas.auth import TokenResponse
 from app.services.auth_service import AuthService
+from app.services.starter_workspace_service import StarterWorkspaceService
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -75,6 +76,7 @@ class GoogleAuthService:
                     communication_preferences={"style": "direct", "response_depth": "balanced"},
                 )
             )
+            await StarterWorkspaceService(self.session).ensure_for_user(user)
         else:
             if user.google_id and user.google_id != google_sub:
                 raise UnauthorizedError("Google account does not match this email")

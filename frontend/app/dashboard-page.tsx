@@ -24,7 +24,7 @@ import { GuidanceCard } from "@/components/ui/guidance-card";
 import { RecoveryBanner } from "@/components/ui/recovery-banner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { api, type ContinuityCard, type Conversation, type DailyExperience, type Dashboard, type Project, type RecentActivity, type Task } from "@/lib/api";
+import { api, type ContinuityCard, type Conversation, type DailyExperience, type Dashboard, type Memory, type Project, type RecentActivity, type Task } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { useWorkspaceStore } from "@/stores/workspace";
 import { PageFrame } from "@frontend/components/layout/page-frame";
@@ -82,7 +82,14 @@ export function DashboardPage() {
           <>
             <section className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.55fr)]">
               <ContinuitySection items={continuityItems} />
-              <DailyFocus briefing={briefing} focusAreas={focusAreas} suggestions={suggestions} />
+              <div className="space-y-5">
+                <MemoryContextPanel
+                  memories={dashboard?.memories || []}
+                  continuitySummary={dashboard?.continuity_summary || ""}
+                  focusAreas={focusAreas}
+                />
+                <DailyFocus briefing={briefing} focusAreas={focusAreas} suggestions={suggestions} />
+              </div>
             </section>
 
             <DailyRhythm daily={dashboard?.daily || null} priorities={priorityTasks} continuationItems={continuityItems} onSaved={load} />
@@ -149,8 +156,8 @@ function ContinuitySection({ items }: { items: ContinuityCard[] }) {
   return (
     <SectionShell
       icon={<Clock3 className="h-4 w-4" />}
-      title="Continue Working"
-      description="The fastest path back into unfinished projects, recent threads, and open loops."
+      title="Continue where you left off"
+      description="The fastest path back into recent projects, active conversations, remembered context, and open loops."
       actionHref={lead?.href}
       actionLabel={lead ? "Resume" : undefined}
     >
@@ -185,6 +192,55 @@ function ContinuitySection({ items }: { items: ContinuityCard[] }) {
           </div>
         </div>
       )}
+    </SectionShell>
+  );
+}
+
+function MemoryContextPanel({
+  memories,
+  continuitySummary,
+  focusAreas,
+}: {
+  memories: Memory[];
+  continuitySummary: string;
+  focusAreas: string[];
+}) {
+  const remembered = memories.slice(0, 3);
+  const activeFocus = focusAreas.slice(0, 2);
+
+  return (
+    <SectionShell compact icon={<Sparkles className="h-4 w-4" />} title="Synzept remembers" description="Context that follows you across sessions.">
+      <div className="space-y-3">
+        {continuitySummary && (
+          <div className="rounded-lg bg-stone-50 p-3">
+            <p className="text-xs font-medium uppercase text-stone-500">Recent context</p>
+            <p className="mt-2 line-clamp-4 text-sm leading-6 text-stone-800">{continuitySummary}</p>
+          </div>
+        )}
+        <div className="space-y-2">
+          {remembered.map((memory) => (
+            <div key={memory.id} className="rounded-md border border-stone-200 bg-white px-3 py-2">
+              <p className="line-clamp-2 text-sm leading-5 text-stone-900">{memory.summary || memory.content}</p>
+              <p className="mt-1 text-xs text-stone-500">{memory.category || memory.memory_type || "memory"}</p>
+            </div>
+          ))}
+          {!remembered.length && (
+            <div className="rounded-md border border-stone-200 bg-white px-3 py-2">
+              <p className="text-sm leading-5 text-stone-900">Synzept is ready to remember goals, decisions, and active work as you use it.</p>
+            </div>
+          )}
+        </div>
+        {!!activeFocus.length && (
+          <div>
+            <p className="mb-2 text-xs font-medium uppercase text-stone-500">Active focus</p>
+            <div className="space-y-1.5">
+              {activeFocus.map((focus) => (
+                <p key={focus} className="rounded-md bg-stone-50 px-3 py-2 text-sm text-stone-800">{focus}</p>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
     </SectionShell>
   );
 }
@@ -657,7 +713,35 @@ function getContinuityItems(dashboard: Dashboard | null, tasks: Task[]): Continu
     updated_at: project.created_at,
   }));
 
-  return [...taskCards, ...conversationCards, ...projectCards];
+  const noteCards: ContinuityCard[] = (dashboard?.notes || []).slice(0, 2).map((note) => ({
+    id: note.id,
+    type: "note",
+    title: note.title || "Recent note",
+    description: note.summary || note.content || "Saved context ready to revisit.",
+    action_label: "Open notes",
+    href: "/notes",
+    project_id: note.project_id,
+    task_id: null,
+    conversation_id: null,
+    priority: "medium",
+    updated_at: note.created_at,
+  }));
+
+  const memoryCards: ContinuityCard[] = (dashboard?.memories || []).slice(0, 2).map((memory) => ({
+    id: memory.id,
+    type: "memory",
+    title: "Synzept remembers",
+    description: memory.summary || memory.content || "A piece of context Synzept can carry forward.",
+    action_label: "Review memory",
+    href: "/settings",
+    project_id: memory.project_id ?? null,
+    task_id: null,
+    conversation_id: null,
+    priority: "medium",
+    updated_at: memory.created_at,
+  }));
+
+  return [...conversationCards, ...projectCards, ...noteCards, ...memoryCards, ...taskCards];
 }
 
 function trackContinuationOpen(item: ContinuityCard, placement: "lead" | "supporting") {
@@ -733,5 +817,6 @@ function iconForType(type: string) {
   if (type === "project") return <FolderKanban className="h-4 w-4" />;
   if (type === "task") return <CircleDot className="h-4 w-4" />;
   if (type === "note") return <NotebookText className="h-4 w-4" />;
+  if (type === "memory") return <Sparkles className="h-4 w-4" />;
   return <BriefcaseBusiness className="h-4 w-4" />;
 }

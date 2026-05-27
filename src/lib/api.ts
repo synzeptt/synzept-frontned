@@ -195,6 +195,7 @@ export type ProjectContext = {
 export type Memory = {
   id: string;
   content: string;
+  summary?: string | null;
   category: string;
   memory_type: string;
   importance: number;

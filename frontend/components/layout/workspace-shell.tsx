@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { CheckSquare, FolderKanban, Home, Menu, MessageSquare, NotebookText, X } from "lucide-react";
+import { Brain, FolderKanban, Menu, MessageSquare, PanelsTopLeft, X } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { CopyrightLine } from "@/components/copyright-line";
 import { FeedbackButton } from "@/components/feedback/feedback-button";
@@ -16,11 +16,10 @@ import { cn } from "@/lib/cn";
 import { useWorkspaceUIStore } from "@frontend/store/workspace-ui";
 
 const nav = [
-  { href: "/dashboard", label: "Dashboard", icon: Home },
-  { href: "/chat", label: "Work", icon: MessageSquare },
+  { href: "/dashboard", label: "Workspace", icon: PanelsTopLeft },
   { href: "/projects", label: "Projects", icon: FolderKanban },
-  { href: "/notes", label: "Notes", icon: NotebookText },
-  { href: "/tasks", label: "Tasks", icon: CheckSquare },
+  { href: "/settings", label: "Memory", icon: Brain },
+  { href: "/chat", label: "AI", icon: MessageSquare },
 ];
 
 export function WorkspaceShell({ children }: { children: React.ReactNode }) {
