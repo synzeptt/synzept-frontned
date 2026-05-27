@@ -233,10 +233,18 @@ class AuthService:
             )
         )
         stored = result.scalar_one_or_none()
-        if not stored or stored.expires_at < datetime.now(timezone.utc):
+        now = datetime.now(timezone.utc)
+        if not stored:
             raise UnauthorizedError("Refresh token invalid or expired")
 
-        stored.revoked_at = datetime.now(timezone.utc)
+        expires_at = stored.expires_at
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+
+        if expires_at < now:
+            raise UnauthorizedError("Refresh token invalid or expired")
+
+        stored.revoked_at = now
         return await self._issue_tokens(user_id)
 
     async def logout(self, user_id: UUID, refresh_token: str | None) -> None:

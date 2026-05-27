@@ -142,6 +142,25 @@ async def test_refresh_revokes_existing_token_and_issues_new_pair():
 
 
 @pytest.mark.asyncio
+async def test_refresh_accepts_naive_utc_expiry_from_database():
+    user_id = uuid4()
+    refresh = create_refresh_token(user_id, "test-jti")
+    stored = RefreshToken(
+        user_id=user_id,
+        token_hash=__import__("hashlib").sha256(refresh.encode()).hexdigest(),
+        expires_at=(datetime.now(timezone.utc) + timedelta(days=1)).replace(tzinfo=None),
+    )
+    session = _Session(results=[stored])
+
+    tokens = await AuthService(session).refresh(refresh)
+
+    assert stored.revoked_at is not None
+    assert stored.revoked_at.tzinfo is not None
+    assert tokens.access_token
+    assert tokens.refresh_token
+
+
+@pytest.mark.asyncio
 async def test_forgot_password_creates_reset_token_and_sends_calm_email(monkeypatch):
     sent = {}
     user = User(id=uuid4(), email="user@example.com", password_hash=hash_password("old-password"), is_active=True)
