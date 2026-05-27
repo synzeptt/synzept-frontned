@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { api, getAccessToken, routeAfterAuth, setTokens, type AuthUser } from "@/lib/api";
+import { api, getAccessToken, getRefreshToken, refreshAccessToken, routeAfterAuth, setTokens, type AuthUser } from "@/lib/api";
 
 type AuthState = {
   user: AuthUser | null;
@@ -14,6 +14,8 @@ type AuthState = {
   refreshUser: () => Promise<void>;
   updateAvatar: (avatarUrl: string | null) => Promise<void>;
 };
+
+let hydratePromise: Promise<void> | null = null;
 
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
@@ -57,17 +59,37 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   hydrate: async () => {
-    if (!getAccessToken()) {
-      set({ isLoading: false, isAuthenticated: false });
-      return;
-    }
-    try {
-      const user = await api.me();
-      set({ user, isAuthenticated: true, isLoading: false });
-    } catch {
-      api.clearTokens();
-      set({ user: null, isAuthenticated: false, isLoading: false });
-    }
+    if (hydratePromise) return hydratePromise;
+
+    hydratePromise = (async () => {
+      set({ isLoading: true });
+
+      const hasAccessToken = Boolean(getAccessToken());
+      const hasRefreshToken = Boolean(getRefreshToken());
+
+      if (!hasAccessToken && !hasRefreshToken) {
+        set({ isLoading: false, isAuthenticated: false });
+        return;
+      }
+
+      try {
+        if (!hasAccessToken) {
+          const refreshed = await refreshAccessToken();
+          if (!refreshed) {
+            set({ user: null, isAuthenticated: false, isLoading: false });
+            return;
+          }
+        }
+        const user = await api.me();
+        set({ user, isAuthenticated: true, isLoading: false });
+      } catch {
+        set({ user: null, isAuthenticated: false, isLoading: false });
+      }
+    })().finally(() => {
+      hydratePromise = null;
+    });
+
+    return hydratePromise;
   },
 
   refreshUser: async () => {

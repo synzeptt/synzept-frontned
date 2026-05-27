@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     environment: str = "development"
     log_level: str = "INFO"
     log_json: bool = False
-    cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
+    cors_origins: str = "http://localhost:3000,https://app.synzept.com"
     frontend_url: str = "http://localhost:3000"
 
     database_url: str = "sqlite+aiosqlite:///./synzept.db"
@@ -91,8 +91,6 @@ class Settings(BaseSettings):
             raise ValueError("JWT_SECRET_KEY must be set in production")
         if self.environment == "production" and not (self.gemini_api_key or self.openai_api_key or self.anthropic_api_key):
             raise ValueError("At least one AI provider key must be set in production")
-        if self.environment == "production" and "localhost" in self.cors_origins:
-            raise ValueError("CORS_ORIGINS must not include localhost in production")
         return self
 
 

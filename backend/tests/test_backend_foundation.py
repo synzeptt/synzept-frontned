@@ -4,8 +4,8 @@ from uuid import uuid4
 import pytest
 from fastapi.testclient import TestClient
 
-from app.core.config import get_settings
-from app.main import app
+from app.core.config import Settings, get_settings
+from app.main import CORS_ORIGINS, app
 from app.schemas.task import TaskUpdate
 from app.tasks.service import TaskService
 
@@ -37,7 +37,25 @@ def test_settings_have_local_development_defaults():
     assert settings.environment == "development"
     assert settings.database_url.startswith(("sqlite+aiosqlite://", "postgresql+asyncpg://"))
     assert "http://localhost:3000" in settings.cors_origin_list
+    assert "https://app.synzept.com" in settings.cors_origin_list
     assert "http://127.0.0.1:3000" in settings.cors_origin_list
+
+
+def test_production_frontend_origin_is_allowed_without_wildcard():
+    settings = Settings(
+        _env_file=None,
+        environment="production",
+        JWT_SECRET_KEY="production-secret",
+        gemini_api_key="gemini-key",
+    )
+
+    assert settings.cors_origin_list == ["http://localhost:3000", "https://app.synzept.com"]
+    assert "*" not in settings.cors_origin_list
+
+
+def test_running_app_cors_origins_are_explicit():
+    assert CORS_ORIGINS == ["http://localhost:3000", "https://app.synzept.com"]
+    assert "*" not in CORS_ORIGINS
 
 
 def test_health_endpoint_returns_foundation_payload():
@@ -56,7 +74,7 @@ def test_health_endpoint_returns_foundation_payload():
 def test_local_frontend_origins_receive_cors_headers():
     client = TestClient(app)
 
-    for origin in ("http://localhost:3000", "http://127.0.0.1:3000"):
+    for origin in CORS_ORIGINS:
         response = client.options(
             "/api/v1/tasks",
             headers={
@@ -72,6 +90,25 @@ def test_local_frontend_origins_receive_cors_headers():
         assert "PATCH" in response.headers["access-control-allow-methods"]
         assert "authorization" in response.headers["access-control-allow-headers"].lower()
         assert "content-type" in response.headers["access-control-allow-headers"].lower()
+
+
+def test_auth_login_preflight_allows_production_frontend():
+    client = TestClient(app)
+
+    response = client.options(
+        "/api/v1/auth/login",
+        headers={
+            "Origin": "https://app.synzept.com",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "content-type,authorization",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "https://app.synzept.com"
+    assert response.headers["access-control-allow-credentials"] == "true"
+    assert "POST" in response.headers["access-control-allow-methods"]
+    assert "content-type" in response.headers["access-control-allow-headers"].lower()
 
 
 def test_task_patch_auth_failures_still_include_cors_headers():

@@ -1,6 +1,8 @@
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
 const TOKEN_KEY = "synzept_access_token";
 const REFRESH_KEY = "synzept_refresh_token";
+const ACCESS_TOKEN_MAX_AGE_SECONDS = 60 * 30;
+const REFRESH_TOKEN_MAX_AGE_SECONDS = 60 * 60 * 24 * 7;
 
 function backendUrl(path: string): string {
   if (!API_BASE) {
@@ -11,22 +13,75 @@ function backendUrl(path: string): string {
 
 export function getAccessToken(): string | null {
   if (typeof window === "undefined") return null;
-  return localStorage.getItem(TOKEN_KEY);
+  return readStoredValue(TOKEN_KEY);
 }
 
-function getRefreshToken(): string | null {
+export function getRefreshToken(): string | null {
   if (typeof window === "undefined") return null;
-  return localStorage.getItem(REFRESH_KEY);
+  return readStoredValue(REFRESH_KEY);
 }
 
 export function setTokens(access: string, refresh: string) {
-  localStorage.setItem(TOKEN_KEY, access);
-  localStorage.setItem(REFRESH_KEY, refresh);
+  writeStoredValue(TOKEN_KEY, access, ACCESS_TOKEN_MAX_AGE_SECONDS);
+  writeStoredValue(REFRESH_KEY, refresh, REFRESH_TOKEN_MAX_AGE_SECONDS);
 }
 
 export function clearTokens() {
-  localStorage.removeItem(TOKEN_KEY);
-  localStorage.removeItem(REFRESH_KEY);
+  removeStoredValue(TOKEN_KEY);
+  removeStoredValue(REFRESH_KEY);
+}
+
+function readStoredValue(key: string): string | null {
+  const localValue = readLocalStorage(key);
+  if (localValue) return localValue;
+  const cookieValue = readCookie(key);
+  if (cookieValue) {
+    writeLocalStorage(key, cookieValue);
+    return cookieValue;
+  }
+  return null;
+}
+
+function writeStoredValue(key: string, value: string, maxAgeSeconds: number) {
+  writeLocalStorage(key, value);
+  writeCookie(key, value, maxAgeSeconds);
+}
+
+function removeStoredValue(key: string) {
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    /* ignore unavailable storage */
+  }
+  document.cookie = `${key}=; Max-Age=0; Path=/; SameSite=Lax; Secure`;
+}
+
+function readLocalStorage(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function writeLocalStorage(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    /* cookie fallback remains available */
+  }
+}
+
+function readCookie(key: string): string | null {
+  const prefix = `${key}=`;
+  const cookie = document.cookie
+    .split("; ")
+    .find((item) => item.startsWith(prefix));
+  return cookie ? decodeURIComponent(cookie.slice(prefix.length)) : null;
+}
+
+function writeCookie(key: string, value: string, maxAgeSeconds: number) {
+  document.cookie = `${key}=${encodeURIComponent(value)}; Max-Age=${maxAgeSeconds}; Path=/; SameSite=Lax; Secure`;
 }
 
 function authHeaders(): Record<string, string> {
@@ -34,7 +89,7 @@ function authHeaders(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-async function refreshAccessToken(): Promise<boolean> {
+export async function refreshAccessToken(): Promise<boolean> {
   const refresh = getRefreshToken();
   if (!refresh) return false;
   try {

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, Brain, CheckCircle2, Layers3, LockKeyhole, NotebookTabs } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
+import { SessionRedirect } from "@/components/auth/session-redirect";
 import { SiteFooter } from "@/components/site-footer";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
@@ -45,6 +46,7 @@ const workflow = [
 export default function Home() {
   return (
     <main className="min-h-screen bg-surface text-stone-950">
+      <SessionRedirect />
       <header className="mx-auto flex w-full max-w-7xl items-center justify-between px-5 py-5 sm:px-8">
         <Link href="/" className="flex items-center gap-3" aria-label="Synzept home">
           <BrandLogo imageClassName="h-9" priority />

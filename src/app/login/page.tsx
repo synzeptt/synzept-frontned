@@ -9,6 +9,7 @@ import { CopyrightLine } from "@/components/copyright-line";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { GoogleSignIn } from "@/components/auth/google-sign-in";
+import { SessionRedirect } from "@/components/auth/session-redirect";
 import { useAuthStore } from "@/stores/auth";
 
 export function AuthEntry({ initialMode = "login" }: { initialMode?: "login" | "signup" }) {
@@ -44,6 +45,7 @@ export function AuthEntry({ initialMode = "login" }: { initialMode?: "login" | "
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-surface px-4 py-10 text-stone-950">
+      <SessionRedirect />
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
