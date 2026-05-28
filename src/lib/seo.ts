@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 export const SITE_NAME = "Synzept";
 export const SITE_DESCRIPTION = "Synzept is a continuity-first AI workspace for ongoing life and work.";
+export const SITE_URL = "https://synzept.com";
 export const SITE_KEYWORDS = [
   "continuity-first AI workspace",
   "memory-powered organization",
@@ -19,12 +20,7 @@ export const SOCIAL_PROFILES = [
 ] as const;
 
 export function getSiteUrl() {
-  const candidate = process.env.NEXT_PUBLIC_SITE_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
-  try {
-    return new URL(candidate).toString().replace(/\/$/, "");
-  } catch {
-    return "http://localhost:3000";
-  }
+  return SITE_URL;
 }
 
 export function absoluteUrl(path: string) {
