@@ -75,7 +75,10 @@ export default function SettingsPage() {
   };
 
   useEffect(() => {
-    api.listMemories().then(setMemories).catch(() => undefined);
+    api.listMemories().then((items) => {
+      setMemories(items);
+      void api.trackEvent("memory_reviewed", "settings", { count: items.length });
+    }).catch(() => undefined);
     api.getUsefulnessMetrics().then(setMetrics).catch(() => undefined);
   }, []);
 
@@ -94,16 +97,19 @@ export default function SettingsPage() {
     if (key === "personalization_enabled") setPersonalizationEnabled(value);
     if (key === "analytics_enabled") setAnalyticsEnabled(value);
     await api.updatePreferences({ [key]: value });
+    void api.trackEvent("trust_preference_changed", "settings", { key, value });
   };
 
   const updateMemory = async (memory: Memory, content: string) => {
     const updated = await api.updateMemory(memory.id, { content });
     setMemories((items) => items.map((item) => (item.id === memory.id ? updated : item)));
+    void api.trackEvent("memory_edited", "settings", { memory_id: memory.id, category: memory.category });
   };
 
   const removeMemory = async (id: string) => {
     await api.deleteMemory(id);
     setMemories((items) => items.filter((item) => item.id !== id));
+    void api.trackEvent("memory_removed", "settings", { memory_id: id });
   };
 
   const createInvite = async () => {
@@ -152,11 +158,11 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="h-[100dvh] overflow-y-auto">
+    <div className="h-full overflow-y-auto">
       <PageHeader label="Preferences" title="Settings" />
 
-      <div className="mx-auto max-w-3xl px-6 py-2 md:px-8">
-        <section className="rounded-2xl border border-border bg-surface-raised/40 px-5">
+      <div className="mx-auto max-w-3xl px-4 py-2 md:px-8">
+        <section className="rounded-lg border border-border bg-surface-raised/40 px-4 sm:px-5">
           <div className="flex flex-col gap-4 border-b border-border py-5 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex min-w-0 items-center gap-4">
               <Avatar name={user?.display_name} email={user?.email} src={user?.avatar_url} size="lg" />
@@ -272,7 +278,7 @@ export default function SettingsPage() {
 
         </section>
 
-        <section className="mt-6 rounded-2xl border border-border bg-surface-raised/40 px-5">
+        <section className="mt-6 rounded-lg border border-border bg-surface-raised/40 px-4 sm:px-5">
           <SettingRow label="Launch access" description="Create single-use invites for controlled early usage">
             <Button variant="outline" size="sm" onClick={createInvite}>
               Create invite
@@ -309,7 +315,7 @@ export default function SettingsPage() {
           )}
         </section>
 
-        <section className="mt-6 rounded-2xl border border-border bg-surface-raised/40 px-5">
+        <section className="mt-6 rounded-lg border border-border bg-surface-raised/40 px-4 sm:px-5">
           <SettingRow label="Memory control" description="Edit or remove context that Synzept should not rely on">
             <span className="text-xs text-muted">{memories.length} memories</span>
           </SettingRow>
@@ -321,7 +327,7 @@ export default function SettingsPage() {
           </div>
         </section>
 
-        <section className="mt-6 rounded-2xl border border-border bg-surface-raised/40 px-5">
+        <section className="mt-6 rounded-lg border border-border bg-surface-raised/40 px-4 sm:px-5">
           <SettingRow label="Support and FAQ" description="Quick recovery guidance for early users">
             <span className="text-xs text-muted">Private feedback group: Discord / early user circle</span>
           </SettingRow>
@@ -348,7 +354,7 @@ export default function SettingsPage() {
           </Button>
         </div>
 
-        <section className="mt-6 rounded-2xl border border-border bg-surface-raised/40 px-5">
+        <section className="mt-6 rounded-lg border border-border bg-surface-raised/40 px-4 sm:px-5">
           <SettingRow
             label="Delete account"
             description="Permanently remove your profile, conversations, projects, tasks, notes, memories, and related workspace data."

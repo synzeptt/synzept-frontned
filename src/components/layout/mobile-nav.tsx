@@ -2,33 +2,36 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, MessageSquare, FolderKanban, ListTodo } from "lucide-react";
+import { Brain, FolderKanban, LayoutDashboard, MessageSquare, NotebookText } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 const links = [
-  { href: "/dashboard", icon: LayoutDashboard },
-  { href: "/chat", icon: MessageSquare },
-  { href: "/projects", icon: FolderKanban },
-  { href: "/tasks", icon: ListTodo },
+  { href: "/dashboard", label: "Home", icon: LayoutDashboard },
+  { href: "/projects", label: "Projects", icon: FolderKanban },
+  { href: "/chat", label: "AI", icon: MessageSquare },
+  { href: "/notes", label: "Notes", icon: NotebookText },
+  { href: "/settings", label: "Memory", icon: Brain },
 ];
 
 export function MobileNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 flex border-t border-border bg-surface-raised/95 px-2 py-2 backdrop-blur-md md:hidden">
-      {links.map(({ href, icon: Icon }) => {
+    <nav className="fixed bottom-0 left-0 right-0 z-40 grid grid-cols-5 border-t border-border bg-surface-raised/95 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-md md:hidden">
+      {links.map(({ href, label, icon: Icon }) => {
         const active = pathname === href || pathname.startsWith(`${href}/`);
         return (
           <Link
             key={href}
             href={href}
             className={cn(
-              "flex flex-1 items-center justify-center rounded-xl py-2.5 transition",
-              active ? "text-accent" : "text-muted",
+              "flex min-h-12 flex-col items-center justify-center gap-1 rounded-md px-1 text-[10px] font-medium transition",
+              active ? "bg-stone-100 text-stone-950" : "text-muted hover:bg-stone-50 hover:text-stone-800",
             )}
+            aria-label={label}
           >
             <Icon className="h-5 w-5" />
+            <span className="truncate">{label}</span>
           </Link>
         );
       })}

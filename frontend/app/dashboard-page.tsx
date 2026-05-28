@@ -81,7 +81,7 @@ export function DashboardPage() {
         ) : (
           <>
             <section className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.55fr)]">
-              <ContinuitySection items={continuityItems} />
+              <ContinuitySection items={continuityItems} returningUser={dashboard?.returning_user} />
               <div className="space-y-5">
                 <MemoryContextPanel
                   memories={dashboard?.memories || []}
@@ -149,18 +149,41 @@ function DashboardSkeleton() {
   );
 }
 
-function ContinuitySection({ items }: { items: ContinuityCard[] }) {
+function ContinuitySection({ items, returningUser }: { items: ContinuityCard[]; returningUser?: Dashboard["returning_user"] }) {
   const lead = items[0];
   const supporting = items.slice(1, 5);
+  const returnLine = returningUser?.summary || returningUser?.prompt;
 
   return (
     <SectionShell
       icon={<Clock3 className="h-4 w-4" />}
       title="Continue where you left off"
-      description="The fastest path back into recent projects, active conversations, remembered context, and open loops."
+      description={returnLine || "The fastest path back into recent projects, active conversations, remembered context, and open loops."}
       actionHref={lead?.href}
       actionLabel={lead ? "Resume" : undefined}
     >
+      {returningUser?.is_returning && (
+        <div className="mb-3 rounded-lg border border-accent/20 bg-accent-muted/10 p-4">
+          <p className="text-xs font-medium uppercase text-accent-foreground">Welcome back</p>
+          <p className="mt-2 text-sm leading-6 text-stone-800">
+            {returningUser.prompt ||
+              `You were here ${returningUser.days_since_last_seen ?? "recently"}. Synzept kept your recent context ready.`}
+          </p>
+          {!!returningUser.signals?.length && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {returningUser.signals.slice(0, 3).map((signal) => (
+                <Link
+                  key={`${signal.type}-${signal.label}`}
+                  href={signal.href || "/dashboard"}
+                  className="rounded-md border border-accent/20 bg-white px-2.5 py-1.5 text-xs text-stone-700 transition hover:bg-stone-50"
+                >
+                  {signal.label}
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
       {lead ? (
         <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(260px,0.7fr)]">
           <Link href={lead.href} onClick={() => trackContinuationOpen(lead, "lead")} className="group rounded-lg border border-stone-200 bg-stone-50/80 p-5 transition hover:border-stone-300 hover:bg-white">
@@ -171,7 +194,7 @@ function ContinuitySection({ items }: { items: ContinuityCard[] }) {
             <h2 className="mt-4 text-xl font-semibold leading-7 text-stone-950">{lead.title}</h2>
             <p className="mt-3 line-clamp-4 text-sm leading-6 text-muted-foreground">{lead.description}</p>
             {lead.reason && <p className="mt-3 text-xs text-stone-500">{lead.reason}</p>}
-            <p className="mt-5 text-sm font-medium text-stone-900">{lead.action_label || "Continue"}</p>
+            <p className="mt-5 text-sm font-medium text-stone-900">{lead.action_label || "Continue now"}</p>
           </Link>
           <div className="space-y-2">
             {supporting.map((item) => (
@@ -186,9 +209,9 @@ function ContinuitySection({ items }: { items: ContinuityCard[] }) {
             text="Add a project, task, note, or conversation. Synzept will turn that into a daily place to resume without reconstructing the whole story."
           />
           <div className="grid gap-2 md:grid-cols-3">
-            <Link href="/projects" className="rounded-md border border-stone-200 bg-stone-50 px-3 py-3 text-sm text-stone-700 transition hover:bg-white">Create a project</Link>
-            <Link href="/tasks" className="rounded-md border border-stone-200 bg-stone-50 px-3 py-3 text-sm text-stone-700 transition hover:bg-white">Add one next action</Link>
-            <Link href="/chat" className="rounded-md border border-stone-200 bg-stone-50 px-3 py-3 text-sm text-stone-700 transition hover:bg-white">Start a thread</Link>
+            <Link href="/projects" onClick={() => api.trackEvent("restore_point_intent", "dashboard", { target: "project" })} className="rounded-md border border-stone-200 bg-stone-50 px-3 py-3 text-sm text-stone-700 transition hover:bg-white">Create a project</Link>
+            <Link href="/tasks" onClick={() => api.trackEvent("restore_point_intent", "dashboard", { target: "task" })} className="rounded-md border border-stone-200 bg-stone-50 px-3 py-3 text-sm text-stone-700 transition hover:bg-white">Add one next action</Link>
+            <Link href="/chat" onClick={() => api.trackEvent("restore_point_intent", "dashboard", { target: "chat" })} className="rounded-md border border-stone-200 bg-stone-50 px-3 py-3 text-sm text-stone-700 transition hover:bg-white">Start a thread</Link>
           </div>
         </div>
       )}

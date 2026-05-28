@@ -8,6 +8,7 @@ import { Brain, FolderKanban, Menu, MessageSquare, PanelsTopLeft, X } from "luci
 import { BrandLogo } from "@/components/brand-logo";
 import { CopyrightLine } from "@/components/copyright-line";
 import { FeedbackButton } from "@/components/feedback/feedback-button";
+import { MobileNav } from "@/components/layout/mobile-nav";
 import { UsageTracker } from "@/components/analytics/usage-tracker";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar } from "@/components/ui/avatar";
@@ -148,10 +149,11 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
             </button>
             <BrandLogo className="ml-2" imageClassName="h-7" />
           </header>
-          <main className="min-h-0 flex-1 overflow-hidden">{children}</main>
+          <main className="min-h-0 flex-1 overflow-hidden pb-[74px] md:pb-0">{children}</main>
         </div>
       </div>
       <UsageTracker />
+      <MobileNav />
       <FeedbackButton />
     </div>
   );

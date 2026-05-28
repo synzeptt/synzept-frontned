@@ -56,7 +56,12 @@ export function TasksPage() {
     if (!title.trim()) return;
     setError(null);
     try {
-      await api.createTask({ title: title.trim(), priority, project_id: projectId || undefined });
+      const task = await api.createTask({ title: title.trim(), priority, project_id: projectId || undefined });
+      void api.trackEvent("task_created", "tasks", {
+        task_id: task.id,
+        priority,
+        project_id: projectId || null,
+      });
       setTitle("");
       setProjectId("");
       load();
@@ -72,6 +77,10 @@ export function TasksPage() {
     setTasks((current) => current.map((item) => (item.id === task.id ? { ...item, status: nextStatus } : item)));
     try {
       const updated = await api.updateTask(task.id, { status: nextStatus });
+      void api.trackEvent(nextStatus === "completed" ? "task_completed" : "task_reopened", "tasks", {
+        task_id: task.id,
+        project_id: task.project_id,
+      });
       setTasks((current) => current.map((item) => (item.id === task.id ? updated : item)));
     } catch {
       setTasks(previousTasks);

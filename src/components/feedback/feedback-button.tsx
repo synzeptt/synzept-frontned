@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { MessageSquarePlus, Send, X } from "lucide-react";
+import { Loader2, MessageSquarePlus, Send, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
@@ -11,17 +11,28 @@ export function FeedbackButton() {
   const [type, setType] = useState<"issue" | "suggestion" | "memory_issue" | "support">("issue");
   const [message, setMessage] = useState("");
   const [done, setDone] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (!message.trim()) return;
-    await api.sendFeedback({ feedback_type: type, message });
-    setMessage("");
-    setDone(true);
-    setTimeout(() => {
-      setDone(false);
-      setOpen(false);
-    }, 1200);
+    setSending(true);
+    setError(null);
+    try {
+      await api.sendFeedback({ feedback_type: type, message });
+      void api.trackEvent("feedback_submitted", "feedback", { feedback_type: type });
+      setMessage("");
+      setDone(true);
+      setTimeout(() => {
+        setDone(false);
+        setOpen(false);
+      }, 1200);
+    } catch {
+      setError("Feedback could not send. Keep this open and try again in a moment.");
+    } finally {
+      setSending(false);
+    }
   };
 
   return (
@@ -64,8 +75,9 @@ export function FeedbackButton() {
               placeholder="What should we know?"
               className="min-h-24"
             />
-            <Button type="submit" className="mt-3 w-full" disabled={!message.trim()}>
-              <Send className="mr-1.5 h-4 w-4" />
+            {error && <p className="mt-2 rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p>}
+            <Button type="submit" className="mt-3 w-full" disabled={!message.trim() || sending}>
+              {sending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Send className="mr-1.5 h-4 w-4" />}
               {done ? "Sent" : "Send"}
             </Button>
           </form>
@@ -74,4 +86,3 @@ export function FeedbackButton() {
     </>
   );
 }
-

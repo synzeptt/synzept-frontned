@@ -58,6 +58,11 @@ export function NotesPage() {
         content: content.trim(),
         project_id: projectId || undefined,
       });
+      void api.trackEvent("note_created", "notes", {
+        note_id: note.id,
+        project_id: projectId || null,
+        has_title: Boolean(title.trim()),
+      });
       setTitle("");
       setContent("");
       setProjectId("");
@@ -81,6 +86,10 @@ export function NotesPage() {
       const note = await api.updateNote(selected.id, {
         title: editTitle.trim() || null,
         content: editContent.trim(),
+      });
+      void api.trackEvent("note_updated", "notes", {
+        note_id: note.id,
+        project_id: note.project_id,
       });
       setSelected(note);
       load();

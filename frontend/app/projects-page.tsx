@@ -40,7 +40,11 @@ export function ProjectsPage() {
     if (!name.trim()) return;
     setError(null);
     try {
-      await api.createProject({ name: name.trim(), description: description.trim() || undefined });
+      const project = await api.createProject({ name: name.trim(), description: description.trim() || undefined });
+      void api.trackEvent("project_created", "projects", {
+        project_id: project.id,
+        has_description: Boolean(description.trim()),
+      });
       setName("");
       setDescription("");
       load();

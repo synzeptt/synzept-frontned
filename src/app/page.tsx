@@ -65,7 +65,7 @@ export default function Home() {
       </header>
 
       <section className="border-y border-border bg-gradient-to-b from-white to-surface">
-        <div className="mx-auto grid min-h-[calc(100vh-80px)] max-w-7xl items-center gap-12 px-5 py-16 sm:px-8 lg:min-h-[700px] lg:grid-cols-[0.95fr_1.05fr]">
+        <div className="mx-auto grid max-w-7xl items-center gap-10 px-5 pb-12 pt-10 sm:px-8 md:pt-16 lg:min-h-[calc(100vh-112px)] lg:grid-cols-[0.95fr_1.05fr] lg:pb-16">
           <div>
             <p className="mb-5 inline-flex rounded-full border border-border bg-white px-3 py-1 text-sm text-muted-foreground shadow-soft">
               AI workspace with memory
@@ -77,6 +77,13 @@ export default function Home() {
               Synzept keeps memory, projects, notes, and AI conversations connected so every return feels like continuing,
               not starting over.
             </p>
+            <div className="mt-6 grid gap-2 text-sm text-stone-700 sm:grid-cols-3">
+              {["Continue yesterday's thread", "See recent focus", "Carry context forward"].map((item) => (
+                <div key={item} className="rounded-md border border-border bg-white px-3 py-2 shadow-soft">
+                  {item}
+                </div>
+              ))}
+            </div>
             <div className="mt-9 flex flex-col gap-3 sm:flex-row">
               <Link href="/signup" className={cn(buttonVariants({ size: "lg" }), "gap-2")}>
                 Start with Synzept <ArrowRight className="h-4 w-4" />
@@ -87,7 +94,7 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="hidden lg:block">
+          <div>
             <div className="rounded-xl border border-border bg-white p-5 shadow-panel">
               <div className="mb-5 flex items-center justify-between border-b border-border pb-4">
                 <div>
@@ -98,8 +105,8 @@ export default function Home() {
                   Context saved
                 </div>
               </div>
-              <div className="grid grid-cols-5 gap-4">
-                <div className="col-span-2 space-y-3">
+              <div className="grid gap-4 sm:grid-cols-5">
+                <div className="space-y-3 sm:col-span-2">
                   {["Roadmap", "Onboarding", "Memory quality", "Daily review"].map((item) => (
                     <div key={item} className="rounded-lg border border-border bg-stone-50 p-3">
                       <p className="text-sm font-medium">{item}</p>
@@ -107,11 +114,11 @@ export default function Home() {
                     </div>
                   ))}
                 </div>
-                <div className="col-span-3 rounded-lg border border-border bg-stone-50 p-4">
+                <div className="rounded-lg border border-border bg-stone-50 p-4 sm:col-span-3">
                   <p className="text-sm font-semibold">Resume thread</p>
                   <p className="mt-3 text-sm leading-6 text-stone-600">
-                    Continue the Synzept V1 refinement plan. Focus on trust, memory relevance, and dashboard clarity
-                    before adding new scope.
+                    You were exploring onboarding ideas yesterday. Continue the Synzept V1 refinement plan with trust,
+                    memory relevance, and dashboard clarity in view.
                   </p>
                   <div className="mt-5 space-y-2">
                     {["Finish database readiness", "Retest signup flow", "Review memory retrieval"].map((item) => (
@@ -125,7 +132,7 @@ export default function Home() {
               </div>
               <div className="mt-4 rounded-lg border border-border bg-white p-4">
                 <p className="text-xs uppercase tracking-[0.18em] text-muted">Memory</p>
-                <div className="mt-3 grid grid-cols-2 gap-2">
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
                   {[
                     "Prefers concise next steps",
                     "Build intentionally",

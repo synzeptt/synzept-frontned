@@ -114,6 +114,11 @@ export default function OnboardingPage() {
   const preview = finalPreview || status?.dashboard_preview || emptyPreview;
   const completed = useMemo(() => new Set(status?.completed_steps || []), [status]);
 
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    api.trackEvent("onboarding_step_viewed", "onboarding", { step, active_index: activeIndex });
+  }, [activeIndex, isAuthenticated, step]);
+
   const runStep = useCallback(async (fn: () => Promise<void>) => {
     setError(null);
     setBusy(true);
@@ -156,6 +161,12 @@ export default function OnboardingPage() {
         communication_style: commStyle,
       });
       setStatus(next);
+      void api.trackEvent("onboarding_context_saved", "onboarding", {
+        goals: goals.length,
+        priorities: priorities.length,
+        communication_style: commStyle,
+        work_type: workType || null,
+      });
       await refreshUser();
       setStep("workspace");
     });
@@ -172,6 +183,12 @@ export default function OnboardingPage() {
         first_note: firstNote.trim() || undefined,
       });
       setStatus(next);
+      void api.trackEvent("onboarding_workspace_saved", "onboarding", {
+        skipped: skip,
+        has_project_name: Boolean(projectName.trim() || goals[0]),
+        has_first_task: Boolean(firstTask.trim() || priorities[0]),
+        has_first_note: Boolean(firstNote.trim()),
+      });
       setStep("memory");
       const memoryStatus = await api.onboardingInitializeMemories();
       setStatus(memoryStatus);
@@ -181,6 +198,7 @@ export default function OnboardingPage() {
     runStep(async () => {
       const result = await api.onboardingFirstChat({ use_suggested_prompt: true });
       setAiReply(result.reply);
+      void api.trackEvent("onboarding_first_ai_interaction", "onboarding", { success: true });
       const next = await api.getOnboardingStatus();
       setStatus(next);
       setStep("first_chat");
@@ -191,6 +209,10 @@ export default function OnboardingPage() {
       const result = await api.onboardingComplete();
       setWelcomeMsg(result.welcome_message);
       setFinalPreview(result.dashboard_preview);
+      void api.trackEvent("onboarding_completed", "onboarding", {
+        tasks_created: result.tasks_created,
+        memories_created: result.memories_created,
+      });
       await refreshUser();
       setStep("dashboard");
     });
@@ -199,6 +221,7 @@ export default function OnboardingPage() {
     runStep(async () => {
       const result = await api.onboardingSkip();
       setWelcomeMsg(result.welcome_message);
+      void api.trackEvent("onboarding_skipped", "onboarding", { step });
       await refreshUser();
       router.replace("/dashboard");
     });
@@ -213,14 +236,14 @@ export default function OnboardingPage() {
 
   return (
     <main className="min-h-screen bg-surface text-stone-950">
-      <div className="mx-auto grid min-h-screen max-w-6xl gap-8 px-4 py-6 md:grid-cols-[260px_1fr] md:px-8 lg:px-10">
+      <div className="mx-auto grid min-h-screen max-w-6xl gap-6 px-4 py-5 md:grid-cols-[260px_1fr] md:gap-8 md:px-8 lg:px-10">
         <aside className="flex flex-col justify-between border-border md:border-r md:py-6 md:pr-7">
           <div>
-            <div className="mb-8">
+            <div className="mb-5 md:mb-8">
               <BrandLogo imageClassName="h-9" />
-              <p className="mt-2 text-xs text-muted-foreground">Setup in 2 to 4 minutes</p>
+              <p className="mt-2 text-xs text-muted-foreground">A few choices, then a workspace that remembers.</p>
             </div>
-            <div className="space-y-2">
+            <div className="grid grid-cols-3 gap-2 md:block md:space-y-2">
               {STEPS.map((item, index) => {
                 const isActive = item.id === step;
                 const isDone = completed.has(item.id) || activeIndex > index;
@@ -232,7 +255,7 @@ export default function OnboardingPage() {
                     }`}
                   >
                     {isDone ? <CheckCircle2 className="h-4 w-4 text-accent" /> : <Circle className="h-4 w-4" />}
-                    {item.label}
+                    <span className="truncate text-[11px] sm:text-sm">{item.label}</span>
                   </div>
                 );
               })}
@@ -250,7 +273,7 @@ export default function OnboardingPage() {
           </div>
         </aside>
 
-        <section className="flex min-h-[720px] flex-col py-4 md:py-8">
+        <section className="flex min-h-[640px] flex-col py-2 md:min-h-[720px] md:py-8">
           <div className="mb-6 h-1 overflow-hidden rounded-full bg-stone-100">
             <div className="h-full bg-accent transition-all" style={{ width: `${((activeIndex + 1) / STEPS.length) * 100}%` }} />
           </div>
@@ -262,9 +285,9 @@ export default function OnboardingPage() {
               <StepShell key="welcome">
                 <div>
                   <p className="mb-3 text-sm text-accent">Welcome</p>
-                  <h1 className="max-w-2xl text-3xl font-semibold md:text-5xl">A calm workspace for continuity.</h1>
+                  <h1 className="max-w-2xl text-3xl font-semibold md:text-5xl">Start with what should not get lost.</h1>
                   <p className="mt-5 max-w-2xl text-base leading-7 text-stone-600">
-                    Synzept helps organize ongoing work, useful memory, and daily focus in one place so you can return without rebuilding context.
+                    Synzept turns your active work, preferences, and first thread into a place you can return to without rebuilding context.
                   </p>
                 </div>
                 <div className="grid gap-3 md:grid-cols-3">
@@ -281,7 +304,10 @@ export default function OnboardingPage() {
                       <button
                         key={item}
                         type="button"
-                        onClick={() => setWorkType(item)}
+                        onClick={() => {
+                          setWorkType(item);
+                          if (!goals.length) setGoals([item]);
+                        }}
                         className={`rounded-md border px-3 py-3 text-left text-sm transition ${
                           workType === item ? "border-accent/40 bg-accent-muted text-stone-950" : "border-border bg-white text-stone-600 hover:bg-stone-50"
                         }`}
@@ -294,7 +320,7 @@ export default function OnboardingPage() {
                 <div className="flex flex-col gap-3 sm:flex-row">
                   <Button onClick={onWelcomeNext} disabled={busy}>
                     {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    Begin setup
+                    Build my workspace
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>
                   <Button variant="ghost" onClick={onSkipToDashboard} disabled={busy}>
@@ -511,7 +537,8 @@ function StepShell({ children }: { children: ReactNode }) {
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -10 }}
-      className="flex flex-1 flex-col justify-center gap-8"
+      transition={{ duration: 0.2, ease: "easeOut" }}
+      className="flex flex-1 flex-col justify-center gap-7 md:gap-8"
     >
       {children}
     </motion.div>

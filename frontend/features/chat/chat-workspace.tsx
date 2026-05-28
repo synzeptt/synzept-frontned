@@ -154,6 +154,11 @@ export function ChatWorkspace() {
       localStorage.removeItem(CHAT_DRAFT_KEY);
       setLastUserMessage(text);
       appendMessage({ role: "user", content: text });
+      void api.trackEvent("chat_message_sent", "chat", {
+        conversation_id: activeConversationId,
+        project_id: activeProjectId,
+        message_length: text.length,
+      });
     }
     appendMessage({ role: "assistant", content: "" });
     pendingAssistantRef.current = "";
@@ -186,6 +191,10 @@ export function ChatWorkspace() {
         updateLastAssistant(result.reply);
       }
       void loadConversations(true);
+      void api.trackEvent("chat_response_completed", "chat", {
+        conversation_id: activeConversationId,
+        project_id: activeProjectId,
+      });
     } catch (err) {
       const aborted = err instanceof DOMException && err.name === "AbortError";
       setError(aborted ? "Response stopped. You can continue from here." : err instanceof Error ? err.message : "Could not reach Synzept.");
