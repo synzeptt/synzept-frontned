@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { createRootMetadata } from "@/lib/seo";
+import { GoogleAnalytics } from "@/components/analytics/google-analytics";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 
 export const metadata: Metadata = createRootMetadata();
@@ -26,6 +27,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body className="min-h-screen bg-surface antialiased">
+        <GoogleAnalytics />
         <ThemeProvider>{children}</ThemeProvider>
       </body>
     </html>
