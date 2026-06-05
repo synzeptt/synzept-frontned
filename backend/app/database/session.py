@@ -39,6 +39,7 @@ async def initialize_local_database() -> None:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         await conn.run_sync(_ensure_local_knows_you_schema)
+        await conn.run_sync(_ensure_local_project_intelligence_phase2_schema)
 
 def _ensure_local_knows_you_schema(connection) -> None:
     """Add Phase 1 Synzept Knows You columns to existing SQLite databases."""
@@ -50,3 +51,11 @@ def _ensure_local_knows_you_schema(connection) -> None:
     suggestion_columns = {row[1] for row in connection.exec_driver_sql("PRAGMA table_info(learning_suggestions)")}
     if suggestion_columns and "updated_at" not in suggestion_columns:
         connection.exec_driver_sql("ALTER TABLE learning_suggestions ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP")
+
+def _ensure_local_project_intelligence_phase2_schema(connection) -> None:
+    """Add Phase 2 Project Intelligence columns to existing SQLite databases."""
+    project_columns = {row[1] for row in connection.exec_driver_sql("PRAGMA table_info(projects)")}
+    if project_columns and "current_focus" not in project_columns:
+        connection.exec_driver_sql("ALTER TABLE projects ADD COLUMN current_focus TEXT NOT NULL DEFAULT ''")
+    if project_columns and "recommended_next_step" not in project_columns:
+        connection.exec_driver_sql("ALTER TABLE projects ADD COLUMN recommended_next_step TEXT NOT NULL DEFAULT ''")

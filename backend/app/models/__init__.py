@@ -10,6 +10,7 @@ from app.models.message import Message
 from app.models.note import Note
 from app.models.project import Project
 from app.models.project_context import ProjectContext
+from app.models.project_intelligence_phase2 import Decision, OpenLoop
 from app.models.refresh_token import RefreshToken
 from app.models.password_reset_token import PasswordResetToken
 from app.models.task import Task
@@ -35,6 +36,8 @@ __all__ = [
     "InviteCode",
     "Project",
     "ProjectContext",
+    "OpenLoop",
+    "Decision",
     "Note",
     "Task",
     "DailySummary",

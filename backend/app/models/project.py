@@ -15,6 +15,8 @@ class Project(Base, TimestampMixin, SoftDeleteMixin):
     user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    current_focus: Mapped[str] = mapped_column(Text, default="")
+    recommended_next_step: Mapped[str] = mapped_column(Text, default="")
     status: Mapped[str] = mapped_column(String(50), default="active", index=True)
     context_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
 

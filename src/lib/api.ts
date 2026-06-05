@@ -108,7 +108,7 @@ export async function refreshAccessToken(): Promise<boolean> {
   }
 }
 
-async function request<T>(path: string, options?: RequestInit, retry = true): Promise<T> {
+export async function request<T>(path: string, options?: RequestInit, retry = true): Promise<T> {
   if (typeof navigator !== "undefined" && !navigator.onLine) {
     throw new Error("You appear to be offline. Your work is still here; reconnect and try again.");
   }
@@ -176,11 +176,36 @@ export type Note = {
 
 export type Project = {
   id: string;
+  userId?: string;
   name: string;
-  description: string | null;
-  status: string;
-  context_summary: string | null;
-  created_at: string;
+  description: string;
+  currentFocus: string;
+  recommendedNextStep: string;
+  status: "active" | "paused" | "completed" | "archived" | string;
+  context_summary?: string | null;
+  created_at?: string;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type OpenLoop = {
+  id: string;
+  projectId: string;
+  title: string;
+  description: string;
+  status: "open" | "completed" | "archived";
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type Decision = {
+  id: string;
+  projectId: string;
+  title: string;
+  description: string;
+  status: "pending" | "decided";
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type ProjectContext = {
@@ -677,18 +702,43 @@ export const api = {
   deleteNote: (id: string) =>
     request<{ ok: boolean }>(`/api/v1/notes/${id}`, { method: "DELETE" }),
 
-  listProjects: () => request<Project[]>("/api/v1/projects"),
+  listProjects: () => request<Project[]>("/api/projects"),
 
-  createProject: (data: { name: string; description?: string }) =>
-    request<Project>("/api/v1/projects", { method: "POST", body: JSON.stringify(data) }),
+  createProject: (data: { name: string; description?: string; currentFocus?: string; recommendedNextStep?: string; status?: string }) =>
+    request<Project>("/api/projects", { method: "POST", body: JSON.stringify(data) }),
 
-  getProject: (id: string) => request<Project>(`/api/v1/projects/${id}`),
+  getProject: (id: string) => request<Project>(`/api/projects/${id}`),
 
-  updateProject: (id: string, data: Partial<Pick<Project, "name" | "description" | "status" | "context_summary">>) =>
-    request<Project>(`/api/v1/projects/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+  updateProject: (id: string, data: Partial<Pick<Project, "name" | "description" | "currentFocus" | "recommendedNextStep" | "status">>) =>
+    request<Project>(`/api/projects/${id}`, { method: "PUT", body: JSON.stringify(data) }),
 
   archiveProject: (id: string) =>
-    request<Project>(`/api/v1/projects/${id}/archive`, { method: "PATCH" }),
+    request<{ ok: boolean }>(`/api/projects/${id}`, { method: "DELETE" }),
+
+  deleteProject: (id: string) =>
+    request<{ ok: boolean }>(`/api/projects/${id}`, { method: "DELETE" }),
+
+  listOpenLoops: (projectId: string) => request<OpenLoop[]>(`/api/projects/${projectId}/open-loops`),
+
+  createOpenLoop: (projectId: string, data: { title: string; description?: string; status?: OpenLoop["status"] }) =>
+    request<OpenLoop>(`/api/projects/${projectId}/open-loops`, { method: "POST", body: JSON.stringify(data) }),
+
+  updateOpenLoop: (id: string, data: Partial<Pick<OpenLoop, "title" | "description" | "status">>) =>
+    request<OpenLoop>(`/api/open-loops/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+
+  deleteOpenLoop: (id: string) =>
+    request<{ ok: boolean }>(`/api/open-loops/${id}`, { method: "DELETE" }),
+
+  listDecisions: (projectId: string) => request<Decision[]>(`/api/projects/${projectId}/decisions`),
+
+  createDecision: (projectId: string, data: { title: string; description?: string; status?: Decision["status"] }) =>
+    request<Decision>(`/api/projects/${projectId}/decisions`, { method: "POST", body: JSON.stringify(data) }),
+
+  updateDecision: (id: string, data: Partial<Pick<Decision, "title" | "description" | "status">>) =>
+    request<Decision>(`/api/decisions/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+
+  deleteDecision: (id: string) =>
+    request<{ ok: boolean }>(`/api/decisions/${id}`, { method: "DELETE" }),
 
   getProjectContext: (id: string) => request<ProjectContext>(`/api/v1/projects/${id}/context`),
 
