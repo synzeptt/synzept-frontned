@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check, Copy, Moon, Sun, Trash2, X } from "lucide-react";
+import { Check, Copy, Moon, Sun, Trash2, UserRound, X } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -220,6 +220,13 @@ export default function SettingsPage() {
             description="Synzept stores meaningful context you share. You can pause learning, disable personalization, edit memories, or delete memories here."
           >
             <span className="text-xs text-muted">You control your data</span>
+          </SettingRow>
+
+          <SettingRow label="Synzept Knows You" description="View and edit the transparent understanding profile Synzept uses">
+            <Button variant="outline" size="sm" onClick={() => router.push("/knows-you")}>
+              <UserRound className="mr-1.5 h-4 w-4" />
+              Open
+            </Button>
           </SettingRow>
 
           <SettingRow label="Memory" description="Allow Synzept to preserve useful context from conversations">

@@ -38,3 +38,15 @@ async def initialize_local_database() -> None:
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await conn.run_sync(_ensure_local_knows_you_schema)
+
+def _ensure_local_knows_you_schema(connection) -> None:
+    """Add Phase 1 Synzept Knows You columns to existing SQLite databases."""
+    understanding_columns = {row[1] for row in connection.exec_driver_sql("PRAGMA table_info(user_understanding)")}
+    for column in ("personal", "professional", "goals", "preferences", "learning", "current_focus"):
+        if understanding_columns and column not in understanding_columns:
+            connection.exec_driver_sql(f"ALTER TABLE user_understanding ADD COLUMN {column} JSON NOT NULL DEFAULT '{{}}'")
+
+    suggestion_columns = {row[1] for row in connection.exec_driver_sql("PRAGMA table_info(learning_suggestions)")}
+    if suggestion_columns and "updated_at" not in suggestion_columns:
+        connection.exec_driver_sql("ALTER TABLE learning_suggestions ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP")

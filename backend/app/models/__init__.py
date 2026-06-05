@@ -4,6 +4,7 @@ from app.models.daily_summary import DailySummary
 from app.models.embedding import Embedding
 from app.models.feedback import FeedbackItem, MemoryFeedback, UsageEvent
 from app.models.launch import InviteCode, WaitlistEntry
+from app.models.learning import LearningSuggestion
 from app.models.memory import Memory
 from app.models.message import Message
 from app.models.note import Note
@@ -13,11 +14,14 @@ from app.models.refresh_token import RefreshToken
 from app.models.password_reset_token import PasswordResetToken
 from app.models.task import Task
 from app.models.user import User
+from app.models.user_understanding import UserUnderstanding
 from app.models.user_profile import UserProfile
 
 __all__ = [
     "User",
     "UserProfile",
+    "UserUnderstanding",
+    "LearningSuggestion",
     "RefreshToken",
     "PasswordResetToken",
     "Conversation",
