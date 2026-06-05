@@ -1,6 +1,7 @@
 from app.models.ai_interaction import AIInteraction
 from app.models.conversation import Conversation
 from app.models.context_engine_phase6 import ContextSnapshot
+from app.models.continuity_assistant_phase7 import ContinuityAssistantSnapshot
 from app.models.daily_summary import DailySummary
 from app.models.embedding import Embedding
 from app.models.feedback import FeedbackItem, MemoryFeedback, UsageEvent
@@ -31,6 +32,7 @@ __all__ = [
     "PasswordResetToken",
     "Conversation",
     "ContextSnapshot",
+    "ContinuityAssistantSnapshot",
     "Message",
     "Memory",
     "Embedding",

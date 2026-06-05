@@ -288,6 +288,18 @@ export type ContextSnapshot = {
   createdAt: string | null;
   updatedAt: string | null;
 };
+export type ContinuityAssistantSnapshot = {
+  id: string | null;
+  userId: string;
+  contextSnapshotId: string | null;
+  whatChanged: Array<Record<string, unknown>>;
+  whatMatters: Array<Record<string, unknown>>;
+  openLoops: Array<Record<string, unknown>>;
+  recentProgress: Array<Record<string, unknown>>;
+  recommendedNextStep: Record<string, unknown>;
+  createdAt: string | null;
+  updatedAt: string | null;
+};
 export type ProjectContext = {
   project: Project;
   conversations: Conversation[];
@@ -882,6 +894,11 @@ export const api = {
 
   refreshContextEngine: () =>
     request<ContextSnapshot>("/api/context-engine/refresh", { method: "POST" }),
+
+  getContinuityAssistantV2: () => request<ContinuityAssistantSnapshot>("/api/continuity-assistant"),
+
+  refreshContinuityAssistant: () =>
+    request<ContinuityAssistantSnapshot>("/api/continuity-assistant/refresh", { method: "POST" }),
   getProjectContext: (id: string) => request<ProjectContext>(`/api/v1/projects/${id}/context`),
 
   createConversation: (data: { title?: string; project_id?: string }) =>
