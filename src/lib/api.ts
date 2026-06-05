@@ -300,6 +300,19 @@ export type ContinuityAssistantSnapshot = {
   createdAt: string | null;
   updatedAt: string | null;
 };
+export type DailyBriefSnapshot = {
+  id: string | null;
+  userId: string;
+  contextSnapshotId: string | null;
+  briefDate: string;
+  whatMattersToday: Array<Record<string, unknown>>;
+  openLoops: Array<Record<string, unknown>>;
+  recommendedNextStep: Record<string, unknown>;
+  recentProgress: Array<Record<string, unknown>>;
+  contextToRemember: Array<Record<string, unknown>>;
+  createdAt: string | null;
+  updatedAt: string | null;
+};
 export type ProjectContext = {
   project: Project;
   conversations: Conversation[];
@@ -899,6 +912,11 @@ export const api = {
 
   refreshContinuityAssistant: () =>
     request<ContinuityAssistantSnapshot>("/api/continuity-assistant/refresh", { method: "POST" }),
+
+  getDailyBriefV2: () => request<DailyBriefSnapshot>("/api/daily-brief"),
+
+  refreshDailyBriefV2: () =>
+    request<DailyBriefSnapshot>("/api/daily-brief/refresh", { method: "POST" }),
   getProjectContext: (id: string) => request<ProjectContext>(`/api/v1/projects/${id}/context`),
 
   createConversation: (data: { title?: string; project_id?: string }) =>
