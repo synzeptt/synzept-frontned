@@ -277,6 +277,17 @@ export type RelationshipNeighborhood = {
   relatedNodes: RelationshipNode[];
   edges: RelationshipEdge[];
 };
+export type ContextSnapshot = {
+  id: string | null;
+  userId: string;
+  currentFocus: Record<string, unknown>;
+  activeThemes: Array<Record<string, unknown>>;
+  openLoops: Array<Record<string, unknown>>;
+  importantContext: Array<Record<string, unknown>>;
+  recommendedNextStep: Record<string, unknown>;
+  createdAt: string | null;
+  updatedAt: string | null;
+};
 export type ProjectContext = {
   project: Project;
   conversations: Conversation[];
@@ -866,6 +877,11 @@ export const api = {
 
   getRelationshipNeighborhood: (id: string) =>
     request<RelationshipNeighborhood>(`/api/relationship-graph/nodes/${id}`),
+
+  getContextEngine: () => request<ContextSnapshot>("/api/context-engine"),
+
+  refreshContextEngine: () =>
+    request<ContextSnapshot>("/api/context-engine/refresh", { method: "POST" }),
   getProjectContext: (id: string) => request<ProjectContext>(`/api/v1/projects/${id}/context`),
 
   createConversation: (data: { title?: string; project_id?: string }) =>
