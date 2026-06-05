@@ -34,6 +34,7 @@ class User(Base, TimestampMixin, SoftDeleteMixin):
     memories = relationship("Memory", back_populates="user")
     understanding = relationship("UserUnderstanding", back_populates="user", cascade="all, delete-orphan")
     learning_suggestions = relationship("LearningSuggestion", back_populates="user", cascade="all, delete-orphan")
+    timeline_events = relationship("TimelineEvent", back_populates="user", cascade="all, delete-orphan")
     refresh_tokens = relationship("RefreshToken", back_populates="user", cascade="all, delete-orphan")
     password_reset_tokens = relationship("PasswordResetToken", back_populates="user", cascade="all, delete-orphan")
 

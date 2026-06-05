@@ -208,6 +208,18 @@ export type Decision = {
   updatedAt: string;
 };
 
+export type TimelineEvent = {
+  id: string;
+  userId: string;
+  projectId: string | null;
+  eventType: "milestone" | "decision" | "learning" | "achievement" | "progress";
+  title: string;
+  description: string;
+  eventDate: string;
+  importance: number;
+  createdAt: string;
+  updatedAt: string;
+};
 export type ProjectContext = {
   project: Project;
   conversations: Conversation[];
@@ -740,6 +752,24 @@ export const api = {
   deleteDecision: (id: string) =>
     request<{ ok: boolean }>(`/api/decisions/${id}`, { method: "DELETE" }),
 
+  listTimelineEvents: (projectId?: string) =>
+    request<TimelineEvent[]>(`/api/timeline-events${projectId ? `?project_id=${encodeURIComponent(projectId)}` : ""}`),
+
+  createTimelineEvent: (data: {
+    eventType: TimelineEvent["eventType"];
+    title: string;
+    description?: string;
+    eventDate: string;
+    importance?: number;
+    projectId?: string | null;
+  }) =>
+    request<TimelineEvent>("/api/timeline-events", { method: "POST", body: JSON.stringify(data) }),
+
+  updateTimelineEvent: (id: string, data: Partial<Pick<TimelineEvent, "eventType" | "title" | "description" | "eventDate" | "importance" | "projectId">>) =>
+    request<TimelineEvent>(`/api/timeline-events/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+
+  deleteTimelineEvent: (id: string) =>
+    request<{ ok: boolean }>(`/api/timeline-events/${id}`, { method: "DELETE" }),
   getProjectContext: (id: string) => request<ProjectContext>(`/api/v1/projects/${id}/context`),
 
   createConversation: (data: { title?: string; project_id?: string }) =>

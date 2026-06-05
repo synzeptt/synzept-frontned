@@ -14,6 +14,7 @@ from app.models.project_intelligence_phase2 import Decision, OpenLoop
 from app.models.refresh_token import RefreshToken
 from app.models.password_reset_token import PasswordResetToken
 from app.models.task import Task
+from app.models.timeline_event import TimelineEvent
 from app.models.user import User
 from app.models.user_understanding import UserUnderstanding
 from app.models.user_profile import UserProfile
@@ -40,6 +41,7 @@ __all__ = [
     "Decision",
     "Note",
     "Task",
+    "TimelineEvent",
     "DailySummary",
     "AIInteraction",
 ]
