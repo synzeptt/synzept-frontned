@@ -41,6 +41,7 @@ async def initialize_local_database() -> None:
         await conn.run_sync(_ensure_local_knows_you_schema)
         await conn.run_sync(_ensure_local_project_intelligence_phase2_schema)
         await conn.run_sync(_ensure_local_timeline_phase3_schema)
+        await conn.run_sync(_ensure_local_learning_engine_phase4_schema)
 
 def _ensure_local_knows_you_schema(connection) -> None:
     """Add Phase 1 Synzept Knows You columns to existing SQLite databases."""
@@ -67,3 +68,17 @@ def _ensure_local_timeline_phase3_schema(connection) -> None:
     if columns and "project_id" not in columns:
         connection.exec_driver_sql("ALTER TABLE timeline_events ADD COLUMN project_id CHAR(36)")
         connection.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_timeline_events_project_id ON timeline_events (project_id)")
+
+def _ensure_local_learning_engine_phase4_schema(connection) -> None:
+    """Add Phase 4 Learning Engine columns to existing SQLite databases."""
+    columns = {row[1] for row in connection.exec_driver_sql("PRAGMA table_info(learning_observations)")}
+    if columns and "source" not in columns:
+        connection.exec_driver_sql("ALTER TABLE learning_observations ADD COLUMN source VARCHAR(80) NOT NULL DEFAULT 'manual'")
+        connection.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_learning_observations_source ON learning_observations (source)")
+    if columns and "content" not in columns:
+        connection.exec_driver_sql("ALTER TABLE learning_observations ADD COLUMN content TEXT NOT NULL DEFAULT ''")
+    if columns and "status" not in columns:
+        connection.exec_driver_sql("ALTER TABLE learning_observations ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'observed'")
+        connection.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_learning_observations_status ON learning_observations (status)")
+    if columns and "updated_at" not in columns:
+        connection.exec_driver_sql("ALTER TABLE learning_observations ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP")

@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse
 
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.api import knows_you, project_intelligence_phase2, timeline_phase3
+from app.api import knows_you, learning_engine_phase4, project_intelligence_phase2, timeline_phase3
 from app.api.middleware import BodySizeLimitMiddleware, RateLimitMiddleware, SecurityHeadersMiddleware
 from app.api.v1.router import api_router
 from app.core.config import get_settings
@@ -79,6 +79,7 @@ app.include_router(api_router)
 app.include_router(knows_you.router)
 app.include_router(project_intelligence_phase2.router)
 app.include_router(timeline_phase3.router)
+app.include_router(learning_engine_phase4.router)
 
 
 @app.get("/health")

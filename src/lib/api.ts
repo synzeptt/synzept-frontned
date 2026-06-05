@@ -220,6 +220,30 @@ export type TimelineEvent = {
   createdAt: string;
   updatedAt: string;
 };
+export type LearningObservation = {
+  id: string;
+  userId: string;
+  source: string;
+  content: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type LearningSuggestion = {
+  id: string;
+  userId: string;
+  title: string;
+  description: string;
+  status: "pending" | "accepted" | "ignored";
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type LearningEngine = {
+  observations: LearningObservation[];
+  suggestions: LearningSuggestion[];
+};
 export type ProjectContext = {
   project: Project;
   conversations: Conversation[];
@@ -770,6 +794,22 @@ export const api = {
 
   deleteTimelineEvent: (id: string) =>
     request<{ ok: boolean }>(`/api/timeline-events/${id}`, { method: "DELETE" }),
+  getLearningEngine: () => request<LearningEngine>("/api/learning-engine"),
+
+  createLearningObservation: (data: { content: string; source?: string }) =>
+    request<LearningObservation>("/api/learning-engine/observations", { method: "POST", body: JSON.stringify(data) }),
+
+  analyzeLearning: () =>
+    request<{ observationsAnalyzed: number; suggestionsCreated: number; suggestions: LearningSuggestion[] }>("/api/learning-engine/analyze", { method: "POST" }),
+
+  acceptLearningSuggestion: (id: string) =>
+    request<LearningSuggestion>(`/api/learning-suggestions/${id}/accept`, { method: "PUT" }),
+
+  ignoreLearningSuggestion: (id: string) =>
+    request<LearningSuggestion>(`/api/learning-suggestions/${id}/ignore`, { method: "PUT" }),
+
+  editLearningSuggestion: (id: string, data: Partial<Pick<LearningSuggestion, "title" | "description">>) =>
+    request<LearningSuggestion>(`/api/learning-suggestions/${id}/edit`, { method: "PUT", body: JSON.stringify(data) }),
   getProjectContext: (id: string) => request<ProjectContext>(`/api/v1/projects/${id}/context`),
 
   createConversation: (data: { title?: string; project_id?: string }) =>
