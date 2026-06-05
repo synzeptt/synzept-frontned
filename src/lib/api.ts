@@ -244,6 +244,39 @@ export type LearningEngine = {
   observations: LearningObservation[];
   suggestions: LearningSuggestion[];
 };
+export type RelationshipNode = {
+  id: string;
+  userId: string;
+  nodeType: "user" | "goal" | "project" | "memory" | "decision" | "timeline_event";
+  entityId: string | null;
+  title: string;
+  description: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type RelationshipEdge = {
+  id: string;
+  userId: string;
+  sourceNodeId: string;
+  targetNodeId: string;
+  relationshipType: string;
+  reason: string;
+  strength: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type RelationshipGraph = {
+  nodes: RelationshipNode[];
+  edges: RelationshipEdge[];
+};
+
+export type RelationshipNeighborhood = {
+  node: RelationshipNode;
+  relatedNodes: RelationshipNode[];
+  edges: RelationshipEdge[];
+};
 export type ProjectContext = {
   project: Project;
   conversations: Conversation[];
@@ -810,6 +843,29 @@ export const api = {
 
   editLearningSuggestion: (id: string, data: Partial<Pick<LearningSuggestion, "title" | "description">>) =>
     request<LearningSuggestion>(`/api/learning-suggestions/${id}/edit`, { method: "PUT", body: JSON.stringify(data) }),
+
+  getRelationshipGraph: () => request<RelationshipGraph>("/api/relationship-graph"),
+
+  createRelationshipNode: (data: { nodeType: RelationshipNode["nodeType"]; title: string; description?: string; entityId?: string | null }) =>
+    request<RelationshipNode>("/api/relationship-graph/nodes", { method: "POST", body: JSON.stringify(data) }),
+
+  updateRelationshipNode: (id: string, data: Partial<Pick<RelationshipNode, "title" | "description">>) =>
+    request<RelationshipNode>(`/api/relationship-graph/nodes/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+
+  deleteRelationshipNode: (id: string) =>
+    request<{ ok: boolean }>(`/api/relationship-graph/nodes/${id}`, { method: "DELETE" }),
+
+  createRelationshipEdge: (data: { sourceNodeId: string; targetNodeId: string; relationshipType: string; reason?: string; strength?: number }) =>
+    request<RelationshipEdge>("/api/relationship-graph/edges", { method: "POST", body: JSON.stringify(data) }),
+
+  updateRelationshipEdge: (id: string, data: Partial<Pick<RelationshipEdge, "relationshipType" | "reason" | "strength">>) =>
+    request<RelationshipEdge>(`/api/relationship-graph/edges/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+
+  deleteRelationshipEdge: (id: string) =>
+    request<{ ok: boolean }>(`/api/relationship-graph/edges/${id}`, { method: "DELETE" }),
+
+  getRelationshipNeighborhood: (id: string) =>
+    request<RelationshipNeighborhood>(`/api/relationship-graph/nodes/${id}`),
   getProjectContext: (id: string) => request<ProjectContext>(`/api/v1/projects/${id}/context`),
 
   createConversation: (data: { title?: string; project_id?: string }) =>
