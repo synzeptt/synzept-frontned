@@ -1,14 +1,27 @@
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
+const configuredApiBase = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
+const LOCAL_API_BASE = "http://localhost:8000";
+
+function apiBase(): string {
+  if (
+    typeof window !== "undefined" &&
+    /^localhost$|^127\.0\.0\.1$/.test(window.location.hostname) &&
+    (!configuredApiBase || !/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(configuredApiBase))
+  ) {
+    return LOCAL_API_BASE;
+  }
+  return configuredApiBase;
+}
 const TOKEN_KEY = "synzept_access_token";
 const REFRESH_KEY = "synzept_refresh_token";
 const ACCESS_TOKEN_MAX_AGE_SECONDS = 60 * 30;
 const REFRESH_TOKEN_MAX_AGE_SECONDS = 60 * 60 * 24 * 7;
 
 function backendUrl(path: string): string {
-  if (!API_BASE) {
+  const base = apiBase();
+  if (!base) {
     throw new Error("Synzept is missing its backend URL. Set NEXT_PUBLIC_API_URL and redeploy.");
   }
-  return `${API_BASE}${path}`;
+  return `${base}${path}`;
 }
 
 export function getAccessToken(): string | null {
@@ -114,7 +127,8 @@ export async function request<T>(path: string, options?: RequestInit, retry = tr
   }
   let response: Response;
   try {
-    response = await fetch(backendUrl(path), {
+    const url = backendUrl(path);
+    response = await fetch(url, {
       ...options,
       credentials: "include",
       headers: {
@@ -125,6 +139,7 @@ export async function request<T>(path: string, options?: RequestInit, retry = tr
     });
   } catch (err) {
     if (err instanceof Error && err.name === "AbortError") throw err;
+    logRequestFailure(path, err);
     throw new Error("Synzept could not reach the backend. Your workspace is safe; please try again in a moment.");
   }
   if (response.status === 401 && retry) {
@@ -136,11 +151,30 @@ export async function request<T>(path: string, options?: RequestInit, retry = tr
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
     const msg = body.message || body.detail;
+    logAuthFailure(path, response.status, msg);
     throw new Error(typeof msg === "string" ? msg : Array.isArray(msg) ? msg[0]?.msg : "Synzept could not complete that request. Please try again.");
   }
   return response.json();
 }
+function logAuthFailure(path: string, status: number, detail: unknown) {
+  if (typeof console === "undefined" || !path.includes("/auth/")) return;
+  console.error("[Synzept Auth] Request failed", {
+    path,
+    backend: apiBase() || "(missing NEXT_PUBLIC_API_URL)",
+    status,
+    detail: typeof detail === "string" ? detail : Array.isArray(detail) ? detail[0]?.msg : undefined,
+  });
+}
 
+function logRequestFailure(path: string, err: unknown) {
+  if (typeof console === "undefined") return;
+  const message = err instanceof Error ? err.message : String(err);
+  console.error(path.includes("/auth/") ? "[Synzept Auth] Network request failed" : "[Synzept API] Request failed", {
+    path,
+    backend: apiBase() || "(missing NEXT_PUBLIC_API_URL)",
+    message,
+  });
+}
 export type ChatMessage = { role: "user" | "assistant" | "system"; content: string; id?: string };
 
 export type Conversation = {

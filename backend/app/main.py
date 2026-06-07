@@ -29,10 +29,6 @@ from app.database.session import initialize_local_database
 
 settings = get_settings()
 
-CORS_ORIGINS = [
-    "http://localhost:3000",
-    "https://app.synzept.com",
-]
 CORS_METHODS = ["*"]
 CORS_HEADERS = ["*"]
 
@@ -57,7 +53,7 @@ app.add_middleware(BodySizeLimitMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=CORS_ORIGINS,
+    allow_origins=settings.cors_origin_list,
     allow_credentials=True,
     allow_methods=CORS_METHODS,
     allow_headers=CORS_HEADERS,
