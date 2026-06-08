@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { Brain, FolderKanban, Menu, MessageSquare, PanelsTopLeft, X } from "lucide-react";
+import { Brain, CalendarDays, Clock3, FolderKanban, ListTodo, Menu, MessageSquare, NotebookText, PanelsTopLeft, Settings, Sparkles, UserRound, X } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { CopyrightLine } from "@/components/copyright-line";
 import { FeedbackButton } from "@/components/feedback/feedback-button";
@@ -19,8 +19,16 @@ import { useWorkspaceUIStore } from "@frontend/store/workspace-ui";
 const nav = [
   { href: "/dashboard", label: "Workspace", icon: PanelsTopLeft },
   { href: "/projects", label: "Projects", icon: FolderKanban },
-  { href: "/settings", label: "Memory", icon: Brain },
-  { href: "/chat", label: "AI", icon: MessageSquare },
+  { href: "/tasks", label: "Tasks", icon: ListTodo },
+  { href: "/notes", label: "Notes", icon: NotebookText },
+  { href: "/chat", label: "Chat", icon: MessageSquare },
+  { href: "/daily-brief", label: "Daily Brief", icon: CalendarDays },
+  { href: "/continuity-assistant", label: "Continuity Assistant", icon: Sparkles },
+  { href: "/memory", label: "Memory", icon: Brain },
+  { href: "/timeline", label: "Timeline", icon: Clock3 },
+  { href: "/knows-you", label: "Knows You", icon: UserRound },
+  { href: "/learning-engine", label: "Learning Engine", icon: Sparkles },
+  { href: "/settings", label: "Settings", icon: Settings },
 ];
 
 export function WorkspaceShell({ children }: { children: React.ReactNode }) {

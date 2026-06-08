@@ -1,8 +1,8 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Plus } from "lucide-react";
+import { ArrowRight, Plus, Search, Target } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
@@ -18,6 +18,7 @@ export function ProjectsPage() {
   const [description, setDescription] = useState("");
   const [currentFocus, setCurrentFocus] = useState("");
   const [recommendedNextStep, setRecommendedNextStep] = useState("");
+  const [search, setSearch] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const load = () => {
@@ -33,6 +34,28 @@ export function ProjectsPage() {
   useEffect(() => {
     load();
   }, []);
+
+  const activeProjects = useMemo(() => projects.filter((project) => project.status !== "archived" && project.status !== "completed"), [projects]);
+  const projectsWithFocus = useMemo(() => projects.filter((project) => Boolean(project.currentFocus?.trim())), [projects]);
+  const projectsWithNextStep = useMemo(() => projects.filter((project) => Boolean(project.recommendedNextStep?.trim())), [projects]);
+  const needsContinuity = useMemo(
+    () => activeProjects.filter((project) => !project.currentFocus?.trim() || !project.recommendedNextStep?.trim()),
+    [activeProjects],
+  );
+  const visibleProjects = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    const sorted = projects.slice().sort((a, b) => {
+      const aReady = Number(Boolean(a.currentFocus?.trim()) && Boolean(a.recommendedNextStep?.trim()));
+      const bReady = Number(Boolean(b.currentFocus?.trim()) && Boolean(b.recommendedNextStep?.trim()));
+      if (aReady !== bReady) return bReady - aReady;
+      return (b.updatedAt || b.createdAt || b.created_at || "").localeCompare(a.updatedAt || a.createdAt || a.created_at || "");
+    });
+    if (!query) return sorted;
+    return sorted.filter((project) =>
+      [project.name, project.description, project.currentFocus, project.recommendedNextStep, project.context_summary]
+        .some((value) => value?.toLowerCase().includes(query)),
+    );
+  }, [projects, search]);
 
   const create = async (event: FormEvent) => {
     event.preventDefault();
@@ -87,6 +110,39 @@ export function ProjectsPage() {
 
         <div className="space-y-3">
           <RecoveryBanner message={error} onRetry={load} />
+          <section className="rounded-lg border border-border bg-white p-4 shadow-soft">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="flex items-center gap-2 text-sm font-medium text-stone-950">
+                  <Target className="h-4 w-4 text-muted-foreground" />
+                  Continuity anchors
+                </p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  Projects are strongest when both current focus and next step are visible.
+                </p>
+              </div>
+              <span className="rounded-md bg-stone-100 px-2.5 py-1 text-xs text-stone-700">{activeProjects.length} active</span>
+            </div>
+            <div className="mt-4 grid gap-2 sm:grid-cols-3">
+              <ProjectMetric label="With focus" value={projectsWithFocus.length} total={projects.length} />
+              <ProjectMetric label="With next step" value={projectsWithNextStep.length} total={projects.length} />
+              <ProjectMetric label="Need attention" value={needsContinuity.length} total={activeProjects.length} />
+            </div>
+            {!!needsContinuity.length && (
+              <div className="mt-4 space-y-2">
+                {needsContinuity.slice(0, 3).map((project) => (
+                  <Link key={project.id} href={`/projects/${project.id}`} className="flex items-center justify-between gap-3 rounded-md bg-stone-50 px-3 py-2 text-sm text-stone-700 transition hover:bg-stone-100">
+                    <span className="truncate">{project.name}</span>
+                    <span className="shrink-0 text-xs text-stone-500">{!project.currentFocus?.trim() ? "Add focus" : "Add next step"}</span>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </section>
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Find projects by name, focus, or next step" className="pl-9" />
+          </div>
           {loading ? (
             <div className="space-y-3">
               <Skeleton className="h-32 rounded-md" />
@@ -94,7 +150,7 @@ export function ProjectsPage() {
             </div>
           ) : (
             <div className="grid gap-3">
-              {projects.map((project) => (
+              {visibleProjects.map((project) => (
                 <article key={project.id} className="rounded-lg border border-border bg-white p-4 shadow-soft">
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0">
@@ -123,11 +179,30 @@ export function ProjectsPage() {
                   ]}
                 />
               )}
+              {!!projects.length && !visibleProjects.length && (
+                <EmptyState
+                  icon={<Search className="h-5 w-5" />}
+                  title="No matching projects"
+                  description="Try a project name, current focus, recommended next step, or saved context phrase."
+                />
+              )}
             </div>
           )}
         </div>
       </div>
     </PageFrame>
+  );
+}
+
+function ProjectMetric({ label, value, total }: { label: string; value: number; total: number }) {
+  return (
+    <div className="rounded-md bg-stone-50 px-3 py-2">
+      <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted">{label}</p>
+      <p className="mt-1 text-lg font-semibold text-stone-950">
+        {value}
+        <span className="ml-1 text-xs font-normal text-muted-foreground">/ {total || 0}</span>
+      </p>
+    </div>
   );
 }
 

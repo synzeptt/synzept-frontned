@@ -2,15 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Brain, FolderKanban, LayoutDashboard, MessageSquare, NotebookText } from "lucide-react";
+import { CalendarDays, FolderKanban, LayoutDashboard, ListTodo, MessageSquare } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 const links = [
   { href: "/dashboard", label: "Home", icon: LayoutDashboard },
   { href: "/projects", label: "Projects", icon: FolderKanban },
-  { href: "/chat", label: "AI", icon: MessageSquare },
-  { href: "/notes", label: "Notes", icon: NotebookText },
-  { href: "/settings", label: "Memory", icon: Brain },
+  { href: "/tasks", label: "Tasks", icon: ListTodo },
+  { href: "/chat", label: "Chat", icon: MessageSquare },
+  { href: "/daily-brief", label: "Brief", icon: CalendarDays },
 ];
 
 export function MobileNav() {
