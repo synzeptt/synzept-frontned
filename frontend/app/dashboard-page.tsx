@@ -99,7 +99,7 @@ export function DashboardPage() {
   return (
     <PageFrame
       eyebrow="Daily continuity"
-      title="Workspace"
+      title="Home"
     >
       <div className="mx-auto max-w-7xl space-y-7 p-5 md:p-7">
         <RecoveryBanner message={error} onRetry={load} />
@@ -108,31 +108,22 @@ export function DashboardPage() {
         ) : (
           <>
             <ContinuityCommandPanel command={continuityCommand} returningUser={dashboard?.returning_user} />
-            <V2JourneyPanel
+            <MissionControlOverview
               dashboard={dashboard}
-              workspace={workspace}
               assistant={assistant}
               dailyBrief={dailyBrief}
-              learning={learning}
+              priorityTasks={priorityTasks}
               continuityItems={continuityItems}
+              focusAreas={focusAreas}
+              command={continuityCommand}
             />
-            <ContinuityAssistantPanel assistant={assistant} />
             <section className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.55fr)]">
               <ContinuitySection items={continuityItems} returningUser={dashboard?.returning_user} />
               <div className="space-y-5">
-                <MemoryContextPanel
-                  memories={dashboard?.memories || []}
-                  continuitySummary={dashboard?.continuity_summary || ""}
-                  focusAreas={focusAreas}
-                />
                 <DailyFocus briefing={briefing} focusAreas={focusAreas} suggestions={suggestions} />
+                <PriorityTasks tasks={priorityTasks} />
               </div>
             </section>
-
-            <WorkspaceOverviewPanel workspace={workspace} />
-            <ProactiveIntelligencePanel overview={proactive} />
-
-            <DailyRhythm daily={dashboard?.daily || null} dailyBrief={dailyBrief} learning={learning} assistant={assistant} priorities={priorityTasks} continuationItems={continuityItems} onSaved={load} onLearningAnalyzed={setLearning} />
 
             <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
               <div className="space-y-5">
@@ -145,9 +136,30 @@ export function DashboardPage() {
                 <RecentConversations conversations={dashboard?.recent_conversations || []} />
               </div>
               <div className="space-y-5">
-                <PriorityTasks tasks={priorityTasks} />
+                <MemoryContextPanel
+                  memories={dashboard?.memories || []}
+                  continuitySummary={dashboard?.continuity_summary || ""}
+                  focusAreas={focusAreas}
+                />
+                <ContinuityAssistantPanel assistant={assistant} />
               </div>
             </section>
+
+            <DailyRhythm daily={dashboard?.daily || null} dailyBrief={dailyBrief} learning={learning} assistant={assistant} priorities={priorityTasks} continuationItems={continuityItems} onSaved={load} onLearningAnalyzed={setLearning} />
+
+            {!dashboard?.projects?.length && (
+              <V2JourneyPanel
+                dashboard={dashboard}
+                workspace={workspace}
+                assistant={assistant}
+                dailyBrief={dailyBrief}
+                learning={learning}
+                continuityItems={continuityItems}
+              />
+            )}
+
+            <WorkspaceOverviewPanel workspace={workspace} />
+            <ProactiveIntelligencePanel overview={proactive} />
 
             <section className="grid gap-5">
               <ContinuityIntelligencePanel
@@ -165,6 +177,134 @@ export function DashboardPage() {
         )}
       </div>
     </PageFrame>
+  );
+}
+
+function MissionControlOverview({
+  dashboard,
+  assistant,
+  dailyBrief,
+  priorityTasks,
+  continuityItems,
+  focusAreas,
+  command,
+}: {
+  dashboard: Dashboard | null;
+  assistant: ContinuityAssistant | null;
+  dailyBrief: DailyBrief | null;
+  priorityTasks: Task[];
+  continuityItems: ContinuityCard[];
+  focusAreas: string[];
+  command: ReturnType<typeof getContinuityCommand>;
+}) {
+  const activeProjects = dashboard?.projects?.filter((project) => !doneStatuses.has(project.status)) || [];
+  const openTasks = priorityTasks.filter((task) => !doneStatuses.has(task.status));
+  const assistantLoops = assistant?.open_loops || [];
+  const dailyLoops = dailyBrief?.open_loops || [];
+  const openLoopItems = uniqueItems([
+    ...assistantLoops,
+    ...dailyLoops,
+    ...openTasks.slice(0, 3).map((task) => task.title),
+    ...continuityItems.filter((item) => item.type === "task" || item.type === "project").map((item) => item.title),
+  ]);
+  const recentChanges = getRecentChanges(dashboard, assistant, dailyBrief, continuityItems);
+  const completedToday = dashboard?.daily?.completed_today?.length || dailyBrief?.context.recent_progress?.length || 0;
+  const progressTotal = Math.max(completedToday + openLoopItems.length, activeProjects.length, 1);
+  const progressValue = getProgress(completedToday, progressTotal);
+  const returningSummary = dashboard?.returning_user?.is_returning
+    ? dashboard.returning_user.summary || dashboard.returning_user.prompt
+    : "This is your current operating picture.";
+
+  return (
+    <section className="rounded-lg border border-border bg-white p-5 shadow-soft">
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)]">
+        <div className="space-y-4">
+          <div>
+            <p className="text-xs font-medium uppercase text-stone-500">Mission control</p>
+            <h2 className="mt-2 text-2xl font-semibold leading-8 text-stone-950">Resume with context already loaded.</h2>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">{returningSummary}</p>
+          </div>
+          <div className="rounded-lg bg-stone-50 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs font-medium uppercase text-stone-500">Progress visibility</p>
+              <p className="text-sm font-semibold text-stone-950">{progressValue}%</p>
+            </div>
+            <div className="mt-3 h-2 overflow-hidden rounded-full bg-stone-200">
+              <div className="h-full rounded-full bg-stone-950" style={{ width: `${progressValue}%` }} />
+            </div>
+            <p className="mt-3 text-sm leading-6 text-stone-700">
+              {completedToday
+                ? `${completedToday} progress item${completedToday === 1 ? "" : "s"} captured against ${openLoopItems.length} open loop${openLoopItems.length === 1 ? "" : "s"}.`
+                : `${openLoopItems.length} open loop${openLoopItems.length === 1 ? "" : "s"} still need a clear finish line.`}
+            </p>
+          </div>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-2">
+          <MissionSignal label="Current focus" value={command.focusTitle} detail={command.focusDetail} href={command.href} action="Open focus" />
+          <MissionSignal label="Recommended next step" value={command.nextTitle} detail={command.nextDetail} href={command.href} action={command.actionLabel} dark />
+          <MissionList title="Open loops" items={openLoopItems.slice(0, 4)} empty="No unfinished loop is pulling attention right now." href="/tasks" />
+          <MissionList title="What changed" items={recentChanges.slice(0, 4)} empty="Recent progress will appear after projects, notes, tasks, or conversations change." href="/timeline" />
+          <MissionList title="Today's anchors" items={uniqueItems(focusAreas).slice(0, 4)} empty="Add one project focus or daily brief to create today's anchor." href="/daily-brief" />
+          <MissionList title="Return points" items={continuityItems.map((item) => item.continuation_prompt || item.title).slice(0, 4)} empty="Start a project, task, note, or chat to create a return point." href="/projects" />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function MissionSignal({
+  label,
+  value,
+  detail,
+  href,
+  action,
+  dark,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+  href: string;
+  action: string;
+  dark?: boolean;
+}) {
+  return (
+    <Link
+      href={href}
+      className={cn(
+        "group min-h-48 rounded-lg border p-4 transition",
+        dark
+          ? "border-stone-900 bg-stone-950 text-white hover:bg-stone-900"
+          : "border-stone-200 bg-stone-50 text-stone-950 hover:bg-white",
+      )}
+    >
+      <p className={cn("text-xs font-medium uppercase", dark ? "text-stone-400" : "text-stone-500")}>{label}</p>
+      <p className="mt-3 line-clamp-2 text-lg font-semibold leading-6">{value}</p>
+      <p className={cn("mt-2 line-clamp-3 text-sm leading-6", dark ? "text-stone-300" : "text-muted-foreground")}>{detail}</p>
+      <p className={cn("mt-4 inline-flex items-center gap-2 text-sm font-medium", dark ? "text-white" : "text-stone-900")}>
+        {action}
+        <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
+      </p>
+    </Link>
+  );
+}
+
+function MissionList({ title, items, empty, href }: { title: string; items: string[]; empty: string; href: string }) {
+  return (
+    <div className="min-h-48 rounded-lg border border-stone-200 bg-stone-50 p-4">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-xs font-medium uppercase text-stone-500">{title}</p>
+        <Link href={href} className="text-xs font-medium text-stone-600 transition hover:text-stone-950">Open</Link>
+      </div>
+      <div className="mt-3 space-y-2">
+        {items.map((item) => (
+          <p key={item} className="line-clamp-2 rounded-md bg-white px-3 py-2 text-sm leading-5 text-stone-800">
+            {item}
+          </p>
+        ))}
+        {!items.length && <p className="text-sm leading-6 text-muted-foreground">{empty}</p>}
+      </div>
+    </div>
   );
 }
 
@@ -1298,6 +1438,24 @@ function getPriorityTasks(tasks: Task[]) {
       if (aOverdue !== bOverdue) return bOverdue - aOverdue;
       return (priorityRank[b.priority] || 0) - (priorityRank[a.priority] || 0);
     });
+}
+
+function getRecentChanges(
+  dashboard: Dashboard | null,
+  assistant: ContinuityAssistant | null,
+  dailyBrief: DailyBrief | null,
+  continuityItems: ContinuityCard[],
+) {
+  return uniqueItems([
+    ...(assistant?.recent_progress || []),
+    ...(dailyBrief?.context.recent_progress || []).map((item) => item.title),
+    ...(dashboard?.daily?.completed_today || []),
+    ...(dashboard?.recent_activity || []).map((item) => item.title),
+    ...(dashboard?.continuity_timeline || []).map((item) => item.headline),
+    ...continuityItems
+      .filter((item) => item.reason || item.updated_at)
+      .map((item) => item.reason || `${item.title} was updated.`),
+  ]);
 }
 
 function getContinuityCommand({

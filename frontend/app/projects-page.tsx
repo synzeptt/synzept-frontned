@@ -42,6 +42,18 @@ export function ProjectsPage() {
     () => activeProjects.filter((project) => !project.currentFocus?.trim() || !project.recommendedNextStep?.trim()),
     [activeProjects],
   );
+  const resumeProject = useMemo(
+    () =>
+      activeProjects
+        .slice()
+        .sort((a, b) => {
+          const aReady = Number(Boolean(a.currentFocus?.trim()) && Boolean(a.recommendedNextStep?.trim()));
+          const bReady = Number(Boolean(b.currentFocus?.trim()) && Boolean(b.recommendedNextStep?.trim()));
+          if (aReady !== bReady) return bReady - aReady;
+          return projectTimestamp(b).localeCompare(projectTimestamp(a));
+        })[0],
+    [activeProjects],
+  );
   const visibleProjects = useMemo(() => {
     const query = search.trim().toLowerCase();
     const sorted = projects.slice().sort((a, b) => {
@@ -110,6 +122,33 @@ export function ProjectsPage() {
 
         <div className="space-y-3">
           <RecoveryBanner message={error} onRetry={load} />
+          <section className="rounded-lg border border-stone-900 bg-stone-950 p-5 text-white shadow-soft">
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+              <div className="min-w-0">
+                <p className="text-xs font-medium uppercase text-stone-400">Project mission control</p>
+                <h2 className="mt-2 line-clamp-2 text-xl font-semibold leading-7">
+                  {resumeProject?.currentFocus || resumeProject?.name || "Create one project anchor."}
+                </h2>
+                <p className="mt-2 line-clamp-2 text-sm leading-6 text-stone-300">
+                  {resumeProject?.recommendedNextStep ||
+                    resumeProject?.description ||
+                    "A project becomes useful when it has a current focus and one visible next step."}
+                </p>
+              </div>
+              <div className="flex flex-col gap-2 lg:w-44">
+                <Link
+                  href={resumeProject ? `/projects/${resumeProject.id}` : "/projects"}
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-white px-3 text-sm font-medium text-stone-950 transition hover:bg-stone-100"
+                >
+                  {resumeProject ? "Resume project" : "Start here"}
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+                <p className="text-xs leading-5 text-stone-400">
+                  {resumeProject ? `Last changed ${formatProjectDate(projectTimestamp(resumeProject))}.` : "Set the focus and next step first."}
+                </p>
+              </div>
+            </div>
+          </section>
           <section className="rounded-lg border border-border bg-white p-4 shadow-soft">
             <div className="flex items-start justify-between gap-3">
               <div>
@@ -165,6 +204,12 @@ export function ProjectsPage() {
                     <ProjectSignal label="Current Focus" value={project.currentFocus} empty="Set the current focus for this project." />
                     <ProjectSignal label="Recommended Next Step" value={project.recommendedNextStep} empty="Define the next action to keep momentum." />
                   </div>
+                  <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    <span className="rounded-md bg-stone-50 px-2 py-1">{project.status || "active"}</span>
+                    <span className="rounded-md bg-stone-50 px-2 py-1">Updated {formatProjectDate(projectTimestamp(project))}</span>
+                    {!project.currentFocus?.trim() && <span className="rounded-md bg-amber-50 px-2 py-1 text-amber-800">Needs focus</span>}
+                    {!project.recommendedNextStep?.trim() && <span className="rounded-md bg-amber-50 px-2 py-1 text-amber-800">Needs next step</span>}
+                  </div>
                 </article>
               ))}
               {!projects.length && (
@@ -213,4 +258,15 @@ function ProjectSignal({ label, value, empty }: { label: string; value?: string;
       <p className="mt-1 text-sm leading-5 text-stone-700">{value || <span className="text-stone-400">{empty}</span>}</p>
     </div>
   );
+}
+
+function projectTimestamp(project: Project) {
+  return project.updatedAt || project.createdAt || project.created_at || "";
+}
+
+function formatProjectDate(value: string) {
+  if (!value) return "recently";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "recently";
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }

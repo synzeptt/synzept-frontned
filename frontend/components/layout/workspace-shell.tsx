@@ -16,19 +16,39 @@ import { useAuthStore } from "@/stores/auth";
 import { cn } from "@/lib/cn";
 import { useWorkspaceUIStore } from "@frontend/store/workspace-ui";
 
-const nav = [
-  { href: "/dashboard", label: "Workspace", icon: PanelsTopLeft },
-  { href: "/projects", label: "Projects", icon: FolderKanban },
-  { href: "/tasks", label: "Tasks", icon: ListTodo },
-  { href: "/notes", label: "Notes", icon: NotebookText },
-  { href: "/chat", label: "Chat", icon: MessageSquare },
-  { href: "/daily-brief", label: "Daily Brief", icon: CalendarDays },
-  { href: "/continuity-assistant", label: "Continuity Assistant", icon: Sparkles },
-  { href: "/memory", label: "Memory", icon: Brain },
-  { href: "/timeline", label: "Timeline", icon: Clock3 },
-  { href: "/knows-you", label: "Knows You", icon: UserRound },
-  { href: "/learning-engine", label: "Learning Engine", icon: Sparkles },
-  { href: "/settings", label: "Settings", icon: Settings },
+const navSections = [
+  {
+    label: "Start here",
+    items: [
+      { href: "/dashboard", label: "Home", icon: PanelsTopLeft },
+      { href: "/daily-brief", label: "Daily Brief", icon: CalendarDays },
+      { href: "/continuity-assistant", label: "Next Step", icon: Sparkles },
+    ],
+  },
+  {
+    label: "Work surfaces",
+    items: [
+      { href: "/projects", label: "Projects", icon: FolderKanban },
+      { href: "/tasks", label: "Tasks", icon: ListTodo },
+      { href: "/chat", label: "Chat", icon: MessageSquare },
+      { href: "/notes", label: "Notes", icon: NotebookText },
+    ],
+  },
+  {
+    label: "Continuity",
+    items: [
+      { href: "/timeline", label: "What Changed", icon: Clock3 },
+      { href: "/memory", label: "Memory", icon: Brain },
+      { href: "/knows-you", label: "Knows You", icon: UserRound },
+      { href: "/learning-engine", label: "Learning", icon: Sparkles },
+    ],
+  },
+  {
+    label: "System",
+    items: [
+      { href: "/settings", label: "Settings", icon: Settings },
+    ],
+  },
 ];
 
 export function WorkspaceShell({ children }: { children: React.ReactNode }) {
@@ -81,25 +101,32 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
         </button>
       </div>
 
-      <nav className="flex-1 space-y-1 px-3">
-        {nav.map((item) => {
-          const Icon = item.icon;
-          const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={() => setSidebarOpen(false)}
-              className={cn(
-                "flex h-10 items-center gap-3 rounded-md px-3 text-sm transition duration-150",
-                active ? "bg-stone-100 text-stone-950 shadow-[inset_0_0_0_1px_rgba(32,31,28,0.04)]" : "text-stone-500 hover:bg-stone-50 hover:text-stone-900",
-              )}
-            >
-              <Icon className="h-4 w-4" />
-              {item.label}
-            </Link>
-          );
-        })}
+      <nav className="flex-1 space-y-5 overflow-y-auto px-3 pb-4">
+        {navSections.map((section) => (
+          <div key={section.label}>
+            <p className="px-3 pb-1.5 text-[10px] font-medium uppercase tracking-[0.14em] text-stone-400">{section.label}</p>
+            <div className="space-y-1">
+              {section.items.map((item) => {
+                const Icon = item.icon;
+                const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => setSidebarOpen(false)}
+                    className={cn(
+                      "flex h-10 items-center gap-3 rounded-md px-3 text-sm transition duration-150",
+                      active ? "bg-stone-100 text-stone-950 shadow-[inset_0_0_0_1px_rgba(32,31,28,0.04)]" : "text-stone-500 hover:bg-stone-50 hover:text-stone-900",
+                    )}
+                  >
+                    <Icon className="h-4 w-4" />
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </nav>
 
       <div className="m-3 space-y-3">

@@ -1,7 +1,7 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Archive, Check, Plus, Save, Trash2 } from "lucide-react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { Archive, ArrowRight, Check, Plus, Save, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,7 +19,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState({ name: "", description: "", currentFocus: "", recommendedNextStep: "", status: "active" });
 
-  const load = () => {
+  const load = useCallback(() => {
     setLoading(true);
     setError(null);
     Promise.all([api.getProject(projectId), api.listOpenLoops(projectId), api.listDecisions(projectId)])
@@ -37,11 +37,11 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
       })
       .catch(() => setError("Project intelligence could not load. Retry when the connection settles."))
       .finally(() => setLoading(false));
-  };
+  }, [projectId]);
 
   useEffect(() => {
     load();
-  }, [projectId]);
+  }, [load]);
 
   const recentActivity = useMemo(() => {
     const items = [
@@ -51,6 +51,16 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
     ];
     return items.sort((a, b) => String(b.at).localeCompare(String(a.at))).slice(0, 6);
   }, [decisions, openLoops, project]);
+  const openLoopCount = openLoops.filter((item) => item.status === "open").length;
+  const pendingDecisionCount = decisions.filter((item) => item.status === "pending").length;
+  const completedLoopCount = openLoops.filter((item) => item.status === "completed").length;
+  const continuityScore = getProjectContinuityScore({
+    hasFocus: Boolean(draft.currentFocus.trim()),
+    hasNextStep: Boolean(draft.recommendedNextStep.trim()),
+    hasRecentActivity: recentActivity.length > 0,
+    closedLoops: completedLoopCount,
+    totalLoops: openLoops.length,
+  });
 
   const saveProject = async () => {
     setSaving(true);
@@ -101,6 +111,46 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
       <div className="mx-auto max-w-6xl space-y-5 p-5 md:p-7">
         <RecoveryBanner message={error} onRetry={load} />
 
+        <section className="rounded-lg border border-stone-900 bg-stone-950 p-5 text-white shadow-soft">
+          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_280px]">
+            <div className="min-w-0">
+              <p className="text-xs font-medium uppercase text-stone-400">Project continuity</p>
+              <h2 className="mt-2 line-clamp-2 text-2xl font-semibold leading-8">
+                {draft.currentFocus || "Set the current focus for this project."}
+              </h2>
+              <p className="mt-3 line-clamp-3 text-sm leading-6 text-stone-300">
+                {draft.recommendedNextStep || "Define the next step so this project has a clear return point."}
+              </p>
+              <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                <ProjectSnapshotStat label="Open loops" value={openLoopCount} />
+                <ProjectSnapshotStat label="Pending decisions" value={pendingDecisionCount} />
+                <ProjectSnapshotStat label="Changes" value={recentActivity.length} />
+              </div>
+            </div>
+            <div className="rounded-lg border border-white/10 bg-white/5 p-4">
+              <p className="text-xs font-medium uppercase text-stone-400">Progress visibility</p>
+              <p className="mt-2 text-3xl font-semibold">{continuityScore}%</p>
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/10">
+                <div className="h-full rounded-full bg-white" style={{ width: `${continuityScore}%` }} />
+              </div>
+              <p className="mt-3 text-sm leading-6 text-stone-300">
+                {openLoopCount || pendingDecisionCount
+                  ? "Finish one loop or decision to make the next return cleaner."
+                  : "The project has no tracked unfinished loops right now."}
+              </p>
+              <button
+                type="button"
+                onClick={saveProject}
+                disabled={saving}
+                className="mt-4 inline-flex h-10 items-center justify-center gap-2 rounded-md bg-white px-3 text-sm font-medium text-stone-950 transition hover:bg-stone-100 disabled:opacity-60"
+              >
+                {saving ? "Saving..." : "Save continuity"}
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        </section>
+
         <section className="rounded-lg border border-border bg-white p-5">
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -136,7 +186,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
         </div>
 
         <section className="rounded-lg border border-border bg-white p-5">
-          <p className="text-sm font-medium text-stone-950">Recent Activity</p>
+          <p className="text-sm font-medium text-stone-950">What Changed</p>
           <div className="mt-3 space-y-2">
             {recentActivity.map((item) => (
               <div key={`${item.title}-${item.id}`} className="rounded-md bg-stone-50 px-3 py-2">
@@ -144,12 +194,38 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
                 <p className="mt-0.5 text-xs text-muted">{item.detail}</p>
               </div>
             ))}
-            {!recentActivity.length && <p className="text-sm text-muted">No project activity yet.</p>}
+            {!recentActivity.length && <p className="text-sm text-muted">No meaningful project changes have been captured yet.</p>}
           </div>
         </section>
       </div>
     </PageFrame>
   );
+}
+
+function ProjectSnapshotStat({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-md bg-white/5 px-3 py-3">
+      <p className="text-2xl font-semibold text-white">{value}</p>
+      <p className="mt-1 text-xs text-stone-400">{label}</p>
+    </div>
+  );
+}
+
+function getProjectContinuityScore({
+  hasFocus,
+  hasNextStep,
+  hasRecentActivity,
+  closedLoops,
+  totalLoops,
+}: {
+  hasFocus: boolean;
+  hasNextStep: boolean;
+  hasRecentActivity: boolean;
+  closedLoops: number;
+  totalLoops: number;
+}) {
+  const loopScore = totalLoops ? Math.round((closedLoops / totalLoops) * 25) : 15;
+  return Math.min(100, (hasFocus ? 25 : 0) + (hasNextStep ? 30 : 0) + (hasRecentActivity ? 20 : 0) + loopScore);
 }
 
 function IntelligenceTextarea({ label, value, empty, onChange }: { label: string; value: string; empty: string; onChange: (value: string) => void }) {
