@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarDays, FolderKanban, LayoutDashboard, ListTodo, MessageSquare } from "lucide-react";
+import { FolderKanban, LayoutDashboard, ListTodo, MessageSquare, NotebookText } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 const links = [
@@ -10,7 +10,7 @@ const links = [
   { href: "/projects", label: "Projects", icon: FolderKanban },
   { href: "/tasks", label: "Tasks", icon: ListTodo },
   { href: "/chat", label: "Chat", icon: MessageSquare },
-  { href: "/daily-brief", label: "Brief", icon: CalendarDays },
+  { href: "/notes", label: "Notes", icon: NotebookText },
 ];
 
 export function MobileNav() {

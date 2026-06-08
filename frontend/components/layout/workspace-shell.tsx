@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { Brain, CalendarDays, Clock3, FolderKanban, ListTodo, Menu, MessageSquare, NotebookText, PanelsTopLeft, Settings, Sparkles, UserRound, X } from "lucide-react";
+import { FolderKanban, ListTodo, Menu, MessageSquare, NotebookText, PanelsTopLeft, Settings, X } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { CopyrightLine } from "@/components/copyright-line";
 import { FeedbackButton } from "@/components/feedback/feedback-button";
@@ -21,8 +21,6 @@ const navSections = [
     label: "Start here",
     items: [
       { href: "/dashboard", label: "Home", icon: PanelsTopLeft },
-      { href: "/daily-brief", label: "Daily Brief", icon: CalendarDays },
-      { href: "/continuity-assistant", label: "Next Step", icon: Sparkles },
     ],
   },
   {
@@ -32,15 +30,6 @@ const navSections = [
       { href: "/tasks", label: "Tasks", icon: ListTodo },
       { href: "/chat", label: "Chat", icon: MessageSquare },
       { href: "/notes", label: "Notes", icon: NotebookText },
-    ],
-  },
-  {
-    label: "Continuity",
-    items: [
-      { href: "/timeline", label: "What Changed", icon: Clock3 },
-      { href: "/memory", label: "Memory", icon: Brain },
-      { href: "/knows-you", label: "Knows You", icon: UserRound },
-      { href: "/learning-engine", label: "Learning", icon: Sparkles },
     ],
   },
   {

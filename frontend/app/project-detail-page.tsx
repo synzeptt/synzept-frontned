@@ -1,7 +1,8 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { Archive, ArrowRight, Check, Plus, Save, Trash2 } from "lucide-react";
+import { Archive, Check, Plus, Save, Trash2 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +12,7 @@ import { api, type Decision, type OpenLoop, type Project } from "@/lib/api";
 import { PageFrame } from "@frontend/components/layout/page-frame";
 
 export function ProjectDetailPage({ projectId }: { projectId: string }) {
+  const router = useRouter();
   const [project, setProject] = useState<Project | null>(null);
   const [openLoops, setOpenLoops] = useState<OpenLoop[]>([]);
   const [decisions, setDecisions] = useState<Decision[]>([]);
@@ -83,8 +85,13 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
   };
 
   const archiveProject = async () => {
-    await api.deleteProject(projectId);
-    setDraft((current) => ({ ...current, status: "archived" }));
+    setError(null);
+    try {
+      await api.archiveProject(projectId);
+      router.push("/projects");
+    } catch {
+      setError("Project could not be archived.");
+    }
   };
 
   if (loading) {
@@ -138,15 +145,6 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
                   ? "Finish one loop or decision to make the next return cleaner."
                   : "The project has no tracked unfinished loops right now."}
               </p>
-              <button
-                type="button"
-                onClick={saveProject}
-                disabled={saving}
-                className="mt-4 inline-flex h-10 items-center justify-center gap-2 rounded-md bg-white px-3 text-sm font-medium text-stone-950 transition hover:bg-stone-100 disabled:opacity-60"
-              >
-                {saving ? "Saving..." : "Save continuity"}
-                <ArrowRight className="h-4 w-4" />
-              </button>
             </div>
           </div>
         </section>
