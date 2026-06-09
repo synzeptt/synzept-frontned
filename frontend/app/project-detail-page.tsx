@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { RecoveryBanner } from "@/components/ui/recovery-banner";
 import { Skeleton } from "@/components/ui/skeleton";
-import { api, type Decision, type OpenLoop, type Project } from "@/lib/api";
+import { api, type Decision, type Note, type OpenLoop, type Project } from "@/lib/api";
 import { PageFrame } from "@frontend/components/layout/page-frame";
 
 export function ProjectDetailPage({ projectId }: { projectId: string }) {
@@ -16,6 +16,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
   const [project, setProject] = useState<Project | null>(null);
   const [openLoops, setOpenLoops] = useState<OpenLoop[]>([]);
   const [decisions, setDecisions] = useState<Decision[]>([]);
+  const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -24,11 +25,12 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
   const load = useCallback(() => {
     setLoading(true);
     setError(null);
-    Promise.all([api.getProject(projectId), api.listOpenLoops(projectId), api.listDecisions(projectId)])
-      .then(([projectData, loopsData, decisionsData]) => {
+    Promise.all([api.getProject(projectId), api.listOpenLoops(projectId), api.listDecisions(projectId), api.listNotes(projectId).catch(() => [])])
+      .then(([projectData, loopsData, decisionsData, noteRows]) => {
         setProject(projectData);
         setOpenLoops(loopsData);
         setDecisions(decisionsData);
+        setNotes(noteRows);
         setDraft({
           name: projectData.name,
           description: projectData.description || "",
@@ -182,6 +184,19 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
           <OpenLoopPanel projectId={projectId} items={openLoops} setItems={setOpenLoops} setError={setError} />
           <DecisionPanel projectId={projectId} items={decisions} setItems={setDecisions} setError={setError} />
         </div>
+
+        <section className="rounded-lg border border-border bg-white p-5">
+          <p className="text-sm font-medium text-stone-950">Related Notes</p>
+          <div className="mt-3 grid gap-2 md:grid-cols-2">
+            {notes.slice(0, 6).map((note) => (
+              <div key={note.id} className="rounded-md bg-stone-50 px-3 py-3">
+                <p className="line-clamp-1 text-sm font-medium text-stone-900">{note.title || "Untitled note"}</p>
+                <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted">{note.summary || note.content}</p>
+              </div>
+            ))}
+            {!notes.length && <p className="text-sm text-muted">No related notes yet.</p>}
+          </div>
+        </section>
 
         <section className="rounded-lg border border-border bg-white p-5">
           <p className="text-sm font-medium text-stone-950">What Changed</p>

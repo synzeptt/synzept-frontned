@@ -1,1 +1,5 @@
-export { default } from "../../../../frontend-v2/app/context-engine/page";
+import { redirect } from "next/navigation";
+
+export default function ContextEnginePage() {
+  redirect("/dashboard");
+}

@@ -1,1 +1,5 @@
-export { default } from "../../../../frontend-v2/app/learning-engine/page";
+import { redirect } from "next/navigation";
+
+export default function LearningEnginePage() {
+  redirect("/settings");
+}

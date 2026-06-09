@@ -24,6 +24,7 @@ export default function SettingsPage() {
   } = useSettingsStore();
   const [feedback, setFeedback] = useState("");
   const [supportMessage, setSupportMessage] = useState<string | null>(null);
+  const [settingsError, setSettingsError] = useState<string | null>(null);
   const [savingPreference, setSavingPreference] = useState<string | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deletePassword, setDeletePassword] = useState("");
@@ -48,12 +49,23 @@ export default function SettingsPage() {
     value: boolean,
   ) => {
     setSavingPreference(key);
+    setSettingsError(null);
+    const previous = {
+      memory_enabled: memoryEnabled,
+      personalization_enabled: personalizationEnabled,
+      analytics_enabled: analyticsEnabled,
+    }[key];
     if (key === "memory_enabled") setMemoryEnabled(value);
     if (key === "personalization_enabled") setPersonalizationEnabled(value);
     if (key === "analytics_enabled") setAnalyticsEnabled(value);
     try {
       await api.updatePreferences({ [key]: value });
       void api.trackEvent("trust_preference_changed", "settings", { key, value });
+    } catch {
+      if (key === "memory_enabled") setMemoryEnabled(previous);
+      if (key === "personalization_enabled") setPersonalizationEnabled(previous);
+      if (key === "analytics_enabled") setAnalyticsEnabled(previous);
+      setSettingsError("Preference could not be saved. Nothing was changed on the server.");
     } finally {
       setSavingPreference(null);
     }
@@ -61,9 +73,15 @@ export default function SettingsPage() {
 
   const sendSupport = async () => {
     if (!feedback.trim()) return;
-    await api.sendFeedback({ feedback_type: "support", message: feedback.trim() });
-    setFeedback("");
-    setSupportMessage("Sent. Thank you for helping make Synzept clearer.");
+    setSettingsError(null);
+    setSupportMessage(null);
+    try {
+      await api.sendFeedback({ feedback_type: "support", message: feedback.trim() });
+      setFeedback("");
+      setSupportMessage("Sent. Thank you for helping make Synzept clearer.");
+    } catch {
+      setSettingsError("Support message could not be sent. Your text is still here.");
+    }
   };
 
   const handleDeleteAccount = async () => {
@@ -84,6 +102,11 @@ export default function SettingsPage() {
       <PageHeader label="Account" title="Settings" />
 
       <div className="mx-auto max-w-3xl space-y-5 px-4 py-5 md:px-8">
+        {settingsError && (
+          <p className="rounded-md border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
+            {settingsError}
+          </p>
+        )}
         <section className="rounded-lg border border-border bg-white p-5 shadow-soft">
           <div className="flex min-w-0 items-center gap-4">
             <Avatar name={user?.display_name} email={user?.email} src={user?.avatar_url} size="lg" />

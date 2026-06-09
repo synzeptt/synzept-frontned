@@ -4,10 +4,9 @@ import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { FolderKanban, ListTodo, Menu, MessageSquare, NotebookText, PanelsTopLeft, Settings, X } from "lucide-react";
+import { CalendarDays, Clock3, FolderKanban, Menu, PanelsTopLeft, Settings, X } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { CopyrightLine } from "@/components/copyright-line";
-import { FeedbackButton } from "@/components/feedback/feedback-button";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { UsageTracker } from "@/components/analytics/usage-tracker";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -18,18 +17,12 @@ import { useWorkspaceUIStore } from "@frontend/store/workspace-ui";
 
 const navSections = [
   {
-    label: "Start here",
+    label: "Launch workflow",
     items: [
-      { href: "/dashboard", label: "Home", icon: PanelsTopLeft },
-    ],
-  },
-  {
-    label: "Work surfaces",
-    items: [
+      { href: "/dashboard", label: "Dashboard", icon: PanelsTopLeft },
       { href: "/projects", label: "Projects", icon: FolderKanban },
-      { href: "/tasks", label: "Tasks", icon: ListTodo },
-      { href: "/chat", label: "Chat", icon: MessageSquare },
-      { href: "/notes", label: "Notes", icon: NotebookText },
+      { href: "/daily-brief", label: "Daily Brief", icon: CalendarDays },
+      { href: "/timeline", label: "Timeline", icon: Clock3 },
     ],
   },
   {
@@ -178,7 +171,6 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
       </div>
       <UsageTracker />
       <MobileNav />
-      <FeedbackButton />
     </div>
   );
 }

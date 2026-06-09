@@ -49,7 +49,7 @@ export default function EarlyAccessPage() {
           <div>
             <p className="mb-3 text-xs font-medium uppercase tracking-widest text-accent">Early access</p>
             <h1 className="max-w-2xl text-4xl font-semibold leading-tight text-stone-950 md:text-6xl">
-              Synzept is a continuity-first AI workspace for life and work.
+              Synzept remembers where you left off, tracks unfinished work, and tells you what to do next.
             </h1>
             <p className="mt-5 max-w-xl text-base leading-7 text-muted">
               V1 is opening carefully for people who want continuity, useful organization, and a dependable place to return to ongoing work.

@@ -19,7 +19,7 @@ export function SiteFooter() {
     <footer className="border-t border-border bg-white px-5 py-8 sm:px-8">
       <div className="mx-auto flex max-w-7xl flex-col gap-5 text-sm text-muted-foreground md:flex-row md:items-center md:justify-between">
         <div>
-          <p>Synzept. Continuity-first AI workspace.</p>
+          <p>Synzept. Never lose track of your work again.</p>
           <CopyrightLine className="mt-2" />
           <div className="mt-3 flex flex-wrap items-center gap-4">
             <Link href="/login" className="hover:text-stone-950">

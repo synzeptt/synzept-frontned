@@ -35,7 +35,7 @@ export default function OpenGraphImage() {
               color: "#3f5f4a",
             }}
           >
-            Continuity-first AI workspace
+            Never lose track of your work again
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
             <div style={{ fontSize: "84px", fontWeight: 700, lineHeight: 1, letterSpacing: "-0.05em" }}>{SITE_NAME}</div>

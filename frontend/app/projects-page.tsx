@@ -136,13 +136,19 @@ export function ProjectsPage() {
                 </p>
               </div>
               <div className="flex flex-col gap-2 lg:w-44">
-                <Link
-                  href={resumeProject ? `/projects/${resumeProject.id}` : "/projects"}
-                  className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-white px-3 text-sm font-medium text-stone-950 transition hover:bg-stone-100"
-                >
-                  {resumeProject ? "Resume project" : "Start here"}
-                  <ArrowRight className="h-4 w-4" />
-                </Link>
+                {resumeProject ? (
+                  <Link
+                    href={`/projects/${resumeProject.id}`}
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-white px-3 text-sm font-medium text-stone-950 transition hover:bg-stone-100"
+                  >
+                    Resume project
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
+                ) : (
+                  <span className="inline-flex h-10 items-center justify-center rounded-md border border-white/10 bg-white/5 px-3 text-sm font-medium text-stone-300">
+                    Add project details
+                  </span>
+                )}
                 <p className="text-xs leading-5 text-stone-400">
                   {resumeProject ? `Last changed ${formatProjectDate(projectTimestamp(resumeProject))}.` : "Set the focus and next step first."}
                 </p>

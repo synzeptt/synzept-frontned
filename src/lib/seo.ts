@@ -1,14 +1,14 @@
 import type { Metadata } from "next";
 
 export const SITE_NAME = "Synzept";
-export const SITE_DESCRIPTION = "Synzept is a continuity-first AI workspace for ongoing life and work.";
+export const SITE_DESCRIPTION = "Synzept remembers where you left off, tracks unfinished work, and tells you what to do next.";
 export const SITE_URL = "https://synzept.com";
 export const SITE_KEYWORDS = [
-  "continuity-first AI workspace",
-  "memory-powered organization",
-  "ongoing work continuity",
-  "AI workspace",
-  "organizational intelligence",
+  "daily brief productivity",
+  "open loops tracker",
+  "project continuity",
+  "unfinished work tracker",
+  "recommended next step",
 ];
 
 export const SOCIAL_PROFILES = [

@@ -29,8 +29,8 @@ const STEPS = [
   { id: "welcome", label: "Welcome" },
   { id: "profile", label: "Profile" },
   { id: "workspace", label: "Workspace" },
-  { id: "memory", label: "Memory" },
-  { id: "first_chat", label: "First thread" },
+  { id: "memory", label: "Remember" },
+  { id: "first_chat", label: "Continue" },
   { id: "dashboard", label: "Ready" },
 ] as const;
 
@@ -41,7 +41,7 @@ const COMM_STYLES = [
 ];
 
 const WORK_TYPES = ["Building", "Managing", "Studying", "Creative", "Operations"];
-const MOMENTUM_FOCUS = ["Startup", "Learning", "Research", "Content creation", "Personal organization"];
+const MOMENTUM_FOCUS = ["Startup", "Study", "Research", "Content creation", "Personal organization"];
 
 type StepId = (typeof STEPS)[number]["id"];
 
@@ -241,7 +241,7 @@ export default function OnboardingPage() {
           <div>
             <div className="mb-5 md:mb-8">
               <BrandLogo imageClassName="h-9" />
-              <p className="mt-2 text-xs text-muted-foreground">A few choices, then a workspace that remembers.</p>
+              <p className="mt-2 text-xs text-muted-foreground">A few choices, then a workspace that helps you continue.</p>
             </div>
             <div className="grid grid-cols-3 gap-2 md:block md:space-y-2">
               {STEPS.map((item, index) => {
@@ -265,10 +265,10 @@ export default function OnboardingPage() {
           <div className="mt-8 hidden rounded-md border border-border bg-white p-4 md:block">
             <p className="mb-2 flex items-center gap-2 text-xs font-medium text-stone-700">
               <Shield className="h-3.5 w-3.5 text-accent" />
-              Clear and editable
+              You stay in control
             </p>
             <p className="text-xs leading-5 text-muted-foreground">
-              Synzept uses only the context you choose to share. Profile and memory details stay editable.
+              Synzept keeps only the details you choose to share. You can change them later.
             </p>
           </div>
         </aside>
@@ -285,18 +285,18 @@ export default function OnboardingPage() {
               <StepShell key="welcome">
                 <div>
                   <p className="mb-3 text-sm text-accent">Welcome</p>
-                  <h1 className="max-w-2xl text-3xl font-semibold md:text-5xl">Start with what should not get lost.</h1>
+                  <h1 className="max-w-2xl text-3xl font-semibold md:text-5xl">Never lose your place again.</h1>
                   <p className="mt-5 max-w-2xl text-base leading-7 text-stone-600">
-                    Synzept turns your active work, preferences, and first thread into a place you can return to without rebuilding context.
+                    Synzept remembers where you left off, tracks unfinished work, shows what matters, and helps you continue.
                   </p>
                 </div>
                 <div className="grid gap-3 md:grid-cols-3">
-                  <IntroTile icon={<Brain className="h-5 w-5" />} title="Memory" text="Goals, priorities, and preferences become reusable context." />
-                  <IntroTile icon={<FolderKanban className="h-5 w-5" />} title="Organization" text="Projects, notes, and tasks start connected from day one." />
-                  <IntroTile icon={<MessageSquareText className="h-5 w-5" />} title="Conversation" text="Your first thread starts with the context you provide." />
+                  <IntroTile icon={<Brain className="h-5 w-5" />} title="Remembers" text="Your important goals, priorities, and projects stay easy to return to." />
+                  <IntroTile icon={<FolderKanban className="h-5 w-5" />} title="Tracks unfinished work" text="Tasks, decisions, and open loops stay visible." />
+                  <IntroTile icon={<MessageSquareText className="h-5 w-5" />} title="Shows the next step" text="Start from one clear action instead of a blank screen." />
                 </div>
                 <GuidanceCard title="How to think about setup">
-                  Add only context you want Synzept to reuse: active goals, priorities, and one place where work should continue. Everything can be edited later.
+                  Add only what helps you return tomorrow: active goals, current priorities, and one place where work should continue.
                 </GuidanceCard>
                 <Field label="What are you working on right now?">
                   <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -333,9 +333,9 @@ export default function OnboardingPage() {
             {step === "profile" && (
               <StepShell key="profile">
                 <form onSubmit={onProfileSubmit} className="space-y-6">
-                  <StepHeading title="Tell Synzept what matters" text="Keep this light. These details initialize personalization and stay editable in settings." />
+                  <StepHeading title="Tell Synzept what matters" text="Keep this light. These details help your dashboard start with useful priorities." />
                   <GuidanceCard title="What this unlocks" icon={<Info className="h-4 w-4" />}>
-                    Synzept uses these details to make dashboard suggestions, memory retrieval, and conversation responses feel less generic.
+                    Synzept can show the work you care about, keep unfinished items visible, and suggest a clearer next step.
                   </GuidanceCard>
                   <div className="grid gap-4 md:grid-cols-2">
                     <Field label="Display name">
@@ -406,9 +406,9 @@ export default function OnboardingPage() {
 
             {step === "workspace" && (
               <StepShell key="workspace">
-                <StepHeading title="Create a starter workspace" text="Optional. One project, one task, or one note is enough to prevent an empty dashboard." />
+                <StepHeading title="Create a starter workspace" text="Optional. One project, one task, or one note is enough to make your first dashboard useful." />
                 <GuidanceCard title="Projects are continuity anchors">
-                  Use a project for any area of work you expect to revisit. Notes, tasks, conversations, and memory can then point back to the same context.
+                  Use a project for any area of work you expect to revisit. Tasks, notes, and decisions can point back to the same place.
                 </GuidanceCard>
                 <div className="grid gap-4 md:grid-cols-2">
                   <Field label="First project">
@@ -442,9 +442,9 @@ export default function OnboardingPage() {
 
             {step === "memory" && (
               <StepShell key="memory">
-                <StepHeading title="Continuity foundation ready" text="Synzept has saved the goals, priorities, preferences, and work context you chose to share." />
+                <StepHeading title="Your return path is ready" text="Synzept has saved the goals, priorities, preferences, and work details you chose to share." />
                 <GuidanceCard title="You stay in control">
-                  Memory is meant to reduce repeat explanation, not trap context. You can edit, delete, pause memory, or disable personalization from Settings.
+                  These details exist to reduce repeat explanation. You can change privacy and personalization from Settings.
                 </GuidanceCard>
                 <div className="grid gap-3 md:grid-cols-2">
                   {(status?.initialized_systems || ["profile", "memory", "workspace"]).map((item) => (
@@ -457,14 +457,14 @@ export default function OnboardingPage() {
                 <PreviewPanel preview={status?.dashboard_preview || preview} />
                 <Button onClick={onFirstChat} disabled={busy} className="w-fit">
                   {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                  Start first conversation
+                  Continue setup
                 </Button>
               </StepShell>
             )}
 
             {step === "first_chat" && (
               <StepShell key="first_chat">
-                <StepHeading title="First conversation" text="This thread uses the context you just gave Synzept, so the workspace starts with continuity instead of a blank prompt." />
+                <StepHeading title="First continuation" text="Synzept starts from what you just shared so the workspace does not feel blank." />
                 <GuidanceCard title="What to try next">
                   Ask Synzept to continue a project, organize priorities, summarize what matters, or preserve a decision you do not want to lose.
                 </GuidanceCard>
@@ -500,7 +500,7 @@ export default function OnboardingPage() {
                 </div>
                 <PreviewPanel preview={finalPreview || preview} />
                 <GuidanceCard title="First return path">
-                  Start from Continue Working on the dashboard. It is the fastest way back into unfinished work, open threads, and recent context.
+                  Start from the Dashboard. It is the fastest way back into what matters, what changed, and what to do next.
                 </GuidanceCard>
                 <Button onClick={() => router.replace("/dashboard")} className="w-fit">
                   Open dashboard
@@ -651,7 +651,7 @@ function PreviewPanel({ preview }: { preview: OnboardingDashboardPreview }) {
         </div>
       </div>
       <p className="text-sm leading-6 text-muted-foreground md:col-span-2">
-        {preview.continuity_summary || "Your workspace will start from onboarding context and stay useful as it grows."}
+        {preview.continuity_summary || "Your workspace will start with today's focus, open loops, and a recommended next step."}
       </p>
     </div>
   );

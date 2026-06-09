@@ -2,15 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FolderKanban, LayoutDashboard, ListTodo, MessageSquare, NotebookText } from "lucide-react";
+import { CalendarDays, Clock3, FolderKanban, LayoutDashboard, Settings } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 const links = [
-  { href: "/dashboard", label: "Home", icon: LayoutDashboard },
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/projects", label: "Projects", icon: FolderKanban },
-  { href: "/tasks", label: "Tasks", icon: ListTodo },
-  { href: "/chat", label: "Chat", icon: MessageSquare },
-  { href: "/notes", label: "Notes", icon: NotebookText },
+  { href: "/daily-brief", label: "Brief", icon: CalendarDays },
+  { href: "/timeline", label: "Timeline", icon: Clock3 },
+  { href: "/settings", label: "Settings", icon: Settings },
 ];
 
 export function MobileNav() {

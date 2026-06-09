@@ -59,17 +59,23 @@ export function DashboardPage() {
   const openLoops = useMemo(() => getOpenLoops({ dashboard, assistant, priorityTasks, continuityItems }), [assistant, continuityItems, dashboard, priorityTasks]);
   const recentProgress = useMemo(() => getRecentProgress({ dashboard, assistant, continuityItems }), [assistant, continuityItems, dashboard]);
 
+  const whatMatters = useMemo(() => getWhatMattersToday(dashboard, assistant, focusAreas), [assistant, dashboard, focusAreas]);
+  const returnStats = useMemo(() => getReturnStats(dashboard, openLoops, recentProgress), [dashboard, openLoops, recentProgress]);
+
   return (
-    <PageFrame eyebrow="Continuity" title="Home">
+    <PageFrame eyebrow="Launch workflow" title="Dashboard">
       <div className="mx-auto max-w-6xl space-y-5 p-5 md:p-7">
         <RecoveryBanner message={error} onRetry={load} />
         {isLoading && !dashboard ? (
           <DashboardSkeleton />
         ) : (
           <>
+            {dashboard?.returning_user?.is_returning && (
+              <WelcomeBackPanel stats={returnStats} summary={dashboard.returning_user.summary || dashboard.returning_user.prompt} />
+            )}
             <FocusPanel command={command} returningSummary={dashboard?.returning_user?.summary || dashboard?.returning_user?.prompt} />
             <section className="grid gap-5 lg:grid-cols-[minmax(0,1.2fr)_minmax(300px,0.8fr)]">
-              <ContinuityPanel items={continuityItems} />
+              <CompactList title="What Matters Today" items={whatMatters} empty="Create a project focus or task to give Synzept a daily brief." />
               <div className="space-y-5">
                 <CompactList title="Open Loops" items={openLoops} empty="No unfinished loop needs attention right now." />
                 <CompactList title="Recent Progress" items={recentProgress} empty="Recent progress will appear as you complete work." />
@@ -80,10 +86,34 @@ export function DashboardPage() {
               <PriorityTasks tasks={priorityTasks} />
             </section>
             <ConversationList conversations={dashboard?.recent_conversations || []} />
+            <ContinuityPanel items={continuityItems} />
           </>
         )}
       </div>
     </PageFrame>
+  );
+}
+
+function WelcomeBackPanel({ stats, summary }: { stats: ReturnType<typeof getReturnStats>; summary?: string }) {
+  return (
+    <section className="rounded-lg border border-border bg-white p-5 shadow-soft">
+      <p className="text-sm font-semibold text-stone-950">Welcome Back</p>
+      <p className="mt-1 text-sm leading-6 text-muted-foreground">{summary || "Synzept kept your latest work ready."}</p>
+      <div className="mt-4 grid gap-2 sm:grid-cols-3">
+        <ReturnStat label="Updates" value={stats.updates} />
+        <ReturnStat label="Completed" value={stats.completed} />
+        <ReturnStat label="Open loops" value={stats.openLoops} />
+      </div>
+    </section>
+  );
+}
+
+function ReturnStat({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-md bg-stone-50 px-3 py-3">
+      <p className="text-2xl font-semibold text-stone-950">{value}</p>
+      <p className="mt-1 text-xs text-muted-foreground">{label}</p>
+    </div>
   );
 }
 
@@ -173,7 +203,7 @@ function ResumeRow({ item }: { item: ContinuityCard }) {
 function CompactList({ title, items, empty }: { title: string; items: string[]; empty: string }) {
   return (
     <section className="rounded-lg border border-border bg-white p-5 shadow-soft">
-      <SectionHeading title={title} />
+      <SectionHeading title={title} description={title === "What Matters Today" ? "Top priorities, important projects, and time-sensitive items." : undefined} />
       <div className="mt-3 space-y-2">
         {items.slice(0, 5).map((item) => (
           <p key={item} className="rounded-md bg-stone-50 px-3 py-2 text-sm leading-5 text-stone-800">{item}</p>
@@ -189,7 +219,7 @@ function ProjectList({ projects }: { projects: Project[] }) {
 
   return (
     <section className="rounded-lg border border-border bg-white p-5 shadow-soft">
-      <SectionHeading title="Projects" description="Active work with visible focus and next step." />
+      <SectionHeading title="Current Projects" description="Active projects only, with visible status and last movement." />
       <div className="mt-3 space-y-2">
         {active.map((project) => (
           <Link key={project.id} href={`/projects/${project.id}`} className="block rounded-md bg-stone-50 px-3 py-3 transition hover:bg-stone-100">
@@ -199,6 +229,7 @@ function ProjectList({ projects }: { projects: Project[] }) {
                 <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">
                   {project.currentFocus || project.recommendedNextStep || project.description || "Add a focus and next step."}
                 </p>
+                <p className="mt-1 text-xs text-stone-400">{project.updatedAt || project.createdAt || project.created_at ? `Last activity ${formatShortDate(project.updatedAt || project.createdAt || project.created_at)}` : "No activity yet"}</p>
               </div>
               <ProjectHealth project={project} />
             </div>
@@ -389,6 +420,32 @@ function getContinuityCommand({
   };
 }
 
+function getWhatMattersToday(dashboard: Dashboard | null, assistant: ContinuityAssistant | null, focusAreas: string[]) {
+  const dueTasks = (dashboard?.tasks || [])
+    .filter((task) => !doneStatuses.has(task.status) && task.due_at)
+    .slice(0, 3)
+    .map((task) => `${task.title} (${dueLabel(task.due_at)})`);
+  const projectFocus = (dashboard?.projects || [])
+    .filter((project) => !doneStatuses.has(project.status))
+    .slice(0, 4)
+    .map((project) => project.currentFocus || project.recommendedNextStep || project.name);
+
+  return uniqueItems([
+    ...focusAreas,
+    ...(assistant?.priorities || []),
+    ...dueTasks,
+    ...projectFocus,
+  ]).slice(0, 6);
+}
+
+function getReturnStats(dashboard: Dashboard | null, openLoops: string[], recentProgress: string[]) {
+  return {
+    updates: (dashboard?.recent_activity || []).length + (dashboard?.continuity_timeline || []).length,
+    completed: recentProgress.length,
+    openLoops: openLoops.length,
+  };
+}
+
 function getOpenLoops({
   dashboard,
   assistant,
@@ -460,6 +517,13 @@ function dueLabel(value: string | null) {
   if (Number.isNaN(due.getTime())) return "";
   if (due < startOfToday()) return "Overdue";
   return `Due ${due.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
+}
+
+function formatShortDate(value?: string) {
+  if (!value) return "recently";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "recently";
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
 function labelForType(type: string) {

@@ -1,1 +1,5 @@
-export { default } from "../../../../frontend-v2/app/knows-you/page";
+import { redirect } from "next/navigation";
+
+export default function KnowsYouPage() {
+  redirect("/settings");
+}

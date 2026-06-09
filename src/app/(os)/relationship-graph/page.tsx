@@ -1,1 +1,5 @@
-export { default } from "../../../../frontend-v2/app/relationship-graph/page";
+import { redirect } from "next/navigation";
+
+export default function RelationshipGraphPage() {
+  redirect("/dashboard");
+}
