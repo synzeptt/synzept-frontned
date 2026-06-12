@@ -4,7 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-NodeType = Literal["user", "goal", "project", "memory", "decision", "timeline_event"]
+NodeType = Literal["user", "goal", "project", "task", "open_loop", "decision", "timeline_event", "note", "memory", "conversation"]
 
 
 class RelationshipNodeCreate(BaseModel):

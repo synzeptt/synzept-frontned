@@ -1,17 +1,19 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { CalendarDays, Clock3, FolderKanban, Menu, PanelsTopLeft, Settings, X } from "lucide-react";
+import { Bell, CalendarDays, Clock3, CreditCard, FolderKanban, Menu, PanelsTopLeft, Settings, X } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { CopyrightLine } from "@/components/copyright-line";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { UsageTracker } from "@/components/analytics/usage-tracker";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar } from "@/components/ui/avatar";
+import { UpgradeCta } from "@/components/pro/upgrade-cta";
 import { useAuthStore } from "@/stores/auth";
+import { api, type NotificationDigest } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { useWorkspaceUIStore } from "@frontend/store/workspace-ui";
 
@@ -23,6 +25,7 @@ const navSections = [
       { href: "/projects", label: "Projects", icon: FolderKanban },
       { href: "/daily-brief", label: "Daily Brief", icon: CalendarDays },
       { href: "/timeline", label: "Timeline", icon: Clock3 },
+      { href: "/billing", label: "Billing", icon: CreditCard },
     ],
   },
   {
@@ -38,6 +41,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { hydrate, isAuthenticated, isLoading, user } = useAuthStore();
   const { sidebarOpen, setSidebarOpen } = useWorkspaceUIStore();
+  const [digest, setDigest] = useState<NotificationDigest | null>(null);
 
   useEffect(() => {
     hydrate();
@@ -53,6 +57,11 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
       router.replace("/onboarding");
     }
   }, [isAuthenticated, isLoading, pathname, router, user]);
+
+  useEffect(() => {
+    if (!isAuthenticated || isLoading) return;
+    api.getNotifications(true).then(setDigest).catch(() => setDigest(null));
+  }, [isAuthenticated, isLoading]);
 
   if (isLoading) {
     return (
@@ -112,6 +121,41 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
       </nav>
 
       <div className="m-3 space-y-3">
+        {digest && digest.notifications.length > 0 && (
+          <div className="rounded-lg border border-border bg-white p-3">
+            <div className="flex items-center justify-between gap-2">
+              <p className="flex items-center gap-2 text-xs font-medium text-stone-950">
+                <Bell className="h-3.5 w-3.5 text-stone-500" />
+                Notifications
+              </p>
+              {digest.unread > 0 && <span className="rounded-md bg-stone-900 px-1.5 py-0.5 text-[10px] text-white">{digest.unread}</span>}
+            </div>
+            <div className="mt-2 space-y-1">
+              {digest.notifications.slice(0, 2).map((item) => {
+                const href = typeof item.metadata.href === "string" ? item.metadata.href : "/dashboard";
+                return (
+                  <Link
+                    key={item.id}
+                    href={href}
+                    onClick={() => {
+                      setSidebarOpen(false);
+                      void api.markNotificationRead(item.id).then(setDigest).catch(() => null);
+                    }}
+                    className="block rounded-md bg-stone-50 px-2 py-2 text-xs leading-5 text-stone-700 hover:bg-stone-100"
+                  >
+                    <span className="line-clamp-1 font-medium text-stone-950">{item.title}</span>
+                    <span className="line-clamp-2 text-stone-500">{item.message}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        )}
+        <div className="rounded-lg border border-border bg-stone-50 p-3">
+          <p className="text-xs font-medium text-stone-950">Current Plan: {user?.is_pro ? "Pro" : "Free"}</p>
+          <p className="mt-1 text-[11px] leading-4 text-stone-500">{user?.is_pro ? "Pro features are unlocked." : "Upgrade for ₹399/month."}</p>
+          {!user?.is_pro && <UpgradeCta compact className="mt-3 w-full" />}
+        </div>
         <Link
           href="/settings"
           onClick={() => setSidebarOpen(false)}

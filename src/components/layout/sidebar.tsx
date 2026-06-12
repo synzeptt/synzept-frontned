@@ -3,18 +3,28 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  CalendarDays,
+  Lightbulb,
+  RotateCcw,
   LayoutDashboard,
   MessageSquare,
+  Network,
   FolderKanban,
   StickyNote,
   ListTodo,
   Settings,
 } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
+import { UpgradeCta } from "@/components/pro/upgrade-cta";
 import { cn } from "@/lib/cn";
+import { useAuthStore } from "@/stores/auth";
 
 const links = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/daily-brief", label: "Daily Brief", icon: CalendarDays },
+  { href: "/open-loops", label: "Open Loops", icon: RotateCcw },
+  { href: "/learning-engine", label: "Learning", icon: Lightbulb },
+  { href: "/relationship-graph", label: "Graph", icon: Network },
   { href: "/chat", label: "Work", icon: MessageSquare },
   { href: "/projects", label: "Projects", icon: FolderKanban },
   { href: "/notes", label: "Notes", icon: StickyNote },
@@ -24,6 +34,8 @@ const links = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { user } = useAuthStore();
+  const isPro = Boolean(user?.is_pro);
 
   return (
     <aside className="hidden h-screen w-[220px] shrink-0 flex-col border-r border-border bg-surface-raised/50 md:flex">
@@ -51,6 +63,19 @@ export function Sidebar() {
           );
         })}
       </nav>
+
+      <div className="px-3 pb-3">
+        <div className="rounded-lg border border-border bg-white p-3">
+          <p className="text-xs font-medium text-stone-950">Current Plan: {isPro ? "Pro" : "Free"}</p>
+          <p className="mt-1 text-[11px] leading-4 text-muted">{isPro ? "Pro continuity features are unlocked." : "Unlock Pro for ₹399/month."}</p>
+          {!isPro && <UpgradeCta compact className="mt-3 w-full" />}
+          {isPro && (
+            <Link href="/billing" className="mt-3 inline-flex h-8 w-full items-center justify-center rounded-lg border border-border text-xs font-medium text-stone-700 hover:bg-stone-50">
+              Manage Billing
+            </Link>
+          )}
+        </div>
+      </div>
 
       <p className="px-5 py-4 text-[11px] leading-relaxed text-muted">
         Memory · Context · Continuity

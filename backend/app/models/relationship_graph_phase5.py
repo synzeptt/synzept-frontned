@@ -12,7 +12,7 @@ class RelationshipNode(Base):
     __tablename__ = "relationship_nodes"
     __table_args__ = (
         CheckConstraint(
-            "node_type IN ('user', 'goal', 'project', 'memory', 'decision', 'timeline_event')",
+            "node_type IN ('user', 'goal', 'project', 'task', 'open_loop', 'decision', 'timeline_event', 'note', 'memory', 'conversation')",
             name="ck_relationship_nodes_type",
         ),
         UniqueConstraint("user_id", "node_type", "entity_id", name="uq_relationship_nodes_entity"),

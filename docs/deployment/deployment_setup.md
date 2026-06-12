@@ -76,6 +76,14 @@ psql "$DATABASE_URL" -f backend/migrations/002_align_v1_models.sql
 psql "$DATABASE_URL" -f backend/migrations/003_conversation_persistence.sql
 psql "$DATABASE_URL" -f backend/migrations/004_memory_retrieval_foundation.sql
 psql "$DATABASE_URL" -f backend/migrations/005_workspace_continuity.sql
+psql "$DATABASE_URL" -f backend/migrations/006_user_understanding_rls.sql
+psql "$DATABASE_URL" -f backend/migrations/007_daily_briefs_rls.sql
+psql "$DATABASE_URL" -f backend/migrations/008_project_intelligence_rls.sql
+psql "$DATABASE_URL" -f backend/migrations/009_learning_engine_rls.sql
+psql "$DATABASE_URL" -f backend/migrations/010_memory_profiles_rls.sql
+psql "$DATABASE_URL" -f backend/migrations/011_goal_progress_engine_rls.sql
+psql "$DATABASE_URL" -f backend/migrations/012_workspace_system_rls.sql
+psql "$DATABASE_URL" -f backend/migrations/013_core_architecture_foundation_rls.sql
 ```
 
 ## Health Checks
@@ -94,7 +102,7 @@ psql "$DATABASE_URL" -f backend/migrations/005_workspace_continuity.sql
 1. Set `ENVIRONMENT=production`, `LOG_JSON=true`, `DATABASE_URL`, `JWT_SECRET_KEY`, CORS origins, and at least one AI provider key.
 2. Set `INVITE_REQUIRED=true` for controlled public launch.
 3. Configure Railway health check to `/health/ready`.
-4. Confirm `/health/diagnostics` reports database connected and migration version `005_workspace_continuity`.
+4. Confirm `/health/diagnostics` reports database connected, then validate the V2 core tables and RLS policies after applying `013_core_architecture_foundation_rls.sql`.
 5. Confirm logs do not include secrets or raw provider keys.
 
 ## Vercel Frontend Validation

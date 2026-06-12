@@ -6,13 +6,15 @@ import hashlib
 from datetime import datetime, timezone
 from uuid import UUID
 
-from sqlalchemy import Select, select
+from sqlalchemy import Select, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.infrastructure.jobs import JobType, enqueue
 from app.memory.embedding_service import EmbeddingGenerationService
 from app.memory.extraction_service import ConversationTurn, ExtractedMemory, MemoryExtractionService, MEMORY_TYPES
-from app.models.memory import Memory
+from app.core.exceptions import NotFoundError
+from app.models.memory import Memory, MemoryRevision
+from app.models.user import User
 
 
 class MemoryService:
@@ -60,9 +62,12 @@ class MemoryService:
         )
         memories: list[Memory] = []
         for item in extracted:
-            if await self._near_duplicate_exists(user_id=user_id, item=item):
-                continue
-            memory = await self.create_memory(user_id=user_id, item=item)
+            existing = await self._find_duplicate(user_id=user_id, item=item)
+            memory = (
+                await self._merge_memory(existing, item)
+                if existing
+                else await self.create_memory(user_id=user_id, item=item)
+            )
             memories.append(memory)
         return memories
 
@@ -79,11 +84,13 @@ class MemoryService:
             importance_score=item.importance_score,
             recency_score=1.0,
             retrieval_count=0,
+            version=1,
             metadata_=item.metadata,
             content_hash=self._content_hash(item.content),
         )
         self.session.add(memory)
         await self.session.flush()
+        await self._record_revision(memory, action="created")
 
         if self.embeddings:
             embedding = await self.embeddings.upsert_embedding(
@@ -96,6 +103,70 @@ class MemoryService:
             )
             memory.embedding_id = embedding.id
         return memory
+
+    async def update_memory(
+        self,
+        *,
+        user_id: UUID,
+        memory_id: UUID,
+        content: str | None = None,
+        category: str | None = None,
+        importance_score: float | None = None,
+    ) -> Memory:
+        memory = await self._get_owned(user_id=user_id, memory_id=memory_id)
+        if content is not None:
+            memory.content = content
+            memory.summary = self.extractor._summarize(content)
+            memory.content_hash = self._content_hash(content)
+        if category is not None:
+            memory.category = category
+            memory.memory_type = category if category in MEMORY_TYPES else memory.memory_type
+        if importance_score is not None:
+            memory.importance_score = importance_score
+        memory.version += 1
+        await self.session.flush()
+        await self._record_revision(memory, action="updated")
+        return memory
+
+    async def delete_memory(self, *, user_id: UUID, memory_id: UUID) -> None:
+        memory = await self._get_owned(user_id=user_id, memory_id=memory_id)
+        memory.version += 1
+        memory.deleted_at = datetime.now(timezone.utc)
+        await self.session.flush()
+        await self._record_revision(memory, action="deleted")
+
+    async def search_memory(
+        self,
+        *,
+        user_id: UUID,
+        query: str | None = None,
+        category: str | None = None,
+        limit: int = 40,
+    ) -> list[Memory]:
+        statement = select(Memory).where(Memory.user_id == user_id, Memory.deleted_at.is_(None))
+        if category:
+            statement = statement.where(Memory.category == category)
+        if query:
+            pattern = f"%{query.strip()}%"
+            statement = statement.where(or_(Memory.content.ilike(pattern), Memory.summary.ilike(pattern)))
+        result = await self.session.execute(
+            statement.order_by(Memory.importance_score.desc(), Memory.updated_at.desc()).limit(limit)
+        )
+        return list(result.scalars().all())
+
+    async def get_user_profile(self, *, user_id: UUID) -> dict:
+        user = await self.session.get(User, user_id)
+        memories = await self.search_memory(user_id=user_id, limit=200)
+        grouped = {key: [] for key in ("goals", "projects", "interests", "skills", "long_term_plans")}
+        for memory in memories:
+            if memory.category in grouped and memory.content not in grouped[memory.category]:
+                grouped[memory.category].append(memory.content)
+        return {
+            "userId": str(user_id),
+            **grouped,
+            "preferences": user.preferences or {} if user else {},
+            "memories": memories,
+        }
 
     async def list_memories(
         self,
@@ -120,15 +191,52 @@ class MemoryService:
             memory.retrieval_count += 1
             memory.last_accessed_at = now
 
-    async def _near_duplicate_exists(self, *, user_id: UUID, item: ExtractedMemory) -> bool:
+    async def _find_duplicate(self, *, user_id: UUID, item: ExtractedMemory) -> Memory | None:
         result = await self.session.execute(
-            select(Memory.id).where(
+            select(Memory).where(
                 Memory.user_id == user_id,
                 Memory.content_hash == self._content_hash(item.content),
+                Memory.category == item.memory_type,
                 Memory.deleted_at.is_(None),
             )
         )
-        return result.scalar_one_or_none() is not None
+        return result.scalar_one_or_none()
+
+    async def _merge_memory(self, memory: Memory, item: ExtractedMemory) -> Memory:
+        metadata = dict(memory.metadata_ or {})
+        metadata["occurrences"] = int(metadata.get("occurrences", 1)) + 1
+        memory.metadata_ = metadata
+        memory.importance_score = max(memory.importance_score, item.importance_score)
+        memory.conversation_id = item.conversation_id or memory.conversation_id
+        memory.project_id = item.project_id or memory.project_id
+        memory.version += 1
+        await self.session.flush()
+        await self._record_revision(memory, action="merged")
+        return memory
+
+    async def _get_owned(self, *, user_id: UUID, memory_id: UUID) -> Memory:
+        result = await self.session.execute(
+            select(Memory).where(Memory.id == memory_id, Memory.user_id == user_id, Memory.deleted_at.is_(None))
+        )
+        memory = result.scalar_one_or_none()
+        if not memory:
+            raise NotFoundError("Memory not found")
+        return memory
+
+    async def _record_revision(self, memory: Memory, *, action: str) -> None:
+        self.session.add(
+            MemoryRevision(
+                memory_id=memory.id,
+                user_id=memory.user_id,
+                version=memory.version,
+                action=action,
+                content=memory.content,
+                category=memory.category or memory.memory_type,
+                importance_score=memory.importance_score,
+                metadata_=dict(memory.metadata_ or {}),
+            )
+        )
+        await self.session.flush()
 
     @staticmethod
     def _content_hash(content: str) -> str:

@@ -27,17 +27,25 @@ class User(Base, TimestampMixin, SoftDeleteMixin):
 
     profile = relationship("UserProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
     daily_summaries = relationship("DailySummary", back_populates="user", cascade="all, delete-orphan")
+    daily_briefs = relationship("DailyBrief", back_populates="user", cascade="all, delete-orphan")
     conversations = relationship("Conversation", back_populates="user")
     projects = relationship("Project", back_populates="user")
+    goals = relationship("Goal", back_populates="user", cascade="all, delete-orphan")
     notes = relationship("Note", back_populates="user")
     tasks = relationship("Task", back_populates="user")
     memories = relationship("Memory", back_populates="user")
     understanding = relationship("UserUnderstanding", back_populates="user", cascade="all, delete-orphan")
     learning_observations = relationship("LearningObservation", back_populates="user", cascade="all, delete-orphan")
     learning_suggestions = relationship("LearningSuggestion", back_populates="user", cascade="all, delete-orphan")
-    timeline_events = relationship("TimelineEvent", back_populates="user", cascade="all, delete-orphan")
     refresh_tokens = relationship("RefreshToken", back_populates="user", cascade="all, delete-orphan")
     password_reset_tokens = relationship("PasswordResetToken", back_populates="user", cascade="all, delete-orphan")
+    workspace_activities = relationship("WorkspaceActivity", back_populates="user", cascade="all, delete-orphan")
+    timeline_events = relationship("TimelineEvent", back_populates="user", cascade="all, delete-orphan")
+    learning_signals = relationship("LearningSignal", back_populates="user", cascade="all, delete-orphan")
+    graph_nodes = relationship("GraphNode", back_populates="user", cascade="all, delete-orphan")
+    graph_edges = relationship("GraphEdge", back_populates="user", cascade="all, delete-orphan")
+    subscription = relationship("Subscription", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    notifications = relationship("Notification", back_populates="user", cascade="all, delete-orphan")
 
     @property
     def hashed_password(self) -> str | None:

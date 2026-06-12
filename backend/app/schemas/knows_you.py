@@ -40,6 +40,9 @@ class LearningSuggestionOut(BaseModel):
     userId: UUID
     title: str
     description: str
+    confidence: float = 0.5
+    sourceExplanation: str = ""
+    evidence: list[dict[str, Any]] = Field(default_factory=list)
     status: Literal["pending", "accepted", "ignored"]
     createdAt: datetime
     updatedAt: datetime

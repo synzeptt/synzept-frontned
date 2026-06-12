@@ -10,6 +10,7 @@ from app.core.exceptions import UnauthorizedError
 from app.core.security import decode_token
 from app.database.session import SessionLocal, get_db_session
 from app.models.user import User
+from app.services.billing_service import BillingService
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
@@ -33,4 +34,14 @@ async def get_current_user(
     user = result.scalar_one_or_none()
     if not user:
         raise UnauthorizedError("User not found or inactive")
+    return user
+
+
+async def require_pro_user(
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> User:
+    billing = await BillingService(session).overview(user)
+    if not billing["plan"]["isPro"]:
+        raise UnauthorizedError("Synzept Pro is required")
     return user

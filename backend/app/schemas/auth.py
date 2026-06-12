@@ -68,6 +68,9 @@ class UserOut(ORMModel):
     is_active: bool = True
     is_verified: bool = False
     preferences: dict = Field(default_factory=dict)
+    plan_type: str = "free"
+    subscription_status: str = "inactive"
+    is_pro: bool = False
 
 
 class LogoutRequest(BaseModel):

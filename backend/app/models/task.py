@@ -17,6 +17,9 @@ class Task(Base, TimestampMixin, SoftDeleteMixin):
     project_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("projects.id", ondelete="SET NULL"), nullable=True, index=True
     )
+    milestone_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("milestones.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     title: Mapped[str] = mapped_column(String(300), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(50), default="pending", index=True)
@@ -25,3 +28,4 @@ class Task(Base, TimestampMixin, SoftDeleteMixin):
 
     user = relationship("User", back_populates="tasks")
     project = relationship("Project", back_populates="tasks")
+    milestone = relationship("Milestone", back_populates="tasks")

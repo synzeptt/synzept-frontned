@@ -72,6 +72,11 @@ class Settings(BaseSettings):
     supabase_service_key: str = ""
     supabase_storage_bucket: str = "synzept"
 
+    razorpay_key_id: str = ""
+    razorpay_key_secret: str = ""
+    pro_monthly_price_inr: int = 399
+    founder_analytics_emails: str = ""
+
     @property
     def use_background_worker(self) -> bool:
         return bool(self.redis_url)
@@ -89,6 +94,10 @@ class Settings(BaseSettings):
         if self.environment != "production":
             origins.extend(self.local_cors_origins)
         return list(dict.fromkeys(origins))
+
+    @property
+    def founder_analytics_email_list(self) -> list[str]:
+        return [email.strip().lower() for email in self.founder_analytics_emails.split(",") if email.strip()]
 
     @model_validator(mode="after")
     def validate_production_secrets(self) -> "Settings":

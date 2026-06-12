@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, CheckCircle2, Clock3, FolderKanban, ListTodo, PlayCircle, Target } from "lucide-react";
+import { CheckCircle2, Clock3, FolderKanban, ListTodo, Target } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { SessionRedirect } from "@/components/auth/session-redirect";
+import { MobileDownloadCta, MobileDownloadShowcase } from "@/components/mobile-download-cta";
 import { SiteFooter } from "@/components/site-footer";
 import { buttonVariants } from "@/components/ui/button";
-import { cn } from "@/lib/cn";
 import { buildStructuredData, createPageMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = createPageMetadata({
@@ -55,6 +55,9 @@ export default function Home() {
           <Link href="#demo" className="hidden px-3 py-2 transition hover:text-stone-950 sm:inline-block">
             Watch Demo
           </Link>
+          <Link href="/pricing" className="hidden px-3 py-2 transition hover:text-stone-950 sm:inline-block">
+            Pricing
+          </Link>
           <Link href="/login" className="px-3 py-2 transition hover:text-stone-950">
             Login
           </Link>
@@ -80,15 +83,7 @@ export default function Home() {
                 </div>
               ))}
             </div>
-            <div className="mt-9 flex flex-col gap-3 sm:flex-row">
-              <Link href="/signup" className={cn(buttonVariants({ size: "lg" }), "gap-2")}>
-                Start Free <ArrowRight className="h-4 w-4" />
-              </Link>
-              <Link href="#demo" className={cn(buttonVariants({ variant: "outline", size: "lg" }), "gap-2")}>
-                <PlayCircle className="h-4 w-4" />
-                Watch Demo
-              </Link>
-            </div>
+            <MobileDownloadCta className="mt-9" />
           </div>
 
           <div className="rounded-xl border border-border bg-white p-5 shadow-panel">
@@ -163,6 +158,8 @@ export default function Home() {
         </div>
       </section>
 
+      <MobileDownloadShowcase />
+
       <section className="border-y border-border bg-white">
         <div className="mx-auto grid max-w-7xl gap-10 px-5 py-20 sm:px-8 lg:grid-cols-[0.9fr_1.1fr]">
           <div>
@@ -190,14 +187,7 @@ export default function Home() {
               Start with today&apos;s brief. Synzept helps you continue from the work that already matters.
             </p>
           </div>
-          <div className="mt-6 flex flex-col gap-3 sm:flex-row lg:mt-0">
-            <Link href="/signup" className={buttonVariants()}>
-              Start Free
-            </Link>
-            <Link href="/login" className={buttonVariants({ variant: "ghost" })}>
-              Login
-            </Link>
-          </div>
+          <MobileDownloadCta className="mt-6 lg:mt-0" compact />
         </div>
       </section>
 

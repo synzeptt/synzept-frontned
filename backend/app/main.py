@@ -1,4 +1,6 @@
 from contextlib import asynccontextmanager
+import asyncio
+from contextlib import suppress
 
 from fastapi import FastAPI
 from fastapi.exceptions import HTTPException, RequestValidationError
@@ -7,9 +9,23 @@ from fastapi.responses import JSONResponse
 
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.api import context_engine_phase6, continuity_assistant_phase7, daily_brief_phase8, knows_you, learning_engine_phase4, project_intelligence_phase2, relationship_graph_phase5, timeline_phase3
+from app.api import (
+    billing,
+    context_engine_phase6,
+    continuity_assistant_phase7,
+    daily_brief_phase8,
+    knows_you,
+    learning_engine_phase4,
+    notifications,
+    open_loops_engine,
+    product_analytics,
+    project_intelligence_phase2,
+    relationship_graph_phase5,
+    timeline_phase3,
+)
 from app.api.middleware import BodySizeLimitMiddleware, RateLimitMiddleware, SecurityHeadersMiddleware
 from app.api.v1.router import api_router
+from app.api.v2.router import api_router as api_v2_router
 from app.core.config import get_settings
 from app.core.exceptions import (
     AppError,
@@ -25,10 +41,12 @@ from app.infrastructure.database import check_database, database_diagnostics, re
 from app.infrastructure.monitoring import monitor
 from app.services.ai.provider_registry import ProviderRegistry
 from app.infrastructure.tracing import RequestTracingMiddleware
-from app.database.session import initialize_local_database
+from app.database.session import SessionLocal, initialize_local_database
+from app.services.notification_service import NotificationService
 
 settings = get_settings()
 
+CORS_ORIGINS = [origin.strip().rstrip("/") for origin in settings.cors_origins.split(",") if origin.strip()]
 CORS_METHODS = ["*"]
 CORS_HEADERS = ["*"]
 
@@ -37,7 +55,24 @@ CORS_HEADERS = ["*"]
 async def lifespan(_app: FastAPI):
     setup_logging()
     await initialize_local_database()
-    yield
+    notification_task = asyncio.create_task(_notification_scheduler())
+    try:
+        yield
+    finally:
+        notification_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await notification_task
+
+
+async def _notification_scheduler() -> None:
+    while True:
+        try:
+            async with SessionLocal() as session:
+                await NotificationService(session).generate_for_all_users()
+                await session.commit()
+        except Exception:
+            pass
+        await asyncio.sleep(30 * 60)
 
 
 app = FastAPI(
@@ -72,6 +107,8 @@ app.add_exception_handler(OSError, database_connection_exception_handler)
 app.add_exception_handler(Exception, unhandled_exception_handler)
 
 app.include_router(api_router)
+app.include_router(api_v2_router)
+app.include_router(billing.router)
 app.include_router(knows_you.router)
 app.include_router(project_intelligence_phase2.router)
 app.include_router(timeline_phase3.router)
@@ -80,6 +117,9 @@ app.include_router(relationship_graph_phase5.router)
 app.include_router(context_engine_phase6.router)
 app.include_router(continuity_assistant_phase7.router)
 app.include_router(daily_brief_phase8.router)
+app.include_router(open_loops_engine.router)
+app.include_router(notifications.router)
+app.include_router(product_analytics.router)
 
 
 @app.get("/health")

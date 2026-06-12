@@ -156,6 +156,7 @@ export async function request<T>(path: string, options?: RequestInit, retry = tr
   }
   return response.json();
 }
+
 function logAuthFailure(path: string, status: number, detail: unknown) {
   if (typeof console === "undefined" || !path.includes("/auth/")) return;
   console.error("[Synzept Auth] Request failed", {
@@ -175,6 +176,7 @@ function logRequestFailure(path: string, err: unknown) {
     message,
   });
 }
+
 export type ChatMessage = { role: "user" | "assistant" | "system"; content: string; id?: string };
 
 export type Conversation = {
@@ -195,6 +197,7 @@ export type Task = {
   status: "todo" | "in_progress" | "completed" | "archived" | "pending" | "done";
   priority: string;
   project_id: string | null;
+  milestone_id?: string | null;
   due_at: string | null;
   created_at: string;
 };
@@ -205,6 +208,8 @@ export type Note = {
   content: string;
   summary?: string | null;
   project_id: string | null;
+  goal_id?: string | null;
+  tags?: string[];
   created_at: string;
 };
 
@@ -216,8 +221,8 @@ export type Project = {
   currentFocus: string;
   recommendedNextStep: string;
   status: "active" | "paused" | "completed" | "archived" | string;
-  context_summary?: string | null;
-  created_at?: string;
+  context_summary: string | null;
+  created_at: string;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -254,6 +259,7 @@ export type TimelineEvent = {
   createdAt: string;
   updatedAt: string;
 };
+
 export type LearningObservation = {
   id: string;
   userId: string;
@@ -269,6 +275,9 @@ export type LearningSuggestion = {
   userId: string;
   title: string;
   description: string;
+  confidence: number;
+  sourceExplanation?: string;
+  evidence?: Array<{ source: string; count: number }>;
   status: "pending" | "accepted" | "ignored";
   createdAt: string;
   updatedAt: string;
@@ -278,10 +287,11 @@ export type LearningEngine = {
   observations: LearningObservation[];
   suggestions: LearningSuggestion[];
 };
+
 export type RelationshipNode = {
   id: string;
   userId: string;
-  nodeType: "user" | "goal" | "project" | "memory" | "decision" | "timeline_event";
+  nodeType: "user" | "goal" | "project" | "task" | "open_loop" | "decision" | "timeline_event" | "note" | "memory" | "conversation";
   entityId: string | null;
   title: string;
   description: string;
@@ -311,6 +321,14 @@ export type RelationshipNeighborhood = {
   relatedNodes: RelationshipNode[];
   edges: RelationshipEdge[];
 };
+
+export type RelationshipInsight = {
+  type: "important_context" | "hidden_dependency" | "forgotten_connection" | string;
+  title: string;
+  detail: string;
+  nodeId: string;
+};
+
 export type ContextSnapshot = {
   id: string | null;
   userId: string;
@@ -322,6 +340,7 @@ export type ContextSnapshot = {
   createdAt: string | null;
   updatedAt: string | null;
 };
+
 export type ContinuityAssistantSnapshot = {
   id: string | null;
   userId: string;
@@ -334,6 +353,7 @@ export type ContinuityAssistantSnapshot = {
   createdAt: string | null;
   updatedAt: string | null;
 };
+
 export type DailyBriefSnapshot = {
   id: string | null;
   userId: string;
@@ -343,10 +363,166 @@ export type DailyBriefSnapshot = {
   openLoops: Array<Record<string, unknown>>;
   recommendedNextStep: Record<string, unknown>;
   recentProgress: Array<Record<string, unknown>>;
+  projectsNeedingAttention: Array<Record<string, unknown>>;
   contextToRemember: Array<Record<string, unknown>>;
   createdAt: string | null;
   updatedAt: string | null;
 };
+
+export type OpenLoopEngineItem = {
+  id: string;
+  source: "task" | "decision" | "open_loop" | "conversation" | "note";
+  sourceId: string;
+  title: string;
+  description: string;
+  projectId: string | null;
+  projectName: string;
+  type: "unfinished_task" | "pending_decision" | "waiting_response" | "blocked_work" | "follow_up" | "incomplete_idea";
+  status: "open" | "completed" | "snoozed" | "ignored";
+  createdAt: string;
+  updatedAt: string;
+  priority: "high" | "medium" | "low";
+  href: string;
+  nextStep: string;
+};
+
+export type OpenLoopEngineSummary = {
+  total: number;
+  highPriority: number;
+  pendingDecisions: number;
+  blockedWork: number;
+  followUps: number;
+};
+
+export type OpenLoopEngine = {
+  items: OpenLoopEngineItem[];
+  summary: OpenLoopEngineSummary;
+};
+
+export type GoalMilestone = {
+  id: string;
+  goal_id: string;
+  title: string;
+  description: string;
+  status: "pending" | "in_progress" | "completed";
+  progress: number;
+  position: number;
+  tasks: Task[];
+};
+
+export type Goal = {
+  id: string;
+  title: string;
+  description: string;
+  status: "active" | "completed" | "paused";
+  progress: number;
+  project_id: string | null;
+  milestones: GoalMilestone[];
+};
+
+export type NextAction = {
+  task_id: string | null;
+  milestone_id: string | null;
+  goal_id: string | null;
+  goal_title: string;
+  milestone_title: string | null;
+  title: string;
+  reason: string;
+  priority: string;
+};
+
+export type GoalDashboard = {
+  active_goals: Goal[];
+  active_projects: string[];
+  upcoming_tasks: Task[];
+  recommendations: NextAction[];
+};
+
+export type WorkspaceInsight = {
+  type: string;
+  title: string;
+  detail: string;
+  severity: string;
+};
+
+export type WorkspaceSearchResult = {
+  type: string;
+  id: string;
+  title: string;
+  detail: string;
+};
+
+export type Workspace = {
+  projects: Array<{ id: string; title: string; description: string; status: string; progress: number }>;
+  goals: Goal[];
+  tasks: Task[];
+  notes: Note[];
+  memories: Memory[];
+  progress: {
+    goal_completion: number;
+    project_completion: number;
+    task_completion: number;
+    weekly_productivity_trend: number;
+  };
+  insights: WorkspaceInsight[];
+  recommendations: NextAction[];
+  timeline: Array<{ id: string; action: string; title: string; detail: string; created_at: string }>;
+};
+
+export type IntelligenceItem = {
+  type: string;
+  title: string;
+  detail: string;
+  severity: string;
+  priority: string;
+  project_id: string | null;
+  goal_id: string | null;
+  milestone_id: string | null;
+  task_id: string | null;
+};
+
+export type ProactiveOverview = {
+  daily_plan: {
+    generated_at: string;
+    top_priorities: IntelligenceItem[];
+    suggested_tasks: IntelligenceItem[];
+    focus_areas: string[];
+  };
+  focus: {
+    project_id: string | null;
+    project_title: string | null;
+    goal_id: string | null;
+    goal_title: string | null;
+    highest_impact_action: IntelligenceItem | null;
+    attention_warning: string | null;
+  };
+  insights: IntelligenceItem[];
+  project_health: Array<{
+    project_id: string;
+    project_title: string;
+    health_score: number;
+    momentum_score: number;
+    completion_score: number;
+    risk_score: number;
+    reasons: string[];
+  }>;
+  recommendations: IntelligenceItem[];
+};
+
+export type ContinuityAssistant = {
+  greeting: string;
+  summary: string;
+  priorities: string[];
+  open_loops: string[];
+  recent_progress: string[];
+  key_context: string[];
+  recommendation: { title: string; detail: string; reason: string };
+  learned_patterns: Array<{ title: string; explanation: string; confidence: number; evidence: Array<{ source: string; count: number }> }>;
+  project_risks: Array<{ project_id: string; project_title: string; risk: string; reasons: string[] }>;
+  turning_points: Array<{ event_type: string; title: string; description: string; event_date: string }>;
+  hidden_connections: Array<{ title: string; detail: string; node_titles: string[] }>;
+};
+
 export type ProjectContext = {
   project: Project;
   conversations: Conversation[];
@@ -464,12 +640,62 @@ export type RetentionSignal = {
   href?: string | null;
 };
 
+export type ReturnActivityCounts = {
+  projects_updated: number;
+  tasks_completed: number;
+  open_loops_created: number;
+  decisions_made: number;
+  milestones_reached: number;
+};
+
+export type ReturnChange = {
+  id: string;
+  type: string;
+  title: string;
+  description: string | null;
+  project_id: string | null;
+  project_name: string;
+  occurred_at: string | null;
+  href: string | null;
+};
+
+export type ReturnOpenLoop = {
+  id: string;
+  title: string;
+  description: string;
+  project_id: string | null;
+  project_name: string;
+  type: string;
+  priority: string;
+  href: string;
+  next_step: string;
+};
+
+export type ReturnRecommendation = {
+  title: string;
+  reason: string;
+  href: string;
+};
+
+export type ReturnContext = {
+  title: string;
+  detail: string;
+  type: string;
+  href: string | null;
+};
+
 export type ReturningUser = {
   is_returning: boolean;
   days_since_last_seen: number | null;
+  last_seen_at?: string | null;
   summary: string;
   prompt: string;
   signals: RetentionSignal[];
+  activity_counts?: ReturnActivityCounts;
+  what_changed?: ReturnChange[];
+  open_loops?: ReturnOpenLoop[];
+  recommended_next_step?: ReturnRecommendation | null;
+  context_to_remember?: ReturnContext[];
 };
 
 export type Dashboard = {
@@ -506,6 +732,141 @@ export type AuthUser = {
   onboarding_state: string;
   auth_provider: string;
   preferences?: Record<string, unknown>;
+  plan_type?: "free" | "pro" | string;
+  subscription_status?: string;
+  is_pro?: boolean;
+};
+
+export type SubscriptionStatus = {
+  userId: string;
+  planType: "free" | "pro";
+  status: "inactive" | "active" | "canceled" | "past_due" | string;
+  paymentStatus: string;
+  isPro: boolean;
+  renewalDate: string | null;
+  cancelAtPeriodEnd: boolean;
+  provider: string;
+  priceInr: number;
+};
+
+export type BillingPlan = {
+  planType: "free" | "pro";
+  name: string;
+  priceInr: number;
+  interval: string;
+  benefits: string[];
+};
+
+export type PaymentTransaction = {
+  id: string;
+  provider: string;
+  providerOrderId: string | null;
+  providerPaymentId: string | null;
+  amount: number;
+  currency: string;
+  status: string;
+  planType: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type BillingOverview = {
+  plan: SubscriptionStatus;
+  plans: BillingPlan[];
+  transactions: PaymentTransaction[];
+};
+
+export type CheckoutSession = {
+  checkoutId: string;
+  provider: "razorpay";
+  keyId: string | null;
+  orderId: string;
+  amount: number;
+  currency: string;
+  planType: "pro";
+  priceInr: number;
+  description: string;
+};
+
+export type NotificationFrequency = "daily" | "weekdays" | "important_only" | "off";
+
+export type NotificationSettings = {
+  enabled: boolean;
+  dailyBrief: boolean;
+  openLoops: boolean;
+  projectAttention: boolean;
+  returnToWork: boolean;
+  email: boolean;
+  push: boolean;
+  frequency: NotificationFrequency;
+  morningTime: string;
+};
+
+export type NotificationItem = {
+  id: string;
+  notificationType: string;
+  channel: string;
+  title: string;
+  message: string;
+  status: string;
+  priority: string;
+  scheduledFor: string | null;
+  sentAt: string | null;
+  readAt: string | null;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type NotificationDigest = {
+  settings: NotificationSettings;
+  notifications: NotificationItem[];
+  generated: number;
+  unread: number;
+};
+
+export type ProductAnalyticsMetric = {
+  key: string;
+  label: string;
+  value: number;
+  previous: number;
+  change: number;
+};
+
+export type ProductAnalyticsFunnelStep = {
+  key: string;
+  label: string;
+  count: number;
+  conversionFromPrevious: number | null;
+};
+
+export type ProductAnalyticsDailyPoint = {
+  date: string;
+  signups: number;
+  logins: number;
+  activeUsers: number;
+  projectsCreated: number;
+  dailyBriefViews: number;
+  openLoopViews: number;
+  upgradeClicks: number;
+  checkoutStarts: number;
+  successfulPayments: number;
+};
+
+export type ProductAnalyticsDropOff = {
+  label: string;
+  fromStep: string;
+  toStep: string;
+  lost: number;
+  dropOffRate: number;
+};
+
+export type ProductAnalytics = {
+  windowDays: number;
+  metrics: ProductAnalyticsMetric[];
+  funnel: ProductAnalyticsFunnelStep[];
+  dropOffs: ProductAnalyticsDropOff[];
+  daily: ProductAnalyticsDailyPoint[];
 };
 
 export type AuthTokens = {
@@ -615,6 +976,40 @@ export const api = {
       body: JSON.stringify({ avatar_url: avatarUrl }),
     }),
 
+  getBilling: () => request<BillingOverview>("/api/billing"),
+
+  createCheckout: (planType: "pro" = "pro") =>
+    request<CheckoutSession>("/api/billing/checkout", {
+      method: "POST",
+      body: JSON.stringify({ planType }),
+    }),
+
+  verifyPayment: (data: { checkoutId: string; providerOrderId: string; providerPaymentId: string; providerSignature: string }) =>
+    request<SubscriptionStatus>("/api/billing/verify", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  cancelSubscription: () => request<SubscriptionStatus>("/api/billing/cancel", { method: "POST" }),
+
+  getNotifications: (generate = false) =>
+    request<NotificationDigest>(`/api/notifications${generate ? "?generate=true" : ""}`),
+
+  generateNotifications: () =>
+    request<NotificationDigest>("/api/notifications/generate", { method: "POST" }),
+
+  updateNotificationSettings: (data: Partial<NotificationSettings>) =>
+    request<NotificationSettings>("/api/notifications/settings", {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+
+  markNotificationRead: (id: string) =>
+    request<NotificationDigest>(`/api/notifications/${id}/read`, { method: "POST" }),
+
+  getProductAnalytics: (windowDays = 30) =>
+    request<ProductAnalytics>(`/api/internal/analytics?window_days=${windowDays}`),
+
   getAccessStatus: () =>
     request<{ early_access_enabled: boolean; invite_required: boolean }>("/api/v1/launch/access"),
 
@@ -676,6 +1071,11 @@ export const api = {
     request<{ welcome_message: string }>("/api/v1/onboarding/skip", { method: "POST" }),
 
   getDashboard: () => request<Dashboard>("/api/v1/dashboard"),
+  getGoalDashboard: () => request<GoalDashboard>("/api/v2/goals/dashboard"),
+  getWorkspace: () => request<Workspace>("/api/v2/workspace"),
+  searchWorkspace: (q: string) => request<{ query: string; results: WorkspaceSearchResult[] }>(`/api/v2/workspace/search?q=${encodeURIComponent(q)}`),
+  getProactiveOverview: () => request<ProactiveOverview>("/api/v2/proactive-intelligence/overview"),
+  getContinuityAssistant: () => request<ContinuityAssistant>("/api/v2/continuity-assistant/overview"),
 
   joinWaitlist: (data: { email: string; name?: string; role?: string; intended_use?: string }) =>
     request<{ id: string; email: string; status: string; created_at: string }>("/api/v1/launch/waitlist", {
@@ -832,10 +1232,10 @@ export const api = {
     return request<Note[]>(`/api/v1/notes${query ? `?${query}` : ""}`);
   },
 
-  createNote: (data: { title?: string; content: string; project_id?: string }) =>
+  createNote: (data: { title?: string; content: string; project_id?: string; goal_id?: string; tags?: string[] }) =>
     request<Note>("/api/v1/notes", { method: "POST", body: JSON.stringify(data) }),
 
-  updateNote: (id: string, data: Partial<Pick<Note, "title" | "content" | "project_id" | "summary">>) =>
+  updateNote: (id: string, data: Partial<Pick<Note, "title" | "content" | "project_id" | "goal_id" | "tags" | "summary">>) =>
     request<Note>(`/api/v1/notes/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
 
   deleteNote: (id: string) =>
@@ -897,6 +1297,7 @@ export const api = {
 
   deleteTimelineEvent: (id: string) =>
     request<{ ok: boolean }>(`/api/timeline-events/${id}`, { method: "DELETE" }),
+
   getLearningEngine: () => request<LearningEngine>("/api/learning-engine"),
 
   createLearningObservation: (data: { content: string; source?: string }) =>
@@ -915,6 +1316,12 @@ export const api = {
     request<LearningSuggestion>(`/api/learning-suggestions/${id}/edit`, { method: "PUT", body: JSON.stringify(data) }),
 
   getRelationshipGraph: () => request<RelationshipGraph>("/api/relationship-graph"),
+
+  refreshRelationshipGraph: () =>
+    request<RelationshipGraph>("/api/relationship-graph/refresh", { method: "POST" }),
+
+  getRelationshipInsights: () =>
+    request<{ insights: RelationshipInsight[] }>("/api/relationship-graph/insights"),
 
   createRelationshipNode: (data: { nodeType: RelationshipNode["nodeType"]; title: string; description?: string; entityId?: string | null }) =>
     request<RelationshipNode>("/api/relationship-graph/nodes", { method: "POST", body: JSON.stringify(data) }),
@@ -951,6 +1358,18 @@ export const api = {
 
   refreshDailyBriefV2: () =>
     request<DailyBriefSnapshot>("/api/daily-brief/refresh", { method: "POST" }),
+
+  getOpenLoopsEngine: () => request<OpenLoopEngine>("/api/open-loops-engine"),
+
+  completeOpenLoopEngineItem: (source: OpenLoopEngineItem["source"], sourceId: string) =>
+    request<OpenLoopEngineItem>(`/api/open-loops-engine/${source}/${sourceId}/complete`, { method: "POST" }),
+
+  snoozeOpenLoopEngineItem: (source: OpenLoopEngineItem["source"], sourceId: string) =>
+    request<OpenLoopEngineItem>(`/api/open-loops-engine/${source}/${sourceId}/snooze`, { method: "POST" }),
+
+  ignoreOpenLoopEngineItem: (source: OpenLoopEngineItem["source"], sourceId: string) =>
+    request<OpenLoopEngineItem>(`/api/open-loops-engine/${source}/${sourceId}/ignore`, { method: "POST" }),
+
   getProjectContext: (id: string) => request<ProjectContext>(`/api/v1/projects/${id}/context`),
 
   createConversation: (data: { title?: string; project_id?: string }) =>

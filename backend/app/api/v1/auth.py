@@ -20,7 +20,9 @@ from app.schemas.auth import (
 )
 from app.schemas.onboarding import AuthResponse, GoogleAuthIn
 from app.services.auth_service import AuthService
+from app.services.billing_service import BillingService
 from app.services.google_auth_service import GoogleAuthService
+from app.services.usage_event_service import UsageEventService
 from app.services.user_profile_service import UserProfileService
 
 router = APIRouter(prefix="/auth")
@@ -39,12 +41,14 @@ def _auth_response(tokens: TokenResponse, user: User) -> AuthResponse:
 @router.post("/signup", response_model=AuthResponse)
 async def signup(body: SignupRequest, session: AsyncSession = Depends(get_db)):
     tokens, user = await AuthService(session).signup(body)
+    await UsageEventService(session).track(user_id=user.id, event_type="signup_completed", surface="auth", metadata={"provider": "email"})
     return _auth_response(tokens, user)
 
 
 @router.post("/login", response_model=AuthResponse)
 async def login(body: LoginRequest, session: AsyncSession = Depends(get_db)):
     tokens, user = await AuthService(session).login(body.email, body.password)
+    await UsageEventService(session).track(user_id=user.id, event_type="login_completed", surface="auth", metadata={"provider": "email"})
     return _auth_response(tokens, user)
 
 
@@ -66,6 +70,7 @@ async def reset_password(body: ResetPasswordRequest, session: AsyncSession = Dep
 @router.post("/google", response_model=AuthResponse)
 async def google_login(body: GoogleAuthIn, session: AsyncSession = Depends(get_db)):
     tokens, user = await GoogleAuthService(session).login_with_google(body.id_token)
+    await UsageEventService(session).track(user_id=user.id, event_type="login_completed", surface="auth", metadata={"provider": "google"})
     return _auth_response(tokens, user)
 
 
@@ -89,20 +94,40 @@ async def logout(
     return {"ok": True}
 
 
+async def _user_out(user: User, session: AsyncSession) -> dict:
+    billing = await BillingService(session).overview(user)
+    return {
+        "id": user.id,
+        "email": user.email,
+        "display_name": user.display_name,
+        "avatar_url": user.avatar_url,
+        "profile_summary": user.profile_summary,
+        "onboarding_state": user.onboarding_state,
+        "auth_provider": user.auth_provider,
+        "is_active": user.is_active,
+        "is_verified": user.is_verified,
+        "preferences": user.preferences or {},
+        "plan_type": billing["plan"]["planType"],
+        "subscription_status": billing["plan"]["status"],
+        "is_pro": billing["plan"]["isPro"],
+    }
+
+
 @router.get("/me", response_model=UserOut)
-async def me(user: User = Depends(get_current_user)):
-    return user
+async def me(user: User = Depends(get_current_user), session: AsyncSession = Depends(get_db)):
+    return await _user_out(user, session)
 
 
 @router.get("/current-user", response_model=UserOut)
-async def current_user(user: User = Depends(get_current_user)):
-    return user
+async def current_user(user: User = Depends(get_current_user), session: AsyncSession = Depends(get_db)):
+    return await _user_out(user, session)
 
 
 @router.patch("/preferences", response_model=UserOut)
 async def update_preferences(
     body: UserPreferencesUpdate,
     user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
 ):
     prefs = dict(user.preferences or {})
     if body.memory_enabled is not None:
@@ -112,7 +137,7 @@ async def update_preferences(
     if body.analytics_enabled is not None:
         prefs["analytics_enabled"] = body.analytics_enabled
     user.preferences = prefs
-    return user
+    return await _user_out(user, session)
 
 
 @router.get("/profile", response_model=ProfileOut)
@@ -127,7 +152,7 @@ async def update_avatar(
     session: AsyncSession = Depends(get_db),
 ):
     await UserProfileService(session).update_avatar(user, body.avatar_url)
-    return user
+    return await _user_out(user, session)
 
 
 @router.delete("/account", response_model=MessageResponse)

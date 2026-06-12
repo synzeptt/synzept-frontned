@@ -23,8 +23,22 @@ class MemoryUpdate(BaseModel):
 class MemoryOut(ORMModel):
     id: UUID
     content: str
-    category: str
+    category: str | None
     memory_type: str
     importance: float
+    importance_score: float
+    version: int
     project_id: UUID | None
     created_at: datetime
+    updated_at: datetime
+
+
+class UserMemoryProfile(BaseModel):
+    userId: str
+    goals: list[str] = Field(default_factory=list)
+    projects: list[str] = Field(default_factory=list)
+    interests: list[str] = Field(default_factory=list)
+    skills: list[str] = Field(default_factory=list)
+    long_term_plans: list[str] = Field(default_factory=list)
+    preferences: dict = Field(default_factory=dict)
+    memories: list[MemoryOut] = Field(default_factory=list)

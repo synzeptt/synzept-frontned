@@ -18,6 +18,7 @@ from app.core.security import (
 from app.models.ai_interaction import AIInteraction
 from app.models.conversation import Conversation
 from app.models.daily_summary import DailySummary
+from app.models.daily_brief import DailyBrief
 from app.models.embedding import Embedding
 from app.models.feedback import FeedbackItem, MemoryFeedback, UsageEvent
 from app.models.memory import Memory
@@ -26,11 +27,15 @@ from app.models.note import Note
 from app.models.password_reset_token import PasswordResetToken
 from app.models.project import Project
 from app.models.project_context import ProjectContext
+from app.models.project_intelligence import ProjectDecision, ProjectIntelligence, ProjectOpenLoop
 from app.models.refresh_token import RefreshToken
+from app.models.subscription import PaymentTransaction, Subscription
 from app.models.launch import InviteCode
+from app.models.learning import LearningObservation, LearningSuggestion
 from app.models.task import Task
 from app.models.user import User
 from app.models.user_profile import UserProfile
+from app.models.user_understanding import UserUnderstanding
 from app.schemas.auth import SignupRequest, TokenResponse
 from app.services.email_service import EmailService
 from app.services.starter_workspace_service import StarterWorkspaceService
@@ -207,14 +212,23 @@ class AuthService:
         await self.session.execute(delete(FeedbackItem).where(FeedbackItem.user_id == user.id))
         await self.session.execute(delete(MemoryFeedback).where(MemoryFeedback.user_id == user.id))
         await self.session.execute(delete(UsageEvent).where(UsageEvent.user_id == user.id))
+        await self.session.execute(delete(LearningObservation).where(LearningObservation.user_id == user.id))
+        await self.session.execute(delete(LearningSuggestion).where(LearningSuggestion.user_id == user.id))
+        await self.session.execute(delete(PaymentTransaction).where(PaymentTransaction.user_id == user.id))
+        await self.session.execute(delete(Subscription).where(Subscription.user_id == user.id))
         await self.session.execute(delete(AIInteraction).where(AIInteraction.user_id == user.id))
         await self.session.execute(delete(Message).where(Message.conversation_id.in_(conversation_ids)))
         await self.session.execute(delete(ProjectContext).where(ProjectContext.project_id.in_(project_ids)))
+        await self.session.execute(delete(ProjectDecision).where(ProjectDecision.project_id.in_(project_ids)))
+        await self.session.execute(delete(ProjectOpenLoop).where(ProjectOpenLoop.project_id.in_(project_ids)))
+        await self.session.execute(delete(ProjectIntelligence).where(ProjectIntelligence.project_id.in_(project_ids)))
         await self.session.execute(delete(Memory).where(Memory.user_id == user.id))
         await self.session.execute(delete(Embedding).where(Embedding.user_id == user.id))
         await self.session.execute(delete(Task).where(Task.user_id == user.id))
         await self.session.execute(delete(Note).where(Note.user_id == user.id))
         await self.session.execute(delete(DailySummary).where(DailySummary.user_id == user.id))
+        await self.session.execute(delete(DailyBrief).where(DailyBrief.user_id == user.id))
+        await self.session.execute(delete(UserUnderstanding).where(UserUnderstanding.user_id == user.id))
         await self.session.execute(delete(Conversation).where(Conversation.user_id == user.id))
         await self.session.execute(delete(Project).where(Project.user_id == user.id))
         await self.session.execute(delete(RefreshToken).where(RefreshToken.user_id == user.id))

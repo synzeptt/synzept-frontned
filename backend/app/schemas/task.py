@@ -32,6 +32,7 @@ class TaskCreate(BaseModel):
     description: str | None = None
     priority: str = "medium"
     project_id: UUID | None = None
+    milestone_id: UUID | None = None
     due_at: datetime | None = None
 
     @field_validator("priority")
@@ -47,6 +48,7 @@ class TaskUpdate(BaseModel):
     priority: str | None = None
     due_at: datetime | None = None
     project_id: UUID | None = None
+    milestone_id: UUID | None = None
 
     @field_validator("status")
     @classmethod
@@ -66,4 +68,5 @@ class TaskOut(TimestampedSchema):
     status: str
     priority: str
     project_id: UUID | None
+    milestone_id: UUID | None
     due_at: datetime | None

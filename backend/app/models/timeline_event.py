@@ -13,7 +13,7 @@ class TimelineEvent(Base, TimestampMixin):
     __tablename__ = "timeline_events"
     __table_args__ = (
         CheckConstraint(
-            "event_type IN ('milestone', 'decision', 'learning', 'achievement', 'progress')",
+            "event_type IN ('milestone', 'decision', 'learning', 'achievement', 'progress', 'launch', 'strategy_change', 'customer', 'major_milestone')",
             name="ck_timeline_events_type",
         ),
         CheckConstraint("importance >= 0 AND importance <= 1", name="ck_timeline_events_importance"),

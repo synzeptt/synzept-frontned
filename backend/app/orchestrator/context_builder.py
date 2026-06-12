@@ -14,6 +14,8 @@ from app.models.message import Message
 from app.models.project import Project
 from app.models.task import Task
 from app.models.user import User
+from app.memory.memory_service import MemoryService
+from app.services.goal_progress_service import GoalProgressService
 from app.orchestrator.conversation_intelligence import ConversationIntelligenceService
 from app.orchestrator.intent_service import OrchestrationIntent, OrchestrationIntentCategory
 from app.tasks.service import OPEN_STATUSES
@@ -34,6 +36,7 @@ class ContextBundle:
     continuation_context: list[str] = field(default_factory=list)
     conversation_intelligence: list[str] = field(default_factory=list)
     personalization: list[str] = field(default_factory=list)
+    progress_context: list[str] = field(default_factory=list)
     project: ProjectContextBundle = field(default_factory=ProjectContextBundle)
 
 
@@ -105,6 +108,7 @@ class ContextBuilder:
                 limit=6,
             ),
             personalization=self._personalization_cues(user, ranked),
+            progress_context=await self._progress_context(user_id),
             project=project_context,
         )
 
@@ -115,7 +119,16 @@ class ContextBuilder:
         preferences = user.preferences or {}
         if preferences.get("personalization_enabled", True) is False:
             return ""
-        return truncate(user.profile_summary or "", 700)
+        profile_lines = [user.profile_summary] if user.profile_summary else []
+        memories = await MemoryService(self.session).search_memory(user_id=user_id, limit=30)
+        grouped: dict[str, list[str]] = {}
+        for memory in memories:
+            if memory.category not in {"goals", "projects", "interests", "skills", "long_term_plans"}:
+                continue
+            grouped.setdefault(memory.category, []).append(memory.summary or memory.content)
+        for category, values in grouped.items():
+            profile_lines.append(f"{category.replace('_', ' ').title()}: " + "; ".join(values[:4]))
+        return truncate("\n".join(profile_lines), 700)
 
     async def _recent_messages(self, conversation_id: UUID, *, limit: int) -> list[dict[str, str]]:
         result = await self.session.execute(
@@ -196,6 +209,14 @@ class ContextBuilder:
                 descriptor += f": {truncate(task.description, 160)}"
             lines.append(f"Unfinished task: {task.title} ({descriptor})")
 
+        return lines[:8]
+
+    async def _progress_context(self, user_id: UUID) -> list[str]:
+        service = GoalProgressService(self.session)
+        goals = await service.list_goals(user_id, status="active")
+        actions = await service.next_actions(user_id, limit=4)
+        lines = [f"Active goal: {goal.title} ({goal.progress:.0f}% complete)" for goal in goals[:4]]
+        lines.extend(f"Recommended next action: {action.title} - {action.reason}" for action in actions)
         return lines[:8]
 
 

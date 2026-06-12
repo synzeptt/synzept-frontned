@@ -83,7 +83,7 @@ Current raw SQL migrations live in `backend/migrations`.
 
 `002_align_v1_models.sql` is idempotent and records application in `schema_migrations`.
 
-Alembic migrations live in `backend/alembic/versions`; current head is `007_auth_profile_foundation.py`.
+Alembic migrations live in `backend/alembic/versions`; current head is `018_core_architecture_foundation.py`.
 
 ## Validation Requirement
 
@@ -92,6 +92,7 @@ For database changes, run against a real PostgreSQL + pgvector instance:
 ```bash
 psql "$DATABASE_URL" -f backend/migrations/001_initial.sql
 psql "$DATABASE_URL" -f backend/migrations/002_align_v1_models.sql
+# Continue through backend/migrations/013_core_architecture_foundation_rls.sql in numeric order.
 ```
 
 Current local limitation: this machine does not have Docker or `psql`, so live migration execution remains pending.

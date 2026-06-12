@@ -16,6 +16,7 @@ class DailyBriefOut(BaseModel):
     openLoops: list[dict[str, Any]]
     recommendedNextStep: dict[str, Any]
     recentProgress: list[dict[str, Any]]
+    projectsNeedingAttention: list[dict[str, Any]]
     contextToRemember: list[dict[str, Any]]
     createdAt: datetime | None
     updatedAt: datetime | None

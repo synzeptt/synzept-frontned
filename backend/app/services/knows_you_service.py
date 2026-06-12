@@ -115,17 +115,28 @@ class KnowsYouService:
             await self.session.flush()
 
         learning = dict(profile.learning or {})
-        existing = learning.get("topicsInterestedIn", "")
-        addition = suggestion.description.strip()
+        existing = learning.get("approvedInsights", "")
+        addition = f"{suggestion.title.strip()} {suggestion.description.strip()}".strip()
+        topic = suggestion.description.strip()
         if isinstance(existing, list):
             if addition not in existing:
                 existing.append(addition)
-            learning["topicsInterestedIn"] = existing
+            learning["approvedInsights"] = existing
         else:
             lines = [line.strip() for line in str(existing).splitlines() if line.strip()]
             if addition not in lines:
                 lines.append(addition)
-            learning["topicsInterestedIn"] = "\n".join(lines)
+            learning["approvedInsights"] = "\n".join(lines)
+        topics = learning.get("topicsInterestedIn", "")
+        if isinstance(topics, list):
+            if topic not in topics:
+                topics.append(topic)
+            learning["topicsInterestedIn"] = topics
+        else:
+            text = str(topics)
+            if topic and topic not in text:
+                text = f"{text}\n{topic}".strip()
+            learning["topicsInterestedIn"] = text
         profile.learning = learning
         suggestion.status = "accepted"
         suggestion.updated_at = datetime.now(timezone.utc)
@@ -197,6 +208,9 @@ class KnowsYouService:
             "userId": suggestion.user_id,
             "title": suggestion.title,
             "description": suggestion.description,
+            "confidence": suggestion.confidence,
+            "sourceExplanation": suggestion.description,
+            "evidence": [],
             "status": "pending" if suggestion.status == "edited" else suggestion.status,
             "createdAt": suggestion.created_at,
             "updatedAt": suggestion.updated_at or suggestion.created_at,

@@ -15,7 +15,9 @@ from app.models.daily_summary import DailySummary
 from app.models.feedback import UsageEvent
 from app.models.note import Note
 from app.models.project import Project
+from app.models.project_intelligence_phase2 import Decision
 from app.models.task import Task
+from app.models.timeline_event import TimelineEvent
 from app.models.user import User
 from app.schemas.daily import DailyExperienceOut, DailySuggestion
 from app.schemas.dashboard import (
@@ -24,12 +26,19 @@ from app.schemas.dashboard import (
     DashboardOut,
     DashboardStatsOut,
     RecentActivityOut,
+    ReturnActivityCountsOut,
+    ReturnChangeOut,
+    ReturnContextOut,
+    ReturnOpenLoopOut,
+    ReturnRecommendationOut,
     RetentionSignalOut,
     ReturningUserOut,
 )
 from app.services.continuity import ContinuityRestorationService
 from app.services.continuity.intelligence import ContinuityIntelligenceService
 from app.services.daily_summary_service import DailySummaryService
+from app.services.open_loops_engine_service import OpenLoopsEngineService
+from app.services.relationship_graph_phase5_service import RelationshipGraphPhase5Service
 from app.tasks.service import OPEN_STATUSES, TaskService
 from app.utils.text import truncate
 
@@ -78,13 +87,17 @@ class DashboardAggregationService:
             notes=notes,
             memories=memories,
         )
+        recent_activity = self._recent_activity(projects, conversations, notes, tasks)
         returning_user = await self._returning_user_experience(
             user.id,
             projects=projects,
             conversations=conversations,
+            notes=notes,
+            tasks=tasks,
             unfinished_tasks=unfinished_tasks,
             continuity_cards=continuity_cards,
             memories=memories,
+            recent_activity=recent_activity,
         )
 
         return DashboardOut(
@@ -100,7 +113,7 @@ class DashboardAggregationService:
             continuity_timeline=[ContinuityTimelineOut(**asdict(item)) for item in continuity_intelligence.timeline],
             memory_evolution=list(continuity_intelligence.memory_evolution),
             priorities=priorities,
-            recent_activity=self._recent_activity(projects, conversations, notes, unfinished_tasks),
+            recent_activity=recent_activity,
             continuity_cards=continuity_cards,
             returning_user=returning_user,
             stats=DashboardStatsOut(
@@ -123,9 +136,12 @@ class DashboardAggregationService:
         *,
         projects: list[Project],
         conversations: list[Conversation],
+        notes: list[Note],
+        tasks: list[Task],
         unfinished_tasks: list[Task],
         continuity_cards,
         memories,
+        recent_activity: list[RecentActivityOut],
     ) -> ReturningUserOut:
         last_seen = await self._last_seen_before_today(user_id)
         days_since = None
@@ -158,12 +174,94 @@ class DashboardAggregationService:
         if days_since and days_since > 0:
             summary = f"Welcome back. {summary}"
 
+        activity_counts = ReturnActivityCountsOut()
+        what_changed: list[ReturnChangeOut] = []
+        return_open_loops: list[ReturnOpenLoopOut] = []
+        recommended_next_step: ReturnRecommendationOut | None = None
+        context_to_remember: list[ReturnContextOut] = []
+
+        if last_seen:
+            project_names = {project.id: project.name for project in projects}
+            open_loop_engine = await OpenLoopsEngineService(self.session).list(user_id)
+            decisions = await self._return_decisions(user_id)
+            timeline_events = await self._return_timeline_events(user_id)
+
+            updated_projects = [project for project in projects if self._after(project.updated_at, last_seen)]
+            completed_tasks = [
+                task
+                for task in tasks
+                if task.status in {"completed", "done"} and self._after(getattr(task, "updated_at", task.created_at), last_seen)
+            ]
+            recent_open_loops = [item for item in open_loop_engine.items if self._after(item.createdAt, last_seen)]
+            decided = [decision for decision in decisions if decision.status == "decided" and self._after(decision.updated_at, last_seen)]
+            milestones = [
+                event
+                for event in timeline_events
+                if event.event_type in {"milestone", "achievement"} and event.event_date >= last_seen.date()
+            ]
+            activity_counts = ReturnActivityCountsOut(
+                projects_updated=len(updated_projects),
+                tasks_completed=len(completed_tasks),
+                open_loops_created=len(recent_open_loops),
+                decisions_made=len(decided),
+                milestones_reached=len(milestones),
+            )
+            what_changed = self._return_changes(
+                recent_activity=recent_activity,
+                timeline_events=timeline_events,
+                project_names=project_names,
+                since=last_seen,
+            )
+            return_open_loops = [
+                ReturnOpenLoopOut(
+                    id=item.id,
+                    title=item.title,
+                    description=item.description,
+                    project_id=item.projectId,
+                    project_name=item.projectName,
+                    type=item.type,
+                    priority=item.priority,
+                    href=item.href,
+                    next_step=item.nextStep,
+                )
+                for item in open_loop_engine.items[:5]
+            ]
+            recommended_next_step = self._return_recommendation(
+                open_loops=return_open_loops,
+                continuity_cards=continuity_cards,
+                unfinished_tasks=unfinished_tasks,
+                projects=projects,
+            )
+            context_to_remember = self._return_context(
+                decisions=decisions,
+                open_loops=return_open_loops,
+                notes=notes,
+                project_names=project_names,
+            )
+            graph_insights = await RelationshipGraphPhase5Service(self.session).insights(user_id)
+            context_to_remember.extend(
+                ReturnContextOut(
+                    title=item.get("title", "Related context"),
+                    detail=item.get("detail", "This relationship may matter as you resume."),
+                    type=item.get("type", "relationship"),
+                    href="/relationship-graph",
+                )
+                for item in graph_insights[:3]
+            )
+            context_to_remember = context_to_remember[:6]
+
         return ReturningUserOut(
             is_returning=last_seen is not None,
             days_since_last_seen=days_since,
+            last_seen_at=last_seen,
             summary=summary,
             prompt=prompt,
             signals=signals[:4],
+            activity_counts=activity_counts,
+            what_changed=what_changed,
+            open_loops=return_open_loops,
+            recommended_next_step=recommended_next_step,
+            context_to_remember=context_to_remember,
         )
 
     async def _last_seen_before_today(self, user_id):
@@ -308,6 +406,25 @@ class DashboardAggregationService:
         )
         return list(result.scalars().all())
 
+    async def _return_decisions(self, user_id) -> list[Decision]:
+        result = await self.session.execute(
+            select(Decision)
+            .join(Project, Project.id == Decision.project_id)
+            .where(Project.user_id == user_id, Project.deleted_at.is_(None))
+            .order_by(Decision.updated_at.desc())
+            .limit(80)
+        )
+        return list(result.scalars().all())
+
+    async def _return_timeline_events(self, user_id) -> list[TimelineEvent]:
+        result = await self.session.execute(
+            select(TimelineEvent)
+            .where(TimelineEvent.user_id == user_id)
+            .order_by(TimelineEvent.event_date.desc(), TimelineEvent.updated_at.desc())
+            .limit(80)
+        )
+        return list(result.scalars().all())
+
     @staticmethod
     def _unfinished_tasks(tasks: list[Task]) -> list[Task]:
         open_tasks = [task for task in tasks if task.status in OPEN_STATUSES]
@@ -385,3 +502,166 @@ class DashboardAggregationService:
             )
         items.sort(key=lambda item: item.occurred_at, reverse=True)
         return items[:10]
+
+    @staticmethod
+    def _return_changes(
+        *,
+        recent_activity: list[RecentActivityOut],
+        timeline_events: list[TimelineEvent],
+        project_names: dict,
+        since: datetime,
+    ) -> list[ReturnChangeOut]:
+        changes: list[ReturnChangeOut] = []
+        for item in recent_activity:
+            if not DashboardAggregationService._after(item.occurred_at, since):
+                continue
+            changes.append(
+                ReturnChangeOut(
+                    id=str(item.id),
+                    type=item.type,
+                    title=item.title,
+                    description=item.description,
+                    project_id=item.project_id,
+                    project_name=project_names.get(item.project_id, "Workspace"),
+                    occurred_at=item.occurred_at,
+                    href=DashboardAggregationService._activity_href(item),
+                )
+            )
+        for event in timeline_events:
+            if event.event_date < since.date():
+                continue
+            changes.append(
+                ReturnChangeOut(
+                    id=str(event.id),
+                    type=event.event_type,
+                    title=event.title,
+                    description=truncate(event.description or "", 120) or None,
+                    project_id=event.project_id,
+                    project_name=project_names.get(event.project_id, "Workspace"),
+                    occurred_at=event.updated_at,
+                    href=f"/projects/{event.project_id}" if event.project_id else "/dashboard",
+                )
+            )
+        changes.sort(key=lambda item: DashboardAggregationService._sort_timestamp(item.occurred_at or since), reverse=True)
+        return changes[:8]
+
+    @staticmethod
+    def _return_recommendation(
+        *,
+        open_loops: list[ReturnOpenLoopOut],
+        continuity_cards,
+        unfinished_tasks: list[Task],
+        projects: list[Project],
+    ) -> ReturnRecommendationOut:
+        high_loop = next((item for item in open_loops if item.priority == "high"), None)
+        if high_loop:
+            return ReturnRecommendationOut(
+                title=high_loop.next_step or high_loop.title,
+                reason=f"{high_loop.project_name} has unfinished work that still needs attention.",
+                href=high_loop.href,
+            )
+        if continuity_cards:
+            card = continuity_cards[0]
+            return ReturnRecommendationOut(
+                title=card.continuation_prompt or card.title,
+                reason=card.reason or card.description,
+                href=card.href,
+            )
+        if unfinished_tasks:
+            task = unfinished_tasks[0]
+            return ReturnRecommendationOut(
+                title=task.title,
+                reason="This is the clearest unfinished task to resume.",
+                href="/tasks",
+            )
+        if projects:
+            project = projects[0]
+            return ReturnRecommendationOut(
+                title=project.recommended_next_step or project.current_focus or project.name,
+                reason=f"{project.name} is the most recently active project.",
+                href=f"/projects/{project.id}",
+            )
+        return ReturnRecommendationOut(
+            title="Capture one priority for today.",
+            reason="Synzept needs one active project, task, or note to preserve continuity.",
+            href="/projects",
+        )
+
+    @staticmethod
+    def _return_context(
+        *,
+        decisions: list[Decision],
+        open_loops: list[ReturnOpenLoopOut],
+        notes: list[Note],
+        project_names: dict,
+    ) -> list[ReturnContextOut]:
+        context: list[ReturnContextOut] = []
+        for decision in decisions:
+            if decision.status != "pending":
+                continue
+            project_name = project_names.get(decision.project_id, "Workspace")
+            context.append(
+                ReturnContextOut(
+                    title=decision.title,
+                    detail=f"Pending decision in {project_name}.",
+                    type="pending_decision",
+                    href=f"/projects/{decision.project_id}",
+                )
+            )
+        for loop in open_loops:
+            if loop.priority != "high" and loop.type != "blocked_work":
+                continue
+            context.append(
+                ReturnContextOut(
+                    title=loop.title,
+                    detail=loop.description or loop.next_step,
+                    type=loop.type,
+                    href=loop.href,
+                )
+            )
+        for note in notes[:4]:
+            text = f"{note.title or ''} {note.summary or ''} {note.content}".casefold()
+            if not any(marker in text for marker in ("important", "remember", "critical", "blocked", "pending")):
+                continue
+            context.append(
+                ReturnContextOut(
+                    title=note.title or "Important note",
+                    detail=truncate(note.summary or note.content, 120),
+                    type="note",
+                    href="/notes",
+                )
+            )
+        return context[:6]
+
+    @staticmethod
+    def _activity_href(item: RecentActivityOut) -> str:
+        if item.type == "conversation":
+            return f"/chat?conversation={item.id}"
+        if item.type == "project" and item.project_id:
+            return f"/projects/{item.project_id}"
+        if item.type == "note":
+            return "/notes"
+        if item.type == "task":
+            return "/tasks"
+        return "/dashboard"
+
+    @staticmethod
+    def _after(value, since: datetime) -> bool:
+        if value is None:
+            return False
+        if isinstance(value, str):
+            try:
+                value = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            except ValueError:
+                return False
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        if since.tzinfo is None:
+            since = since.replace(tzinfo=timezone.utc)
+        return value > since
+
+    @staticmethod
+    def _sort_timestamp(value: datetime) -> float:
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        return value.timestamp()

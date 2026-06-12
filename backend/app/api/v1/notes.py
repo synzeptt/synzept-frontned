@@ -10,6 +10,7 @@ from app.models.note import Note
 from app.models.user import User
 from app.schemas.note import NoteCreate, NoteOut, NoteUpdate
 from app.services.embedding_service import EmbeddingService
+from app.services.workspace_activity_service import WorkspaceActivityService
 
 router = APIRouter(prefix="/notes")
 
@@ -42,6 +43,8 @@ async def create_note(
         title=body.title,
         content=body.content,
         project_id=body.project_id,
+        goal_id=body.goal_id,
+        tags=body.tags,
         summary=body.summary or _summarize_note(body.content),
     )
     session.add(note)
@@ -57,6 +60,9 @@ async def create_note(
         )
     except Exception:
         pass
+    await WorkspaceActivityService(session).record(
+        user_id=user.id, action="note_created", title=note.title or "Untitled note", project_id=note.project_id, goal_id=note.goal_id, note_id=note.id
+    )
     return note
 
 
@@ -75,6 +81,9 @@ async def update_note(
     if body.content is not None and body.summary is None:
         note.summary = _summarize_note(body.content)
     await session.flush()
+    await WorkspaceActivityService(session).record(
+        user_id=user.id, action="note_updated", title=note.title or "Untitled note", project_id=note.project_id, goal_id=note.goal_id, note_id=note.id
+    )
     return note
 
 
@@ -88,6 +97,9 @@ async def delete_note(
     if not note or note.user_id != user.id:
         raise HTTPException(status_code=404, detail="Note not found")
     note.deleted_at = datetime.now(timezone.utc)
+    await WorkspaceActivityService(session).record(
+        user_id=user.id, action="note_deleted", title=note.title or "Untitled note", project_id=note.project_id, goal_id=note.goal_id, note_id=note.id
+    )
     return {"ok": True}
 
 

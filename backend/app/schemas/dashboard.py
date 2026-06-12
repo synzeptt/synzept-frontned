@@ -70,12 +70,62 @@ class RetentionSignalOut(BaseModel):
     href: str | None = None
 
 
+class ReturnActivityCountsOut(BaseModel):
+    projects_updated: int = 0
+    tasks_completed: int = 0
+    open_loops_created: int = 0
+    decisions_made: int = 0
+    milestones_reached: int = 0
+
+
+class ReturnChangeOut(BaseModel):
+    id: str
+    type: str
+    title: str
+    description: str | None = None
+    project_id: UUID | None = None
+    project_name: str = "Workspace"
+    occurred_at: datetime | None = None
+    href: str | None = None
+
+
+class ReturnOpenLoopOut(BaseModel):
+    id: str
+    title: str
+    description: str = ""
+    project_id: str | None = None
+    project_name: str = "No project"
+    type: str = "unfinished_task"
+    priority: str = "medium"
+    href: str = "/open-loops"
+    next_step: str = ""
+
+
+class ReturnRecommendationOut(BaseModel):
+    title: str
+    reason: str = ""
+    href: str = "/dashboard"
+
+
+class ReturnContextOut(BaseModel):
+    title: str
+    detail: str = ""
+    type: str = "context"
+    href: str | None = None
+
+
 class ReturningUserOut(BaseModel):
     is_returning: bool = False
     days_since_last_seen: int | None = None
+    last_seen_at: datetime | None = None
     summary: str = ""
     prompt: str = ""
     signals: list[RetentionSignalOut] = Field(default_factory=list)
+    activity_counts: ReturnActivityCountsOut = Field(default_factory=ReturnActivityCountsOut)
+    what_changed: list[ReturnChangeOut] = Field(default_factory=list)
+    open_loops: list[ReturnOpenLoopOut] = Field(default_factory=list)
+    recommended_next_step: ReturnRecommendationOut | None = None
+    context_to_remember: list[ReturnContextOut] = Field(default_factory=list)
 
 
 class DashboardOut(BaseModel):

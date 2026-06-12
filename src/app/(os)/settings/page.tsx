@@ -1,13 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Check, LogOut, ShieldCheck, Trash2, X } from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
+import { Bell, Check, CreditCard, LogOut, Mail, ShieldCheck, Sparkles, Smartphone, Trash2, X } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PageHeader } from "@/components/layout/page-header";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { UpgradeCta } from "@/components/pro/upgrade-cta";
 import { Textarea } from "@/components/ui/textarea";
-import { api } from "@/lib/api";
+import { api, type NotificationSettings } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth";
 import { useSettingsStore } from "@/stores/settings";
 
@@ -26,6 +28,8 @@ export default function SettingsPage() {
   const [supportMessage, setSupportMessage] = useState<string | null>(null);
   const [settingsError, setSettingsError] = useState<string | null>(null);
   const [savingPreference, setSavingPreference] = useState<string | null>(null);
+  const [notificationSettings, setNotificationSettings] = useState<NotificationSettings | null>(null);
+  const [savingNotifications, setSavingNotifications] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deletePassword, setDeletePassword] = useState("");
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
@@ -38,6 +42,10 @@ export default function SettingsPage() {
     if (typeof prefs.personalization_enabled === "boolean") setPersonalizationEnabled(prefs.personalization_enabled);
     if (typeof prefs.analytics_enabled === "boolean") setAnalyticsEnabled(prefs.analytics_enabled);
   }, [setAnalyticsEnabled, setMemoryEnabled, setPersonalizationEnabled, user]);
+
+  useEffect(() => {
+    api.getNotifications().then((data) => setNotificationSettings(data.settings)).catch(() => null);
+  }, []);
 
   const handleLogout = async () => {
     await logout();
@@ -84,6 +92,23 @@ export default function SettingsPage() {
     }
   };
 
+  const updateNotificationSetting = async (patch: Partial<NotificationSettings>) => {
+    if (!notificationSettings) return;
+    const previous = notificationSettings;
+    const next = { ...notificationSettings, ...patch };
+    setNotificationSettings(next);
+    setSavingNotifications(true);
+    setSettingsError(null);
+    try {
+      setNotificationSettings(await api.updateNotificationSettings(patch));
+    } catch {
+      setNotificationSettings(previous);
+      setSettingsError("Notification settings could not be saved.");
+    } finally {
+      setSavingNotifications(false);
+    }
+  };
+
   const handleDeleteAccount = async () => {
     setDeleteLoading(true);
     setDeleteError(null);
@@ -118,6 +143,26 @@ export default function SettingsPage() {
         </section>
 
         <section className="rounded-lg border border-border bg-white p-5 shadow-soft">
+          <SectionTitle title="Plan" description="Manage Synzept Pro access, billing status, and renewal." />
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="flex items-center gap-2 text-lg font-semibold text-stone-950">
+                {user?.is_pro ? <Sparkles className="h-5 w-5 text-accent" /> : <CreditCard className="h-5 w-5 text-muted" />}
+                Current Plan: {user?.is_pro ? "Pro" : "Free"}
+              </p>
+              <p className="mt-1 text-sm text-muted">{user?.is_pro ? "Pro features are unlocked." : "Upgrade to Synzept Pro for ₹399/month."}</p>
+            </div>
+            {user?.is_pro ? (
+              <Link href="/billing" className="inline-flex h-10 items-center justify-center rounded-lg border border-border px-4 text-sm font-medium text-stone-700 hover:bg-stone-50">
+                Manage Billing
+              </Link>
+            ) : (
+              <UpgradeCta />
+            )}
+          </div>
+        </section>
+
+        <section className="rounded-lg border border-border bg-white p-5 shadow-soft">
           <SectionTitle title="Trust Preferences" description="Only controls that affect continuity, memory, and product telemetry are shown here." />
           <div className="mt-3 divide-y divide-border">
             <ToggleRow
@@ -142,6 +187,93 @@ export default function SettingsPage() {
               onChange={() => updateTrustPreference("analytics_enabled", !analyticsEnabled)}
             />
           </div>
+        </section>
+
+        <section className="rounded-lg border border-border bg-white p-5 shadow-soft">
+          <SectionTitle title="Habit Notifications" description="Let Synzept bring you back to unfinished work at the right time." />
+          {notificationSettings ? (
+            <div className="mt-3 divide-y divide-border">
+              <ToggleRow
+                label="Enable notifications"
+                description="Receive daily habit prompts and important continuity reminders."
+                checked={notificationSettings.enabled}
+                disabled={savingNotifications}
+                onChange={() => updateNotificationSetting({ enabled: !notificationSettings.enabled })}
+              />
+              <div className="grid gap-3 py-4 sm:grid-cols-2">
+                <label className="block">
+                  <span className="mb-1.5 block text-xs font-medium text-muted">Frequency</span>
+                  <select
+                    value={notificationSettings.frequency}
+                    onChange={(event) => updateNotificationSetting({ frequency: event.target.value as NotificationSettings["frequency"] })}
+                    disabled={savingNotifications}
+                    className="h-10 w-full rounded-lg border border-border bg-white px-3 text-sm text-stone-800 outline-none focus:border-accent/40 focus:ring-2 focus:ring-accent/10"
+                  >
+                    <option value="daily">Daily</option>
+                    <option value="weekdays">Weekdays</option>
+                    <option value="important_only">Important only</option>
+                    <option value="off">Off</option>
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="mb-1.5 block text-xs font-medium text-muted">Morning brief time</span>
+                  <input
+                    type="time"
+                    value={notificationSettings.morningTime}
+                    onChange={(event) => updateNotificationSetting({ morningTime: event.target.value })}
+                    disabled={savingNotifications}
+                    className="h-10 w-full rounded-lg border border-border bg-white px-3 text-sm text-stone-800 outline-none focus:border-accent/40 focus:ring-2 focus:ring-accent/10"
+                  />
+                </label>
+              </div>
+              <ToggleRow
+                label="Daily Brief"
+                description="Your Daily Brief is ready every morning."
+                checked={notificationSettings.dailyBrief}
+                disabled={savingNotifications}
+                onChange={() => updateNotificationSetting({ dailyBrief: !notificationSettings.dailyBrief })}
+              />
+              <ToggleRow
+                label="Open Loops"
+                description="Important unfinished work, pending decisions, and overdue follow-ups."
+                checked={notificationSettings.openLoops}
+                disabled={savingNotifications}
+                onChange={() => updateNotificationSetting({ openLoops: !notificationSettings.openLoops })}
+              />
+              <ToggleRow
+                label="Project Attention"
+                description="Inactive projects, blocked projects, and approaching milestones."
+                checked={notificationSettings.projectAttention}
+                disabled={savingNotifications}
+                onChange={() => updateNotificationSetting({ projectAttention: !notificationSettings.projectAttention })}
+              />
+              <ToggleRow
+                label="Return to Work"
+                description="Come back after 3, 7, or 14 days away when unfinished work is waiting."
+                checked={notificationSettings.returnToWork}
+                disabled={savingNotifications}
+                onChange={() => updateNotificationSetting({ returnToWork: !notificationSettings.returnToWork })}
+              />
+              <div className="grid gap-3 py-4 sm:grid-cols-2">
+                <ChannelButton
+                  icon={<Mail className="h-4 w-4" />}
+                  label="Email notifications"
+                  active={notificationSettings.email}
+                  disabled={savingNotifications}
+                  onClick={() => updateNotificationSetting({ email: !notificationSettings.email })}
+                />
+                <ChannelButton
+                  icon={<Smartphone className="h-4 w-4" />}
+                  label="Push notifications"
+                  active={notificationSettings.push}
+                  disabled={savingNotifications}
+                  onClick={() => updateNotificationSetting({ push: !notificationSettings.push })}
+                />
+              </div>
+            </div>
+          ) : (
+            <p className="mt-3 text-sm text-muted">Loading notification controls...</p>
+          )}
         </section>
 
         <section className="rounded-lg border border-border bg-white p-5 shadow-soft">
@@ -246,11 +378,39 @@ function SectionTitle({ title, description }: { title: string; description?: str
   return (
     <div>
       <p className="flex items-center gap-2 text-sm font-semibold text-stone-950">
-        <ShieldCheck className="h-4 w-4 text-muted" />
+        {title === "Habit Notifications" ? <Bell className="h-4 w-4 text-muted" /> : <ShieldCheck className="h-4 w-4 text-muted" />}
         {title}
       </p>
       {description && <p className="mt-1 text-sm leading-6 text-muted">{description}</p>}
     </div>
+  );
+}
+
+function ChannelButton({
+  icon,
+  label,
+  active,
+  disabled,
+  onClick,
+}: {
+  icon: ReactNode;
+  label: string;
+  active: boolean;
+  disabled: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={`flex h-11 items-center justify-center gap-2 rounded-lg border px-3 text-sm font-medium transition disabled:opacity-60 ${
+        active ? "border-stone-900 bg-stone-950 text-white" : "border-border bg-white text-stone-700 hover:bg-stone-50"
+      }`}
+    >
+      {icon}
+      {label}
+    </button>
   );
 }
 

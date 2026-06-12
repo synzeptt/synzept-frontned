@@ -2,14 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarDays, Clock3, FolderKanban, LayoutDashboard, Settings } from "lucide-react";
+import { CalendarDays, FolderKanban, LayoutDashboard, RotateCcw, Settings } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 const links = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/projects", label: "Projects", icon: FolderKanban },
   { href: "/daily-brief", label: "Brief", icon: CalendarDays },
-  { href: "/timeline", label: "Timeline", icon: Clock3 },
+  { href: "/open-loops", label: "Loops", icon: RotateCcw },
+  { href: "/projects", label: "Projects", icon: FolderKanban },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 

@@ -1,0 +1,21 @@
+plugins {
+    id "com.android.application"
+}
+
+android {
+    namespace "com.synzept.app"
+    compileSdk 35
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    defaultConfig {
+        applicationId "com.synzept.app"
+        minSdk 23
+        targetSdk 35
+        versionCode 1
+        versionName "1.0.0"
+        buildConfigField "String", "SYNZEPT_URL", "\"https://app.synzept.com/mobile\""
+    }
+}

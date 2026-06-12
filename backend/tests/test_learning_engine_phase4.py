@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 import app.models  # noqa: F401
-from app.core.dependencies import get_current_user, get_db
+from app.core.dependencies import get_current_user, get_db, require_pro_user
 from app.database.base import Base
 from app.database.session import _ensure_local_learning_engine_phase4_schema
 from app.main import app
@@ -40,6 +40,7 @@ def client(tmp_path):
                 raise
 
     app.dependency_overrides[get_current_user] = override_user
+    app.dependency_overrides[require_pro_user] = override_user
     app.dependency_overrides[get_db] = override_db
     with TestClient(app) as test_client:
         yield test_client

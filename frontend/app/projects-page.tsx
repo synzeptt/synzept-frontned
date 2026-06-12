@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { RecoveryBanner } from "@/components/ui/recovery-banner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api, type Project } from "@/lib/api";
+import { sampleProjectTemplates } from "@/lib/sample-data";
 import { PageFrame } from "@frontend/components/layout/page-frame";
 
 export function ProjectsPage() {
@@ -118,6 +119,27 @@ export function ProjectsPage() {
               Create
             </Button>
           </div>
+          <div className="mt-5 border-t border-border pt-4">
+            <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted">Templates</p>
+            <div className="mt-3 space-y-2">
+              {sampleProjectTemplates.map((template) => (
+                <button
+                  key={template.name}
+                  type="button"
+                  onClick={() => {
+                    setName(template.name);
+                    setDescription(template.description);
+                    setCurrentFocus(template.currentFocus);
+                    setRecommendedNextStep(template.recommendedNextStep);
+                  }}
+                  className="w-full rounded-md border border-border bg-stone-50 px-3 py-3 text-left transition hover:bg-stone-100"
+                >
+                  <p className="text-sm font-medium text-stone-950">{template.name}</p>
+                  <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{template.description}</p>
+                </button>
+              ))}
+            </div>
+          </div>
         </form>
 
         <div className="space-y-3">
@@ -218,18 +240,12 @@ export function ProjectsPage() {
                   </div>
                 </article>
               ))}
-              {!projects.length && (
-                <EmptyState
-                  icon={<Plus className="h-5 w-5" />}
-                  title="Create your first project"
-                  description="Every project becomes a continuity anchor with focus, unfinished loops, decisions, and a next step."
-                  steps={[
-                    "Name the project.",
-                    "Set the current focus.",
-                    "Define the next action so momentum is visible when you return.",
-                  ]}
-                />
-              )}
+              {!projects.length && <ProjectTemplateEmpty onUse={(template) => {
+                setName(template.name);
+                setDescription(template.description);
+                setCurrentFocus(template.currentFocus);
+                setRecommendedNextStep(template.recommendedNextStep);
+              }} />}
               {!!projects.length && !visibleProjects.length && (
                 <EmptyState
                   icon={<Search className="h-5 w-5" />}
@@ -242,6 +258,38 @@ export function ProjectsPage() {
         </div>
       </div>
     </PageFrame>
+  );
+}
+
+function ProjectTemplateEmpty({ onUse }: { onUse: (template: (typeof sampleProjectTemplates)[number]) => void }) {
+  return (
+    <section className="rounded-lg border border-border bg-white p-5 shadow-soft">
+      <div className="flex items-start gap-3">
+        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-stone-100">
+          <Plus className="h-5 w-5 text-stone-700" />
+        </div>
+        <div>
+          <p className="text-sm font-semibold text-stone-950">Start from a project template</p>
+          <p className="mt-1 text-sm leading-6 text-muted-foreground">
+            Templates show how Synzept tracks focus, open loops, decisions, and next steps.
+          </p>
+        </div>
+      </div>
+      <div className="mt-4 grid gap-3 md:grid-cols-3">
+        {sampleProjectTemplates.map((template) => (
+          <button
+            key={template.name}
+            type="button"
+            onClick={() => onUse(template)}
+            className="rounded-md border border-border bg-stone-50 p-4 text-left transition hover:bg-stone-100"
+          >
+            <p className="text-sm font-medium text-stone-950">{template.name}</p>
+            <p className="mt-2 line-clamp-3 text-xs leading-5 text-muted-foreground">{template.description}</p>
+            <p className="mt-3 text-xs font-medium text-stone-700">Use template</p>
+          </button>
+        ))}
+      </div>
+    </section>
   );
 }
 

@@ -16,22 +16,21 @@ import {
   Shield,
 } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
-import { Markdown } from "@/components/chat/markdown";
 import { Button } from "@/components/ui/button";
 import { GuidanceCard } from "@/components/ui/guidance-card";
 import { Input } from "@/components/ui/input";
 import { RecoveryBanner } from "@/components/ui/recovery-banner";
 import { Textarea } from "@/components/ui/textarea";
 import { api, type OnboardingDashboardPreview, type OnboardingStatus } from "@/lib/api";
+import { sampleDailyBrief, sampleOnboardingExamples, sampleProjectTemplates } from "@/lib/sample-data";
 import { useAuthStore } from "@/stores/auth";
 
 const STEPS = [
   { id: "welcome", label: "Welcome" },
-  { id: "profile", label: "Profile" },
-  { id: "workspace", label: "Workspace" },
-  { id: "memory", label: "Remember" },
-  { id: "first_chat", label: "Continue" },
-  { id: "dashboard", label: "Ready" },
+  { id: "profile", label: "Work" },
+  { id: "workspace", label: "Project" },
+  { id: "brief", label: "Brief" },
+  { id: "dashboard", label: "Return" },
 ] as const;
 
 const COMM_STYLES = [
@@ -40,16 +39,15 @@ const COMM_STYLES = [
   { id: "deep" as const, label: "Deep", desc: "More analysis when useful" },
 ];
 
-const WORK_TYPES = ["Building", "Managing", "Studying", "Creative", "Operations"];
-const MOMENTUM_FOCUS = ["Startup", "Study", "Research", "Content creation", "Personal organization"];
+const WORK_TYPES = ["Startup", "Freelance Work", "Studies", "Content Creation", "Personal Projects"];
 
 type StepId = (typeof STEPS)[number]["id"];
 
 const emptyPreview: OnboardingDashboardPreview = {
-  suggested_priorities: [],
-  starter_structure: [],
-  continuity_summary: "",
-  next_actions: [],
+  suggested_priorities: sampleOnboardingExamples.priorities,
+  starter_structure: ["Create one active project", "Add one unfinished task", "Save one context note"],
+  continuity_summary: "Synzept will turn your goals, priorities, and project notes into a dashboard that shows what matters next.",
+  next_actions: ["Open Daily Brief", "Review open loops", "Continue the highest-impact project"],
 };
 
 export default function OnboardingPage() {
@@ -72,7 +70,6 @@ export default function OnboardingPage() {
   const [projectName, setProjectName] = useState("");
   const [firstTask, setFirstTask] = useState("");
   const [firstNote, setFirstNote] = useState("");
-  const [aiReply, setAiReply] = useState<string | null>(null);
   const [welcomeMsg, setWelcomeMsg] = useState("");
   const [finalPreview, setFinalPreview] = useState<OnboardingDashboardPreview | null>(null);
 
@@ -172,36 +169,28 @@ export default function OnboardingPage() {
     });
   };
 
-  const onWorkspaceSubmit = (skip = false) =>
+  const onWorkspaceSubmit = () =>
     runStep(async () => {
+      const defaults = starterForWorkType(workType);
       const next = await api.onboardingWorkspace({
-        skipped: skip,
-        create_project: !skip && Boolean(projectName.trim() || goals[0] || firstTask.trim()),
-        project_name: projectName.trim() || goals[0],
+        skipped: false,
+        create_project: true,
+        project_name: projectName.trim() || goals[0] || defaults.name,
+        project_description: defaults.description,
         first_goal: goals[0],
-        first_task: firstTask.trim() || priorities[0],
-        first_note: firstNote.trim() || undefined,
+        first_task: firstTask.trim() || priorities[0] || defaults.recommendedNextStep,
+        first_note: firstNote.trim() || sampleOnboardingExamples.firstNote,
       });
       setStatus(next);
       void api.trackEvent("onboarding_workspace_saved", "onboarding", {
-        skipped: skip,
+        skipped: false,
         has_project_name: Boolean(projectName.trim() || goals[0]),
         has_first_task: Boolean(firstTask.trim() || priorities[0]),
         has_first_note: Boolean(firstNote.trim()),
       });
-      setStep("memory");
       const memoryStatus = await api.onboardingInitializeMemories();
       setStatus(memoryStatus);
-    });
-
-  const onFirstChat = () =>
-    runStep(async () => {
-      const result = await api.onboardingFirstChat({ use_suggested_prompt: true });
-      setAiReply(result.reply);
-      void api.trackEvent("onboarding_first_ai_interaction", "onboarding", { success: true });
-      const next = await api.getOnboardingStatus();
-      setStatus(next);
-      setStep("first_chat");
+      setStep("brief");
     });
 
   const onComplete = () =>
@@ -285,42 +274,23 @@ export default function OnboardingPage() {
               <StepShell key="welcome">
                 <div>
                   <p className="mb-3 text-sm text-accent">Welcome</p>
-                  <h1 className="max-w-2xl text-3xl font-semibold md:text-5xl">Never lose your place again.</h1>
+                  <h1 className="max-w-2xl text-3xl font-semibold md:text-5xl">Welcome to Synzept</h1>
                   <p className="mt-5 max-w-2xl text-base leading-7 text-stone-600">
-                    Synzept remembers where you left off, tracks unfinished work, shows what matters, and helps you continue.
+                    Never lose track of your work again.
                   </p>
                 </div>
                 <div className="grid gap-3 md:grid-cols-3">
-                  <IntroTile icon={<Brain className="h-5 w-5" />} title="Remembers" text="Your important goals, priorities, and projects stay easy to return to." />
-                  <IntroTile icon={<FolderKanban className="h-5 w-5" />} title="Tracks unfinished work" text="Tasks, decisions, and open loops stay visible." />
-                  <IntroTile icon={<MessageSquareText className="h-5 w-5" />} title="Shows the next step" text="Start from one clear action instead of a blank screen." />
+                  <IntroTile icon={<Brain className="h-5 w-5" />} title="Remembers context" text="Projects, notes, decisions, and tasks stay connected." />
+                  <IntroTile icon={<FolderKanban className="h-5 w-5" />} title="Tracks open loops" text="Unfinished work remains visible until you decide what happened." />
+                  <IntroTile icon={<MessageSquareText className="h-5 w-5" />} title="Shows what to do next" text="Start each session from one clear recommendation." />
                 </div>
-                <GuidanceCard title="How to think about setup">
-                  Add only what helps you return tomorrow: active goals, current priorities, and one place where work should continue.
+                <GuidanceCard title="In the next two minutes">
+                  You will choose your work type, create one starter project, see your first Daily Brief, and understand why Synzept is worth returning to tomorrow.
                 </GuidanceCard>
-                <Field label="What are you working on right now?">
-                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                    {MOMENTUM_FOCUS.map((item) => (
-                      <button
-                        key={item}
-                        type="button"
-                        onClick={() => {
-                          setWorkType(item);
-                          if (!goals.length) setGoals([item]);
-                        }}
-                        className={`rounded-md border px-3 py-3 text-left text-sm transition ${
-                          workType === item ? "border-accent/40 bg-accent-muted text-stone-950" : "border-border bg-white text-stone-600 hover:bg-stone-50"
-                        }`}
-                      >
-                        {item}
-                      </button>
-                    ))}
-                  </div>
-                </Field>
                 <div className="flex flex-col gap-3 sm:flex-row">
                   <Button onClick={onWelcomeNext} disabled={busy}>
                     {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    Build my workspace
+                    Start setup
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>
                   <Button variant="ghost" onClick={onSkipToDashboard} disabled={busy}>
@@ -333,9 +303,31 @@ export default function OnboardingPage() {
             {step === "profile" && (
               <StepShell key="profile">
                 <form onSubmit={onProfileSubmit} className="space-y-6">
-                  <StepHeading title="Tell Synzept what matters" text="Keep this light. These details help your dashboard start with useful priorities." />
-                  <GuidanceCard title="What this unlocks" icon={<Info className="h-4 w-4" />}>
-                    Synzept can show the work you care about, keep unfinished items visible, and suggest a clearer next step.
+                  <StepHeading title="What are you working on?" text="Choose the closest fit. Synzept uses this to shape your starter project and first Daily Brief." />
+                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+                    {WORK_TYPES.map((item) => (
+                      <button
+                        key={item}
+                        type="button"
+                        onClick={() => {
+                          setWorkType(item);
+                          const starter = starterForWorkType(item);
+                          if (!goals.length) setGoals([starter.name]);
+                          if (!priorities.length) setPriorities([starter.recommendedNextStep]);
+                          if (!projectName) setProjectName(starter.name);
+                          if (!firstTask) setFirstTask(starter.recommendedNextStep);
+                        }}
+                        className={`min-h-24 rounded-md border px-3 py-3 text-left text-sm transition ${
+                          workType === item ? "border-accent/40 bg-accent-muted text-stone-950" : "border-border bg-white text-stone-600 hover:bg-stone-50"
+                        }`}
+                      >
+                        <span className="font-medium">{item}</span>
+                        <span className="mt-2 block text-xs leading-5 text-muted-foreground">{starterForWorkType(item).description}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <GuidanceCard title="Why this matters" icon={<Info className="h-4 w-4" />}>
+                    Synzept is not a blank notes app. It builds a return path around the kind of work you are doing.
                   </GuidanceCard>
                   <div className="grid gap-4 md:grid-cols-2">
                     <Field label="Display name">
@@ -345,26 +337,10 @@ export default function OnboardingPage() {
                       <Input value={role} onChange={(e) => setRole(e.target.value)} placeholder="Founder, student, product lead" />
                     </Field>
                   </div>
-                  <Field label="Which mode are you in most often?">
-                    <div className="flex flex-wrap gap-2">
-                      {[...MOMENTUM_FOCUS, ...WORK_TYPES].map((item) => (
-                        <button
-                          key={item}
-                          type="button"
-                          onClick={() => setWorkType(item)}
-                          className={`rounded-md border px-3 py-2 text-sm ${
-                            workType === item ? "border-accent/40 bg-accent-muted text-stone-950" : "border-border text-stone-600"
-                          }`}
-                        >
-                          {item}
-                        </button>
-                      ))}
-                    </div>
-                  </Field>
                   <ChipField
                     label="Active goals"
                     value={goalInput}
-                    placeholder="Add a goal"
+                    placeholder={sampleOnboardingExamples.goals[0]}
                     chips={goals}
                     onValue={setGoalInput}
                     onAdd={() => addChip(goalInput, goals, setGoals, () => setGoalInput(""))}
@@ -373,12 +349,24 @@ export default function OnboardingPage() {
                   <ChipField
                     label="Current priorities"
                     value={priorityInput}
-                    placeholder="This week's focus"
+                    placeholder={sampleOnboardingExamples.priorities[0]}
                     chips={priorities}
                     onValue={setPriorityInput}
                     onAdd={() => addChip(priorityInput, priorities, setPriorities, () => setPriorityInput(""))}
                     onRemove={(chip) => setPriorities(priorities.filter((item) => item !== chip))}
                   />
+                  {!goals.length && !priorities.length && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setGoals(sampleOnboardingExamples.goals);
+                        setPriorities(sampleOnboardingExamples.priorities);
+                      }}
+                    >
+                      Use example setup
+                    </Button>
+                  )}
                   <Field label="Communication style">
                     <div className="grid gap-2 md:grid-cols-3">
                       {COMM_STYLES.map((item) => (
@@ -398,7 +386,7 @@ export default function OnboardingPage() {
                   </Field>
                   <Button type="submit" disabled={busy}>
                     {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    Continue
+                    Continue to project
                   </Button>
                 </form>
               </StepShell>
@@ -406,16 +394,33 @@ export default function OnboardingPage() {
 
             {step === "workspace" && (
               <StepShell key="workspace">
-                <StepHeading title="Create a starter workspace" text="Optional. One project, one task, or one note is enough to make your first dashboard useful." />
-                <GuidanceCard title="Projects are continuity anchors">
-                  Use a project for any area of work you expect to revisit. Tasks, notes, and decisions can point back to the same place.
+                <StepHeading title="Create your first project" text="A project gives Synzept something real to remember, summarize, and help you continue." />
+                <GuidanceCard title="No empty workspace">
+                  Synzept will create a starter project, one visible next action, and context it can use in your first brief.
                 </GuidanceCard>
+                <div className="grid gap-3 md:grid-cols-3">
+                  {sampleProjectTemplates.map((template) => (
+                    <button
+                      key={template.name}
+                      type="button"
+                      onClick={() => {
+                        setProjectName(template.name);
+                        setFirstTask(template.recommendedNextStep);
+                        setFirstNote(template.description);
+                      }}
+                      className="rounded-md border border-border bg-white p-4 text-left transition hover:bg-stone-50"
+                    >
+                      <p className="text-sm font-medium text-stone-950">{template.name}</p>
+                      <p className="mt-2 line-clamp-3 text-xs leading-5 text-muted-foreground">{template.description}</p>
+                    </button>
+                  ))}
+                </div>
                 <div className="grid gap-4 md:grid-cols-2">
                   <Field label="First project">
-                    <Input value={projectName} onChange={(e) => setProjectName(e.target.value)} placeholder={goals[0] || "Launch plan"} />
+                    <Input value={projectName} onChange={(e) => setProjectName(e.target.value)} placeholder={starterForWorkType(workType).name} />
                   </Field>
                   <Field label="First task">
-                    <Input value={firstTask} onChange={(e) => setFirstTask(e.target.value)} placeholder={priorities[0] || "Clarify next action"} />
+                    <Input value={firstTask} onChange={(e) => setFirstTask(e.target.value)} placeholder={starterForWorkType(workType).recommendedNextStep} />
                   </Field>
                 </div>
                 <Field label="First note">
@@ -427,63 +432,33 @@ export default function OnboardingPage() {
                     className="rounded-md"
                   />
                 </Field>
+                {!firstNote && (
+                  <button
+                    type="button"
+                    onClick={() => setFirstNote(sampleOnboardingExamples.firstNote)}
+                    className="w-fit rounded-md border border-border bg-white px-3 py-2 text-sm text-stone-700 hover:bg-stone-50"
+                  >
+                    Insert example note
+                  </button>
+                )}
                 <PreviewPanel preview={preview} />
                 <div className="flex flex-col gap-3 sm:flex-row">
-                  <Button onClick={() => onWorkspaceSubmit(false)} disabled={busy}>
+                  <Button onClick={onWorkspaceSubmit} disabled={busy}>
                     {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    Save starter workspace
-                  </Button>
-                  <Button variant="ghost" onClick={() => onWorkspaceSubmit(true)} disabled={busy}>
-                    Skip workspace
+                    Create project and brief
                   </Button>
                 </div>
               </StepShell>
             )}
 
-            {step === "memory" && (
-              <StepShell key="memory">
-                <StepHeading title="Your return path is ready" text="Synzept has saved the goals, priorities, preferences, and work details you chose to share." />
-                <GuidanceCard title="You stay in control">
-                  These details exist to reduce repeat explanation. You can change privacy and personalization from Settings.
-                </GuidanceCard>
-                <div className="grid gap-3 md:grid-cols-2">
-                  {(status?.initialized_systems || ["profile", "memory", "workspace"]).map((item) => (
-                    <div key={item} className="rounded-md border border-border bg-white p-4">
-                      <Check className="mb-3 h-4 w-4 text-accent" />
-                      <p className="text-sm font-medium capitalize">{item.replace(/_/g, " ")}</p>
-                    </div>
-                  ))}
-                </div>
-                <PreviewPanel preview={status?.dashboard_preview || preview} />
-                <Button onClick={onFirstChat} disabled={busy} className="w-fit">
-                  {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                  Continue setup
-                </Button>
-              </StepShell>
-            )}
-
-            {step === "first_chat" && (
-              <StepShell key="first_chat">
-                <StepHeading title="First continuation" text="Synzept starts from what you just shared so the workspace does not feel blank." />
-                <GuidanceCard title="What to try next">
-                  Ask Synzept to continue a project, organize priorities, summarize what matters, or preserve a decision you do not want to lose.
-                </GuidanceCard>
-                {aiReply ? (
-                  <div className="max-h-[420px] overflow-y-auto rounded-md border border-border bg-white p-5">
-                    <Markdown content={aiReply} />
-                  </div>
-                ) : (
-                  <div className="rounded-md border border-border bg-white p-5 text-sm leading-6 text-stone-600">
-                    Your first Synzept response is ready. Continue to prepare your workspace.
-                  </div>
-                )}
+            {step === "brief" && (
+              <StepShell key="brief">
+                <StepHeading title="Your first Daily Brief" text="Synzept turns your project into a morning view: what matters, what is unfinished, and what to do next." />
+                <FirstBriefPanel projectName={projectName || starterForWorkType(workType).name} firstTask={firstTask || starterForWorkType(workType).recommendedNextStep} />
                 <div className="flex flex-col gap-3 sm:flex-row">
                   <Button onClick={onComplete} disabled={busy}>
                     {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    Prepare dashboard
-                  </Button>
-                  <Button variant="ghost" onClick={onSkipToDashboard} disabled={busy}>
-                    Finish without preview
+                    Continue
                   </Button>
                 </div>
               </StepShell>
@@ -495,15 +470,17 @@ export default function OnboardingPage() {
                   <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-md bg-accent-muted">
                     <Check className="h-7 w-7 text-accent" />
                   </div>
-                  <h1 className="text-3xl font-semibold">You&apos;re set up</h1>
-                  <p className="mt-4 text-base leading-7 text-stone-600">{welcomeMsg || "Your workspace is ready to continue."}</p>
+                  <h1 className="text-3xl font-semibold">Return tomorrow without rebuilding context.</h1>
+                  <p className="mt-4 text-base leading-7 text-stone-600">
+                    {welcomeMsg || "Your workspace is ready."} Synzept remembers where you left off and helps you continue from the next useful action.
+                  </p>
                 </div>
                 <PreviewPanel preview={finalPreview || preview} />
                 <GuidanceCard title="First return path">
-                  Start from the Dashboard. It is the fastest way back into what matters, what changed, and what to do next.
+                  Tomorrow, open Synzept and start from Today. You will see what matters, what is unfinished, and the next step without searching through old notes.
                 </GuidanceCard>
                 <Button onClick={() => router.replace("/dashboard")} className="w-fit">
-                  Open dashboard
+                  Open Synzept
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </StepShell>
@@ -528,6 +505,7 @@ function recoveryMessage(err: unknown) {
 
 function toStep(value: string): StepId {
   if (value === "complete") return "dashboard";
+  if (value === "memory" || value === "first_chat") return "brief";
   return STEPS.some((step) => step.id === value) ? (value as StepId) : "welcome";
 }
 
@@ -624,6 +602,54 @@ function ChipField({
   );
 }
 
+function FirstBriefPanel({ projectName, firstTask }: { projectName: string; firstTask: string }) {
+  const matters = [
+    projectName ? `Move ${projectName} forward` : sampleDailyBrief.whatMattersToday[0].title,
+    firstTask || sampleDailyBrief.whatMattersToday[1].title,
+  ];
+  const loops = [
+    firstTask ? `Unfinished: ${firstTask}` : sampleDailyBrief.openLoops[0].title,
+    sampleDailyBrief.openLoops[1].title,
+  ];
+
+  return (
+    <section className="rounded-lg border border-stone-900 bg-stone-950 p-5 text-white shadow-soft">
+      <p className="text-xs font-medium uppercase tracking-[0.14em] text-stone-400">Generated now</p>
+      <h2 className="mt-2 text-2xl font-semibold">What should I focus on right now?</h2>
+      <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="space-y-4">
+          <BriefBlock title="What Matters Today" items={matters} />
+          <BriefBlock title="Open Loops" items={loops} />
+        </div>
+        <div className="rounded-md border border-white/10 bg-white/5 p-4">
+          <p className="text-xs font-medium uppercase text-stone-400">Recommended Next Step</p>
+          <p className="mt-3 text-lg font-semibold leading-7">
+            {firstTask || sampleDailyBrief.recommendedNextStep.title}
+          </p>
+          <p className="mt-2 text-sm leading-6 text-stone-300">
+            Synzept keeps this visible so your next session starts with a clear continuation point.
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function BriefBlock({ title, items }: { title: string; items: string[] }) {
+  return (
+    <div className="rounded-md border border-white/10 bg-white/5 p-4">
+      <p className="text-sm font-semibold">{title}</p>
+      <div className="mt-3 space-y-2">
+        {items.map((item) => (
+          <div key={item} className="rounded-md bg-white/10 px-3 py-2 text-sm leading-5 text-stone-100">
+            {item}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function PreviewPanel({ preview }: { preview: OnboardingDashboardPreview }) {
   const priorities = preview.suggested_priorities.length ? preview.suggested_priorities : ["Choose a focus for today"];
   const structure = preview.starter_structure.length ? preview.starter_structure : ["Daily focus", "Priority queue", "Active projects"];
@@ -655,4 +681,36 @@ function PreviewPanel({ preview }: { preview: OnboardingDashboardPreview }) {
       </p>
     </div>
   );
+}
+
+function starterForWorkType(value: string) {
+  if (value === "Freelance Work") {
+    return {
+      name: "Client Project",
+      description: "Track deliverables, decisions, waiting items, and next steps for a client engagement.",
+      recommendedNextStep: "Clarify the next client-facing deliverable.",
+    };
+  }
+  if (value === "Studies") {
+    return {
+      name: "Study Plan",
+      description: "Organize learning goals, notes, unfinished topics, and weekly review items.",
+      recommendedNextStep: "Choose the topic that needs attention today.",
+    };
+  }
+  if (value === "Content Creation") {
+    return {
+      name: "Content Pipeline",
+      description: "Track ideas, drafts, publishing decisions, and follow-ups.",
+      recommendedNextStep: "Pick one draft and define the next editing step.",
+    };
+  }
+  if (value === "Personal Projects") {
+    return {
+      name: "Personal Project System",
+      description: "Keep personal goals, open loops, and next actions easy to return to.",
+      recommendedNextStep: "Choose one project to move forward this week.",
+    };
+  }
+  return sampleProjectTemplates[0];
 }

@@ -22,6 +22,9 @@ export function SiteFooter() {
           <p>Synzept. Never lose track of your work again.</p>
           <CopyrightLine className="mt-2" />
           <div className="mt-3 flex flex-wrap items-center gap-4">
+            <Link href="/pricing" className="hover:text-stone-950">
+              Pricing
+            </Link>
             <Link href="/login" className="hover:text-stone-950">
               Login
             </Link>

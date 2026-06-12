@@ -1,13 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
-import { ArrowRight, CircleDot, MessageSquare, Target } from "lucide-react";
+import { ArrowRight, CalendarDays, CheckCircle2, CircleDot, ClipboardCheck, FolderKanban, MessageSquare, RotateCcw, Sparkles, Target, type LucideIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { UpgradeCta } from "@/components/pro/upgrade-cta";
 import { RecoveryBanner } from "@/components/ui/recovery-banner";
 import { Skeleton } from "@/components/ui/skeleton";
-import { api, type ContinuityAssistant, type ContinuityCard, type Conversation, type Dashboard, type Project, type Task } from "@/lib/api";
+import { api, type ContinuityAssistant, type ContinuityCard, type Conversation, type DailyBriefSnapshot, type Dashboard, type Project, type ReturningUser, type Task } from "@/lib/api";
 import { cn } from "@/lib/cn";
+import { sampleDailyBrief, sampleOpenLoops, sampleProjects, sampleTasks } from "@/lib/sample-data";
+import { useAuthStore } from "@/stores/auth";
 import { useWorkspaceStore } from "@/stores/workspace";
 import { PageFrame } from "@frontend/components/layout/page-frame";
 
@@ -16,8 +19,10 @@ const priorityRank: Record<string, number> = { high: 3, medium: 2, low: 1 };
 
 export function DashboardPage() {
   const { dashboard, isLoading, hasFreshDashboard, setDashboard, setLoading } = useWorkspaceStore();
+  const isPro = Boolean(useAuthStore((state) => state.user?.is_pro));
   const [, startTransition] = useTransition();
   const [assistant, setAssistant] = useState<ContinuityAssistant | null>(null);
+  const [dailyBrief, setDailyBrief] = useState<DailyBriefSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(() => {
@@ -40,6 +45,10 @@ export function DashboardPage() {
   }, []);
 
   useEffect(() => {
+    api.getDailyBriefV2().then(setDailyBrief).catch(() => setDailyBrief(null));
+  }, []);
+
+  useEffect(() => {
     if (!dashboard) return;
     void api.trackEvent(dashboard.returning_user?.is_returning ? "returning_dashboard_loaded" : "dashboard_loaded", "dashboard", {
       cards: dashboard.continuity_cards?.length ?? 0,
@@ -56,10 +65,10 @@ export function DashboardPage() {
     () => getContinuityCommand({ dashboard, assistant, priorityTasks, continuityItems, focusAreas }),
     [assistant, continuityItems, dashboard, focusAreas, priorityTasks],
   );
-  const openLoops = useMemo(() => getOpenLoops({ dashboard, assistant, priorityTasks, continuityItems }), [assistant, continuityItems, dashboard, priorityTasks]);
-  const recentProgress = useMemo(() => getRecentProgress({ dashboard, assistant, continuityItems }), [assistant, continuityItems, dashboard]);
+  const openLoops = useMemo(() => withStarterItems(getOpenLoops({ dashboard, assistant, priorityTasks, continuityItems }), sampleOpenLoops.map((item) => item.title)), [assistant, continuityItems, dashboard, priorityTasks]);
+  const recentProgress = useMemo(() => withStarterItems(getRecentProgress({ dashboard, assistant, continuityItems }), sampleDailyBrief.recentProgress.map((item) => item.title)), [assistant, continuityItems, dashboard]);
 
-  const whatMatters = useMemo(() => getWhatMattersToday(dashboard, assistant, focusAreas), [assistant, dashboard, focusAreas]);
+  const whatMatters = useMemo(() => withStarterItems(getWhatMattersToday(dashboard, assistant, focusAreas), sampleDailyBrief.whatMattersToday.map((item) => item.title)), [assistant, dashboard, focusAreas]);
   const returnStats = useMemo(() => getReturnStats(dashboard, openLoops, recentProgress), [dashboard, openLoops, recentProgress]);
 
   return (
@@ -71,8 +80,10 @@ export function DashboardPage() {
         ) : (
           <>
             {dashboard?.returning_user?.is_returning && (
-              <WelcomeBackPanel stats={returnStats} summary={dashboard.returning_user.summary || dashboard.returning_user.prompt} />
+              <ReturnToWorkPanel returningUser={dashboard.returning_user} fallbackStats={returnStats} />
             )}
+            {!isPro && <DashboardUpgradePanel />}
+            <DailyBriefPreview brief={dailyBrief} fallbackNext={command.nextTitle} />
             <FocusPanel command={command} returningSummary={dashboard?.returning_user?.summary || dashboard?.returning_user?.prompt} />
             <section className="grid gap-5 lg:grid-cols-[minmax(0,1.2fr)_minmax(300px,0.8fr)]">
               <CompactList title="What Matters Today" items={whatMatters} empty="Create a project focus or task to give Synzept a daily brief." />
@@ -94,25 +105,190 @@ export function DashboardPage() {
   );
 }
 
-function WelcomeBackPanel({ stats, summary }: { stats: ReturnType<typeof getReturnStats>; summary?: string }) {
+function DashboardUpgradePanel() {
   return (
-    <section className="rounded-lg border border-border bg-white p-5 shadow-soft">
-      <p className="text-sm font-semibold text-stone-950">Welcome Back</p>
-      <p className="mt-1 text-sm leading-6 text-muted-foreground">{summary || "Synzept kept your latest work ready."}</p>
-      <div className="mt-4 grid gap-2 sm:grid-cols-3">
-        <ReturnStat label="Updates" value={stats.updates} />
-        <ReturnStat label="Completed" value={stats.completed} />
-        <ReturnStat label="Open loops" value={stats.openLoops} />
+    <section className="rounded-lg border border-amber-200 bg-amber-50 p-5 shadow-soft">
+      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+        <div>
+          <p className="text-sm font-semibold text-stone-950">Synzept Pro - ₹399/month</p>
+          <p className="mt-1 text-sm leading-6 text-stone-700">
+            Unlock Advanced Daily Brief, Open Loops, Project Intelligence, Continuity Assistant, and priority AI features.
+          </p>
+        </div>
+        <UpgradeCta />
       </div>
     </section>
   );
 }
 
-function ReturnStat({ label, value }: { label: string; value: number }) {
+function ReturnToWorkPanel({ returningUser, fallbackStats }: { returningUser: ReturningUser; fallbackStats: ReturnType<typeof getReturnStats> }) {
+  const counts = returningUser.activity_counts;
+  const stats = [
+    { label: "Projects Updated", value: counts?.projects_updated ?? fallbackStats.updates, icon: FolderKanban },
+    { label: "Tasks Completed", value: counts?.tasks_completed ?? fallbackStats.completed, icon: CheckCircle2 },
+    { label: "Open Loops Created", value: counts?.open_loops_created ?? fallbackStats.openLoops, icon: RotateCcw },
+    { label: "Decisions Made", value: counts?.decisions_made ?? 0, icon: ClipboardCheck },
+    { label: "Milestones Reached", value: counts?.milestones_reached ?? 0, icon: Sparkles },
+  ];
+  const changed = returningUser.what_changed || [];
+  const loops = returningUser.open_loops || [];
+  const context = returningUser.context_to_remember || [];
+  const recommendation = returningUser.recommended_next_step;
+  const absence = returningUser.days_since_last_seen && returningUser.days_since_last_seen > 0
+    ? `${returningUser.days_since_last_seen} day${returningUser.days_since_last_seen === 1 ? "" : "s"} away`
+    : "Since your last visit";
+
+  return (
+    <section className="rounded-lg border border-stone-200 bg-white p-5 shadow-soft">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
+        <div>
+          <p className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-muted">
+            <RotateCcw className="h-3.5 w-3.5" />
+            {absence}
+          </p>
+          <h2 className="mt-2 text-2xl font-semibold text-stone-950">Welcome Back</h2>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
+            {returningUser.summary || returningUser.prompt || "Synzept kept track of what changed, what is unfinished, and where to resume."}
+          </p>
+        </div>
+        {recommendation && (
+          <Link href={recommendation.href} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-medium text-white transition hover:bg-stone-800">
+            Resume Work
+            <ArrowRight className="h-4 w-4" />
+          </Link>
+        )}
+      </div>
+
+      <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+        {stats.map((item) => (
+          <ReturnStat key={item.label} label={item.label} value={item.value} icon={item.icon} />
+        ))}
+      </div>
+
+      <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(300px,0.9fr)]">
+        <ReturnSection title="What Changed" empty="No project updates were recorded while you were away.">
+          {changed.slice(0, 5).map((item) => (
+            <Link key={`${item.type}-${item.id}`} href={item.href || "/dashboard"} className="block rounded-md bg-stone-50 px-3 py-3 transition hover:bg-stone-100">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="line-clamp-1 text-sm font-medium text-stone-950">{item.project_name}</p>
+                  <p className="mt-1 line-clamp-1 text-sm text-stone-800">{item.title}</p>
+                  {item.description && <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{item.description}</p>}
+                </div>
+                <span className="shrink-0 rounded-md bg-white px-2 py-1 text-[11px] text-stone-500">{labelForType(item.type)}</span>
+              </div>
+            </Link>
+          ))}
+        </ReturnSection>
+
+        <div className="space-y-4">
+          <ReturnSection title="Open Loops" empty="No outstanding loop needs attention right now.">
+            {loops.slice(0, 4).map((item) => (
+              <Link key={item.id} href={item.href || "/open-loops"} className="block rounded-md bg-stone-50 px-3 py-3 transition hover:bg-stone-100">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="line-clamp-1 text-sm font-medium text-stone-950">{item.title}</p>
+                    <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{item.project_name} - {item.next_step || item.description}</p>
+                  </div>
+                  <Badge variant={item.priority === "high" ? "accent" : "muted"}>{item.priority}</Badge>
+                </div>
+              </Link>
+            ))}
+          </ReturnSection>
+
+          {recommendation && (
+            <div className="rounded-lg border border-stone-900 bg-stone-950 p-4 text-white">
+              <p className="flex items-center gap-2 text-xs font-medium uppercase text-stone-400">
+                <Target className="h-3.5 w-3.5" />
+                Recommended Next Step
+              </p>
+              <p className="mt-2 line-clamp-2 text-base font-semibold">{recommendation.title}</p>
+              <p className="mt-2 line-clamp-2 text-sm leading-6 text-stone-300">{recommendation.reason}</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <ReturnSection title="Context To Remember" empty="No critical reminders were found.">
+        {context.length ? (
+          <div className="grid gap-2 md:grid-cols-2">
+            {context.slice(0, 4).map((item) => (
+              <Link key={`${item.type}-${item.title}`} href={item.href || "/dashboard"} className="block rounded-md bg-stone-50 px-3 py-3 transition hover:bg-stone-100">
+                <p className="line-clamp-1 text-sm font-medium text-stone-950">{item.title}</p>
+                <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{item.detail}</p>
+              </Link>
+            ))}
+          </div>
+        ) : null}
+      </ReturnSection>
+    </section>
+  );
+}
+
+function ReturnStat({ label, value, icon: Icon }: { label: string; value: number; icon: LucideIcon }) {
   return (
     <div className="rounded-md bg-stone-50 px-3 py-3">
-      <p className="text-2xl font-semibold text-stone-950">{value}</p>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-2xl font-semibold text-stone-950">{value}</p>
+        <Icon className="h-4 w-4 text-stone-400" />
+      </div>
       <p className="mt-1 text-xs text-muted-foreground">{label}</p>
+    </div>
+  );
+}
+
+function ReturnSection({ title, empty, children }: { title: string; empty: string; children: ReactNode }) {
+  const hasChildren = Array.isArray(children) ? children.some(Boolean) : Boolean(children);
+  return (
+    <div className="rounded-lg border border-stone-200 p-4">
+      <p className="text-sm font-semibold text-stone-950">{title}</p>
+      <div className="mt-3 space-y-2">
+        {hasChildren ? children : <p className="text-sm leading-6 text-muted-foreground">{empty}</p>}
+      </div>
+    </div>
+  );
+}
+
+function DailyBriefPreview({ brief, fallbackNext }: { brief: DailyBriefSnapshot | null; fallbackNext: string }) {
+  const demoBrief = brief || sampleDailyBrief;
+  const nextStep = briefItem(demoBrief.recommendedNextStep, fallbackNext || sampleDailyBrief.recommendedNextStep.title);
+  const matters = demoBrief.whatMattersToday.length;
+  const loops = demoBrief.openLoops.length;
+  const projects = demoBrief.projectsNeedingAttention.length;
+
+  return (
+    <section className="rounded-lg border border-border bg-white p-5 shadow-soft">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+        <div className="min-w-0">
+          <p className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-muted">
+            <CalendarDays className="h-3.5 w-3.5" />
+            Daily Brief
+          </p>
+          <h2 className="mt-2 text-xl font-semibold text-stone-950">Know what to focus on right now.</h2>
+          <p className="mt-2 line-clamp-2 text-sm leading-6 text-muted-foreground">
+            {nextStep.title}
+            {nextStep.detail ? ` — ${nextStep.detail}` : ""}
+          </p>
+          <div className="mt-4 grid max-w-md grid-cols-3 gap-2">
+            <BriefMetric label="Priorities" value={matters} />
+            <BriefMetric label="Open loops" value={loops} />
+            <BriefMetric label="Projects" value={projects} />
+          </div>
+        </div>
+        <Link href="/daily-brief" className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-medium text-white transition hover:bg-stone-800">
+          Open Daily Brief
+          <ArrowRight className="h-4 w-4" />
+        </Link>
+      </div>
+    </section>
+  );
+}
+
+function BriefMetric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-md bg-stone-50 px-3 py-2">
+      <p className="text-lg font-semibold text-stone-950">{value}</p>
+      <p className="mt-1 text-[11px] text-muted-foreground">{label}</p>
     </div>
   );
 }
@@ -216,13 +392,14 @@ function CompactList({ title, items, empty }: { title: string; items: string[]; 
 
 function ProjectList({ projects }: { projects: Project[] }) {
   const active = projects.filter((project) => !doneStatuses.has(project.status)).slice(0, 4);
+  const rows = active.length ? active : sampleProjects;
 
   return (
     <section className="rounded-lg border border-border bg-white p-5 shadow-soft">
       <SectionHeading title="Current Projects" description="Active projects only, with visible status and last movement." />
       <div className="mt-3 space-y-2">
-        {active.map((project) => (
-          <Link key={project.id} href={`/projects/${project.id}`} className="block rounded-md bg-stone-50 px-3 py-3 transition hover:bg-stone-100">
+        {rows.map((project) => (
+          <Link key={project.id} href={project.id.startsWith("sample-") ? "/projects" : `/projects/${project.id}`} className="block rounded-md bg-stone-50 px-3 py-3 transition hover:bg-stone-100">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="line-clamp-1 text-sm font-medium text-stone-950">{project.name}</p>
@@ -235,7 +412,6 @@ function ProjectList({ projects }: { projects: Project[] }) {
             </div>
           </Link>
         ))}
-        {!active.length && <p className="text-sm leading-6 text-muted-foreground">No active projects yet. Create one to anchor your workspace.</p>}
       </div>
     </section>
   );
@@ -251,11 +427,12 @@ function ProjectHealth({ project }: { project: Project }) {
 }
 
 function PriorityTasks({ tasks }: { tasks: Task[] }) {
+  const rows = tasks.length ? tasks : sampleTasks;
   return (
     <section className="rounded-lg border border-border bg-white p-5 shadow-soft">
       <SectionHeading title="Priority Tasks" />
       <div className="mt-3 space-y-2">
-        {tasks.slice(0, 5).map((task) => (
+        {rows.slice(0, 5).map((task) => (
           <Link key={task.id} href="/tasks" className="block rounded-md bg-stone-50 px-3 py-3 transition hover:bg-stone-100">
             <div className="flex items-start gap-3">
               <CircleDot className="mt-0.5 h-4 w-4 shrink-0 text-stone-500" />
@@ -266,7 +443,6 @@ function PriorityTasks({ tasks }: { tasks: Task[] }) {
             </div>
           </Link>
         ))}
-        {!tasks.length && <p className="text-sm leading-6 text-muted-foreground">No priority task is pulling focus right now.</p>}
       </div>
     </section>
   );
@@ -365,6 +541,16 @@ function getContinuityItems(dashboard: Dashboard | null, tasks: Task[]): Continu
   return [...projectCards, ...taskCards, ...conversationCards];
 }
 
+function briefItem(value: Record<string, unknown> | undefined, fallbackTitle: string) {
+  return {
+    title: typeof value?.title === "string" && value.title ? value.title : fallbackTitle,
+    detail:
+      (typeof value?.detail === "string" && value.detail) ||
+      (typeof value?.reason === "string" && value.reason) ||
+      "",
+  };
+}
+
 function getContinuityCommand({
   dashboard,
   assistant,
@@ -386,28 +572,28 @@ function getContinuityCommand({
     leadProject?.currentFocus ||
     leadTask?.title ||
     leadContinuation?.title ||
-    "Create one clear focus.";
+    sampleDailyBrief.whatMattersToday[0].title;
   const focusDetail =
     leadProject?.name ||
     dashboard?.continuity_summary ||
     leadContinuation?.description ||
-    "Synzept works best when one project, task, or conversation is the anchor.";
+    sampleDailyBrief.whatMattersToday[0].detail;
   const nextTitle =
     leadProject?.recommendedNextStep ||
     assistant?.recommendation.title ||
     leadTask?.title ||
     leadContinuation?.action_label ||
-    "Add a project or task.";
+    sampleDailyBrief.recommendedNextStep.title;
   const nextDetail =
     assistant?.recommendation.detail ||
     leadContinuation?.continuation_prompt ||
     leadContinuation?.description ||
-    "Add one next step so your next session starts from momentum.";
+    sampleDailyBrief.recommendedNextStep.detail;
   const href =
     (leadProject?.id ? `/projects/${leadProject.id}` : "") ||
     leadContinuation?.href ||
     (leadTask ? "/tasks" : "") ||
-    "/projects";
+    sampleDailyBrief.recommendedNextStep.href;
 
   return {
     focusTitle,
@@ -535,4 +721,8 @@ function labelForType(type: string) {
 
 function uniqueItems(values: string[]) {
   return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
+}
+
+function withStarterItems(values: string[], starter: string[]) {
+  return values.length ? values : starter;
 }

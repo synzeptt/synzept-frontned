@@ -4,6 +4,7 @@ import { absoluteUrl } from "@/lib/seo";
 
 const publicRoutes = [
   { path: "/", priority: 1, changeFrequency: "weekly" as const },
+  { path: "/pricing", priority: 0.8, changeFrequency: "monthly" as const },
   { path: "/early-access", priority: 0.7, changeFrequency: "monthly" as const },
 ];
 

@@ -67,6 +67,8 @@ class PromptBuilder:
             sections.append("Relevant memories:\n" + "\n".join(f"- {memory}" for memory in context.memories))
         if context.personalization:
             sections.append("Light personalization cues:\n" + "\n".join(f"- {cue}" for cue in context.personalization[:4]))
+        if context.progress_context:
+            sections.append("Goal progress and next actions:\n" + "\n".join(f"- {item}" for item in context.progress_context[:8]))
 
         sections.append(
             "Response rules:\n"

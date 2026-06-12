@@ -1,0 +1,10 @@
+<resources>
+    <style name="Theme.Synzept" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/synzept_background</item>
+        <item name="android:fontFamily">sans</item>
+        <item name="android:colorAccent">@color/synzept_foreground</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:statusBarColor">@color/synzept_background</item>
+        <item name="android:navigationBarColor">@color/synzept_background</item>
+    </style>
+</resources>

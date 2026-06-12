@@ -13,6 +13,9 @@ MEMORY_TYPES = frozenset(
         "goals",
         "preferences",
         "projects",
+        "interests",
+        "skills",
+        "long_term_plans",
         "routines",
         "work",
         "decisions",
@@ -49,12 +52,18 @@ class MemoryExtractionService:
     _rules: tuple[tuple[str, str, float], ...] = (
         ("preferences", r"\b(i prefer|i like|i dislike|i hate|my preference is|i want you to)\b", 0.72),
         ("goals", r"\b(my goal is|i want to|i need to|i'm trying to|i am trying to|goal:)\b", 0.76),
-        ("identity", r"\b(i am|i'm|my name is|i work as|i live in|i'm based in)\b", 0.68),
+        ("identity", r"\b(i am an?|i'm an?|my name is|i work as|i live in|i'm based in)\b", 0.68),
         ("projects", r"\b(project|building|launch|roadmap|repo|app|product)\b", 0.66),
         ("routines", r"\b(every day|daily|weekly|usually|routine|each morning|each evening)\b", 0.64),
         ("work", r"\b(client|meeting|deadline|team|manager|work|job|office)\b", 0.62),
         ("decisions", r"\b(decided|decision|we chose|we picked|settled on|approved|we will|let's use|we should use)\b", 0.78),
         ("priorities", r"\b(priority|prioritize|most important|focus on|urgent|blocker)\b", 0.74),
+    )
+    _entity_rules: tuple[tuple[str, str, float], ...] = (
+        ("projects", r"\b(?:building|developing|creating|working on|launching)\s+(?:an?\s+)?(?P<value>[^,.!?;]+)", 0.72),
+        ("interests", r"\b(?:learning|studying|exploring|interested in)\s+(?P<value>[^,.!?;]+)", 0.68),
+        ("skills", r"\b(?:skilled in|proficient in|experienced with|i know)\s+(?P<value>[^,.!?;]+)", 0.7),
+        ("long_term_plans", r"\b(?:long[- ]term plan is|over the next year i plan to|eventually i want to)\s+(?P<value>[^,.!?;]+)", 0.78),
     )
 
     async def extract_from_conversation(
@@ -68,9 +77,7 @@ class MemoryExtractionService:
         for turn in turns:
             if turn.role != "user" or self._is_low_value(turn.content):
                 continue
-            extracted = self._extract_turn(turn.content, conversation_id=conversation_id, project_id=project_id)
-            if extracted:
-                candidates.append(extracted)
+            candidates.extend(self._extract_turn(turn.content, conversation_id=conversation_id, project_id=project_id))
         return self._dedupe_candidates(candidates)
 
     def _extract_turn(
@@ -79,24 +86,67 @@ class MemoryExtractionService:
         *,
         conversation_id: UUID | None,
         project_id: UUID | None,
-    ) -> ExtractedMemory | None:
+    ) -> list[ExtractedMemory]:
         normalized = " ".join(content.strip().split())
         if len(normalized) < 18:
-            return None
+            return []
 
-        for memory_type, pattern, base_importance in self._rules:
-            if re.search(pattern, normalized, flags=re.IGNORECASE):
-                summary = self._summarize(normalized)
-                return ExtractedMemory(
-                    memory_type=memory_type,
-                    content=normalized,
-                    summary=summary,
-                    importance_score=self._importance(normalized, base_importance),
-                    metadata={"source": "conversation", "extractor": "rules_v1"},
+        extracted: list[ExtractedMemory] = []
+        entity_categories: set[str] = set()
+        for memory_type, pattern, base_importance in self._entity_rules:
+            match = re.search(pattern, normalized, flags=re.IGNORECASE)
+            if not match:
+                continue
+            value = self._clean_entity(match.group("value"))
+            if not value:
+                continue
+            entity_categories.add(memory_type)
+            extracted.append(
+                self._build_memory(
+                    memory_type,
+                    value,
+                    base_importance,
                     conversation_id=conversation_id,
                     project_id=project_id,
                 )
-        return None
+            )
+        for memory_type, pattern, base_importance in self._rules:
+            if memory_type in entity_categories:
+                continue
+            if re.search(pattern, normalized, flags=re.IGNORECASE):
+                extracted.append(
+                    self._build_memory(
+                        memory_type,
+                        normalized,
+                        base_importance,
+                        conversation_id=conversation_id,
+                        project_id=project_id,
+                    )
+                )
+        return extracted
+
+    def _build_memory(
+        self,
+        memory_type: str,
+        content: str,
+        base_importance: float,
+        *,
+        conversation_id: UUID | None,
+        project_id: UUID | None,
+    ) -> ExtractedMemory:
+        return ExtractedMemory(
+                    memory_type=memory_type,
+                    content=content,
+                    summary=self._summarize(content),
+                    importance_score=self._importance(content, base_importance),
+                    metadata={"source": "conversation", "extractor": "rules_v2"},
+                    conversation_id=conversation_id,
+                    project_id=project_id,
+                )
+
+    @staticmethod
+    def _clean_entity(value: str) -> str:
+        return re.split(r"\s+(?:and|while|but)\s+", value, maxsplit=1, flags=re.IGNORECASE)[0].strip(" .")
 
     @staticmethod
     def _is_low_value(content: str) -> bool:

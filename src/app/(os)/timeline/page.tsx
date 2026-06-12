@@ -5,7 +5,9 @@ import Link from "next/link";
 import { ArrowRight, CalendarDays, CheckCircle2, Clock3 } from "lucide-react";
 import { RecoveryBanner } from "@/components/ui/recovery-banner";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ProGate } from "@/components/pro/pro-gate";
 import { api, type Dashboard, type TimelineEvent } from "@/lib/api";
+import { sampleTimelineItems } from "@/lib/sample-data";
 import { PageFrame } from "@frontend/components/layout/page-frame";
 
 type TimelineItem = {
@@ -42,7 +44,8 @@ export default function TimelinePage() {
     load();
   }, [load]);
 
-  const items = useMemo(() => getTimelineItems(dashboard, events), [dashboard, events]);
+  const realItems = useMemo(() => getTimelineItems(dashboard, events), [dashboard, events]);
+  const items = realItems.length ? realItems : sampleTimelineItems;
   const grouped = useMemo(() => {
     const byDate = new Map<string, TimelineItem[]>();
     for (const item of items) {
@@ -54,6 +57,7 @@ export default function TimelinePage() {
 
   return (
     <PageFrame eyebrow="Timeline" title="What Changed">
+      <ProGate feature="Timeline Intelligence" description="Timeline Intelligence is a Synzept Pro feature that tracks project movement, milestones, decisions, and important events.">
       <div className="mx-auto max-w-5xl space-y-5 p-5 md:p-7">
         <RecoveryBanner message={error} onRetry={load} />
         <section className="rounded-lg border border-border bg-white p-5 shadow-soft">
@@ -71,7 +75,7 @@ export default function TimelinePage() {
             <Skeleton className="h-28 rounded-lg" />
             <Skeleton className="h-28 rounded-lg" />
           </div>
-        ) : grouped.length ? (
+        ) : (
           <div className="space-y-5">
             {grouped.map(([date, rows]) => (
               <section key={date} className="rounded-lg border border-border bg-white p-5 shadow-soft">
@@ -87,13 +91,9 @@ export default function TimelinePage() {
               </section>
             ))}
           </div>
-        ) : (
-          <section className="rounded-lg border border-dashed border-stone-200 bg-white p-6 shadow-soft">
-            <p className="text-sm font-medium text-stone-950">No meaningful changes yet.</p>
-            <p className="mt-1 text-sm leading-6 text-muted-foreground">Create a project, close a task, or save a decision and Synzept will start building your return history.</p>
-          </section>
         )}
       </div>
+      </ProGate>
     </PageFrame>
   );
 }

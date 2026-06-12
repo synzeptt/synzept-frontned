@@ -9,30 +9,37 @@ import { Input } from "@/components/ui/input";
 import { RecoveryBanner } from "@/components/ui/recovery-banner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { api, type Note, type Project } from "@/lib/api";
+import { api, type Goal, type Note, type Project } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { PageFrame } from "@frontend/components/layout/page-frame";
 
 export function NotesPage() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [goals, setGoals] = useState<Goal[]>([]);
   const [selected, setSelected] = useState<Note | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [projectId, setProjectId] = useState("");
+  const [goalId, setGoalId] = useState("");
+  const [tags, setTags] = useState("");
   const [editTitle, setEditTitle] = useState("");
   const [editContent, setEditContent] = useState("");
+  const [editProjectId, setEditProjectId] = useState("");
+  const [editGoalId, setEditGoalId] = useState("");
+  const [editTags, setEditTags] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const load = () => {
     setLoading(true);
     setError(null);
-    Promise.all([api.listNotes(), api.listProjects().catch(() => [])])
-      .then(([noteRows, projectRows]) => {
+    Promise.all([api.listNotes(), api.listProjects().catch(() => []), api.getWorkspace().catch(() => null)])
+      .then(([noteRows, projectRows, workspace]) => {
         setNotes(noteRows);
         setProjects(projectRows);
+        setGoals(workspace?.goals || []);
       })
       .catch(() => setError("Notes could not load. Retry when the connection settles."))
       .finally(() => setLoading(false));
@@ -57,6 +64,8 @@ export function NotesPage() {
         title: title.trim() || undefined,
         content: content.trim(),
         project_id: projectId || undefined,
+        goal_id: goalId || undefined,
+        tags: splitTags(tags),
       });
       void api.trackEvent("note_created", "notes", {
         note_id: note.id,
@@ -66,6 +75,8 @@ export function NotesPage() {
       setTitle("");
       setContent("");
       setProjectId("");
+      setGoalId("");
+      setTags("");
       setSelected(note);
       load();
     } catch {
@@ -77,6 +88,9 @@ export function NotesPage() {
     setSelected(note);
     setEditTitle(note.title || "");
     setEditContent(note.content);
+    setEditProjectId(note.project_id || "");
+    setEditGoalId(note.goal_id || "");
+    setEditTags((note.tags || []).join(", "));
   };
 
   const updateSelected = async () => {
@@ -86,6 +100,9 @@ export function NotesPage() {
       const note = await api.updateNote(selected.id, {
         title: editTitle.trim() || null,
         content: editContent.trim(),
+        project_id: editProjectId || null,
+        goal_id: editGoalId || null,
+        tags: splitTags(editTags),
       });
       void api.trackEvent("note_updated", "notes", {
         note_id: note.id,
@@ -170,6 +187,13 @@ export function NotesPage() {
                   ))}
                 </select>
               </div>
+              <div className="grid gap-3 md:grid-cols-[1fr_1.2fr]">
+                <select value={goalId} onChange={(event) => setGoalId(event.target.value)} className="h-10 rounded-md border border-border bg-white px-3 text-sm text-stone-800 outline-none">
+                  <option value="">No goal</option>
+                  {goals.map((goal) => <option key={goal.id} value={goal.id}>{goal.title}</option>)}
+                </select>
+                <Input value={tags} onChange={(event) => setTags(event.target.value)} placeholder="Tags, comma separated" />
+              </div>
               <Textarea value={content} onChange={(event) => setContent(event.target.value)} placeholder="Capture context, a decision, or an open question" rows={5} />
               <Button type="submit" size="sm">
                 <Save className="mr-1.5 h-4 w-4" />
@@ -183,6 +207,17 @@ export function NotesPage() {
                 <section className="space-y-3">
                   <Input value={editTitle} onChange={(event) => setEditTitle(event.target.value)} placeholder="Title" />
                   <Textarea value={editContent} onChange={(event) => setEditContent(event.target.value)} rows={14} />
+                  <div className="grid gap-3 md:grid-cols-3">
+                    <select value={editProjectId} onChange={(event) => setEditProjectId(event.target.value)} className="h-10 rounded-md border border-border bg-white px-3 text-sm text-stone-800 outline-none">
+                      <option value="">No project</option>
+                      {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
+                    </select>
+                    <select value={editGoalId} onChange={(event) => setEditGoalId(event.target.value)} className="h-10 rounded-md border border-border bg-white px-3 text-sm text-stone-800 outline-none">
+                      <option value="">No goal</option>
+                      {goals.map((goal) => <option key={goal.id} value={goal.id}>{goal.title}</option>)}
+                    </select>
+                    <Input value={editTags} onChange={(event) => setEditTags(event.target.value)} placeholder="Tags" />
+                  </div>
                   <div className="flex gap-2">
                     <Button size="sm" onClick={updateSelected}>
                       <Save className="mr-1.5 h-4 w-4" />
@@ -215,4 +250,8 @@ export function NotesPage() {
       </div>
     </PageFrame>
   );
+}
+
+function splitTags(value: string) {
+  return value.split(",").map((item) => item.trim()).filter(Boolean);
 }

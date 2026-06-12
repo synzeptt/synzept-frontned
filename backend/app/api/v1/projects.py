@@ -10,6 +10,8 @@ from app.models.project import Project
 from app.models.user import User
 from app.schemas.project import ProjectContextOut, ProjectCreate, ProjectOut, ProjectUpdate
 from app.workspace.continuity import ProjectContinuityService
+from app.services.workspace_activity_service import WorkspaceActivityService
+from app.services.usage_event_service import UsageEventService
 
 router = APIRouter(prefix="/projects")
 
@@ -31,6 +33,8 @@ async def create_project(
     project = Project(user_id=user.id, name=body.name, description=body.description)
     session.add(project)
     await session.flush()
+    await WorkspaceActivityService(session).record(user_id=user.id, action="project_created", title=project.name, project_id=project.id)
+    await UsageEventService(session).track(user_id=user.id, event_type="project_created", surface="projects", metadata={"project_id": str(project.id)})
     return project
 
 
@@ -71,6 +75,7 @@ async def update_project(
     for field, value in body.model_dump(exclude_unset=True).items():
         setattr(project, field, value)
     await session.flush()
+    await WorkspaceActivityService(session).record(user_id=user.id, action="project_updated", title=project.name, project_id=project.id)
     return project
 
 
@@ -86,6 +91,7 @@ async def archive_project(
     project.status = "archived"
     project.deleted_at = datetime.now(timezone.utc)
     await session.flush()
+    await WorkspaceActivityService(session).record(user_id=user.id, action="project_archived", title=project.name, project_id=project.id)
     return project
 
 
@@ -100,4 +106,5 @@ async def delete_project(
         raise HTTPException(status_code=404, detail="Project not found")
     project.status = "archived"
     project.deleted_at = datetime.now(timezone.utc)
+    await WorkspaceActivityService(session).record(user_id=user.id, action="project_archived", title=project.name, project_id=project.id)
     return {"ok": True}

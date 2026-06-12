@@ -25,6 +25,9 @@ class ContextEnginePhase6Service:
         return await self.refresh(user_id)
 
     async def refresh(self, user_id: UUID) -> dict:
+        from app.services.relationship_graph_phase5_service import RelationshipGraphPhase5Service
+
+        await RelationshipGraphPhase5Service(self.session).refresh(user_id)
         profile = await self._understanding(user_id)
         projects = await self._projects(user_id)
         open_loops = await self._open_loops(user_id)
@@ -126,8 +129,10 @@ class ContextEnginePhase6Service:
         for project in projects[:4]:
             active_themes.append({"type": "project", "title": project.name, "detail": project.current_focus or project.description or ""})
         for suggestion in suggestions:
-            if suggestion.status in {"pending", "accepted"}:
-                active_themes.append({"type": f"learning_{suggestion.status}", "title": suggestion.title, "detail": suggestion.description})
+            if suggestion.status == "accepted":
+                active_themes.append({"type": "learning_accepted", "title": suggestion.title, "detail": suggestion.description})
+            elif suggestion.status == "pending":
+                active_themes.append({"type": "learning_pending", "title": suggestion.title, "detail": suggestion.description})
         for event in timeline[:3]:
             active_themes.append({"type": f"timeline_{event.event_type}", "title": event.title, "detail": event.description})
 

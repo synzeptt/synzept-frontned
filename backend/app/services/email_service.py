@@ -10,6 +10,23 @@ settings = get_settings()
 
 
 class EmailService:
+    def send_notification(self, *, email: str, subject: str, message: str, action_url: str | None = None) -> None:
+        text = f"Hi,\n\n{message}\n\n"
+        if action_url:
+            text += f"Open Synzept:\n{action_url}\n\n"
+        text += "Synzept"
+        safe_message = escape(message)
+        safe_action = escape(action_url or "", quote=True)
+        html = f"""
+        <div style="font-family:Arial,sans-serif;color:#292524;line-height:1.6">
+          <p>Hi,</p>
+          <p>{safe_message}</p>
+          {f'<p><a href="{safe_action}" style="color:#57534e">Open Synzept</a></p>' if action_url else ''}
+          <p>Synzept</p>
+        </div>
+        """
+        self._send(email=email, subject=subject, text=text, html=html)
+
     def send_password_reset(self, *, email: str, reset_url: str, expires_minutes: int) -> None:
         subject = "Reset your Synzept password"
         text = (

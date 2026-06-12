@@ -31,7 +31,7 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.CheckConstraint(
-            "event_type IN ('milestone', 'decision', 'learning', 'achievement', 'progress')",
+            "event_type IN ('milestone', 'decision', 'learning', 'achievement', 'progress', 'launch', 'strategy_change', 'customer', 'major_milestone')",
             name="ck_timeline_events_type",
         ),
         sa.CheckConstraint("importance >= 0 AND importance <= 1", name="ck_timeline_events_importance"),
