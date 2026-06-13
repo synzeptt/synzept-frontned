@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field
 
 
 PlanType = Literal["free", "pro"]
@@ -49,7 +49,7 @@ class BillingOverviewOut(BaseModel):
 
 
 class CheckoutCreateIn(BaseModel):
-    planType: Literal["pro"] = "pro"
+    planType: Literal["pro"] = Field(default="pro", validation_alias=AliasChoices("planType", "plan_type"))
 
 
 class CheckoutCreateOut(BaseModel):
@@ -65,7 +65,7 @@ class CheckoutCreateOut(BaseModel):
 
 
 class PaymentVerifyIn(BaseModel):
-    checkoutId: UUID
-    providerOrderId: str
-    providerPaymentId: str
-    providerSignature: str
+    checkoutId: UUID = Field(validation_alias=AliasChoices("checkoutId", "checkout_id"))
+    providerOrderId: str = Field(validation_alias=AliasChoices("providerOrderId", "razorpay_order_id", "order_id"))
+    providerPaymentId: str = Field(validation_alias=AliasChoices("providerPaymentId", "razorpay_payment_id", "payment_id"))
+    providerSignature: str = Field(validation_alias=AliasChoices("providerSignature", "razorpay_signature", "signature"))

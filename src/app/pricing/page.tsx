@@ -24,7 +24,7 @@ export const metadata: Metadata = createPageMetadata({
 });
 
 const freeFeatures = [
-  "Dashboard",
+  "Synzept Agent",
   "Basic Projects",
   "Basic AI",
   "Mobile Access",
@@ -34,17 +34,11 @@ const freeFeatures = [
 ];
 
 const proFeatures = [
+  "Synzept Agent",
+  "Synzept Knows You",
+  "Advanced Memory",
   "Unlimited Projects",
-  "Advanced Daily Brief",
-  "Open Loop Tracking",
-  "Project Intelligence",
-  "Timeline",
-  "Recommended Next Steps",
-  "Continuity Assistant",
-  "Advanced AI Models",
-  "Higher Usage Limits",
-  "Priority Processing",
-  "Enhanced Memory",
+  "Priority Features",
 ];
 
 const proDetails = [
@@ -118,12 +112,12 @@ export default function PricingPage() {
               href="/signup"
             />
             <PricingCard
-              name="Pro"
+              name="Synzept Pro"
               description="For builders, founders, freelancers, and professionals."
               price="₹399"
               cadence="per month"
               features={proFeatures}
-              cta="Proceed to Payment"
+              cta="Upgrade To Pro"
               href="/billing"
               featured
             />
@@ -163,7 +157,7 @@ export default function PricingPage() {
           </div>
           <div className="flex flex-col gap-3 sm:flex-row lg:justify-end">
             <TrackedLink href="/billing" eventType="upgrade_clicked" surface="pricing" metadata={{ placement: "bottom_cta" }} className={buttonVariants({ size: "lg", className: "gap-2" })}>
-              Proceed to Payment
+              Upgrade To Pro
               <ArrowRight className="h-4 w-4" />
             </TrackedLink>
             <Link href="/signup" className={buttonVariants({ variant: "outline", size: "lg" })}>

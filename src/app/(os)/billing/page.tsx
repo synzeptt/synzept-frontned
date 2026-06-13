@@ -15,13 +15,10 @@ declare global {
 }
 
 const benefits = [
+  "Synzept Agent",
+  "Synzept Knows You",
+  "Advanced Memory",
   "Unlimited Projects",
-  "Advanced Daily Brief",
-  "Open Loops Tracking",
-  "Project Intelligence",
-  "Timeline",
-  "Continuity Assistant",
-  "Advanced AI Access",
   "Priority Features",
 ];
 
@@ -75,18 +72,30 @@ export default function BillingPage() {
       order_id: checkout.orderId,
       prefill: { email, name },
       handler: async (response: Record<string, string>) => {
-        const plan = await api.verifyPayment({
-          checkoutId: checkout.checkoutId,
-          providerOrderId: response.razorpay_order_id,
-          providerPaymentId: response.razorpay_payment_id,
-          providerSignature: response.razorpay_signature,
-        });
-        setBilling((current) => current ? { ...current, plan } : current);
-        await refreshUser();
-        router.replace("/dashboard?upgraded=1");
+        try {
+          const plan = await api.verifyPayment({
+            checkoutId: checkout.checkoutId,
+            providerOrderId: response.razorpay_order_id,
+            providerPaymentId: response.razorpay_payment_id,
+            providerSignature: response.razorpay_signature,
+          });
+          setBilling((current) => current ? { ...current, plan } : current);
+          setMessage(`Plan: Pro. Subscription: Active. Renewal Date: ${formatDate(plan.renewalDate)}.`);
+          await refreshUser();
+          window.setTimeout(() => router.replace("/dashboard"), 1200);
+        } catch (err) {
+          setMessage(err instanceof Error ? err.message : "Payment verification failed. No Pro access was activated.");
+          setProcessing(false);
+        }
       },
       modal: {
-        ondismiss: () => {
+        ondismiss: async () => {
+          try {
+            const plan = await api.cancelCheckout(checkout.checkoutId);
+            setBilling((current) => current ? { ...current, plan } : current);
+          } catch {
+            /* The checkout still remains unverified, so Pro is not activated. */
+          }
           setProcessing(false);
           setMessage("Payment was not completed.");
         },
@@ -139,7 +148,7 @@ export default function BillingPage() {
             {!isPro && (
               <Button onClick={upgrade} disabled={processing || loading} className="mt-7 bg-white text-stone-950 hover:bg-stone-100">
                 <CreditCard className="mr-1.5 h-4 w-4" />
-                {processing ? "Opening Razorpay..." : "Proceed to Razorpay Checkout"}
+                {processing ? "Opening Razorpay..." : "Proceed To Payment"}
               </Button>
             )}
           </div>
@@ -154,7 +163,9 @@ export default function BillingPage() {
               {isPro ? `Renews ${formatDate(plan?.renewalDate)}` : "Upgrade to unlock Pro features."}
             </p>
             <div className="mt-5 rounded-md bg-stone-50 px-3 py-3 text-sm text-stone-700">
-              <p>Status: {plan?.status || "inactive"}</p>
+              <p>Plan: {isPro ? "Pro" : "Free"}</p>
+              <p className="mt-1">Subscription: {plan?.status || "inactive"}</p>
+              {isPro && <p className="mt-1">Renewal Date: {formatDate(plan?.renewalDate)}</p>}
               <p className="mt-1">Payment: {plan?.paymentStatus || "none"}</p>
             </div>
             {!isPro && (

@@ -979,16 +979,19 @@ export const api = {
   getBilling: () => request<BillingOverview>("/api/billing"),
 
   createCheckout: (planType: "pro" = "pro") =>
-    request<CheckoutSession>("/api/billing/checkout", {
+    request<CheckoutSession>("/api/create-order", {
       method: "POST",
       body: JSON.stringify({ planType }),
     }),
 
   verifyPayment: (data: { checkoutId: string; providerOrderId: string; providerPaymentId: string; providerSignature: string }) =>
-    request<SubscriptionStatus>("/api/billing/verify", {
+    request<SubscriptionStatus>("/api/verify-payment", {
       method: "POST",
       body: JSON.stringify(data),
     }),
+
+  cancelCheckout: (checkoutId: string) =>
+    request<SubscriptionStatus>(`/api/billing/checkout/${checkoutId}/cancel`, { method: "POST" }),
 
   cancelSubscription: () => request<SubscriptionStatus>("/api/billing/cancel", { method: "POST" }),
 

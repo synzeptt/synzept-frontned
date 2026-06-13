@@ -18,13 +18,10 @@ from app.schemas.billing import CheckoutCreateIn, PaymentVerifyIn
 from app.services.usage_event_service import UsageEventService
 
 PRO_BENEFITS = [
+    "Synzept Agent",
+    "Synzept Knows You",
+    "Advanced Memory",
     "Unlimited Projects",
-    "Advanced Daily Brief",
-    "Open Loops Tracking",
-    "Project Intelligence",
-    "Timeline",
-    "Continuity Assistant",
-    "Advanced AI Access",
     "Priority Features",
 ]
 
@@ -49,7 +46,7 @@ class BillingService:
                 "name": "Free",
                 "priceInr": 0,
                 "interval": "month",
-                "benefits": ["Dashboard", "Basic Projects", "Basic AI", "Mobile Access", "Basic Memory"],
+                "benefits": ["Synzept Agent", "Basic Projects", "Basic AI", "Mobile Access", "Basic Memory"],
             },
             {
                 "planType": "pro",
@@ -124,6 +121,12 @@ class BillingService:
         transaction.provider_order_id = body.providerOrderId
         transaction.provider_payment_id = body.providerPaymentId
         transaction.provider_signature = body.providerSignature
+        payment = await self._fetch_razorpay_payment(body.providerPaymentId)
+        try:
+            self._validate_razorpay_payment(payment, transaction)
+        except AppError:
+            await self.session.flush()
+            raise
         transaction.status = "paid"
         subscription = await self._activate(user.id, transaction, provider="razorpay")
         await UsageEventService(self.session).track(
@@ -156,6 +159,17 @@ class BillingService:
         )
         await self.session.flush()
         return self._status_out(user.id, subscription)
+
+    async def cancel_checkout(self, user: User, checkout_id: UUID) -> dict:
+        transaction = await self._owned_transaction(user.id, checkout_id)
+        if transaction.status == "created":
+            transaction.status = "canceled"
+            transaction.metadata_ = {
+                **(transaction.metadata_ or {}),
+                "canceled_at": datetime.now(timezone.utc).isoformat(),
+            }
+            await self.session.flush()
+        return self._status_out(user.id, await self._subscription(user.id))
 
     async def _activate(self, user_id: UUID, transaction: PaymentTransaction, provider: str) -> Subscription:
         now = datetime.now(timezone.utc)
@@ -203,15 +217,76 @@ class BillingService:
             response = await client.post(
                 "https://api.razorpay.com/v1/orders",
                 headers={"Authorization": f"Basic {auth}"},
-                json={"amount": amount_paise, "currency": "INR", "receipt": f"synzept_{int(datetime.now(timezone.utc).timestamp())}"},
+                json={
+                    "amount": amount_paise,
+                    "currency": "INR",
+                    "receipt": f"synzept_{int(datetime.now(timezone.utc).timestamp())}",
+                    "payment_capture": 1,
+                    "notes": {"plan_type": "pro", "product": "Synzept Pro"},
+                },
             )
         if response.status_code >= 400:
             raise AppError("Payment provider unavailable", status_code=502, code="payment_provider_error", user_message="Payment could not start. Please try again.")
         return response.json()["id"]
 
+    async def _fetch_razorpay_payment(self, payment_id: str) -> dict:
+        auth = base64.b64encode(f"{self.settings.razorpay_key_id}:{self.settings.razorpay_key_secret}".encode()).decode()
+        async with httpx.AsyncClient(timeout=20) as client:
+            response = await client.get(
+                f"https://api.razorpay.com/v1/payments/{payment_id}",
+                headers={"Authorization": f"Basic {auth}"},
+            )
+        if response.status_code >= 400:
+            raise AppError(
+                "Payment provider verification failed",
+                status_code=502,
+                code="payment_provider_error",
+                user_message="Payment verification could not be completed. Please try again.",
+            )
+        return response.json()
+
+    def _validate_razorpay_payment(self, payment: dict, transaction: PaymentTransaction) -> None:
+        expected_amount = int(transaction.amount * 100)
+        if payment.get("order_id") != transaction.provider_order_id:
+            transaction.status = "failed"
+            raise AppError(
+                "Payment order mismatch",
+                status_code=400,
+                code="payment_order_mismatch",
+                user_message="Payment verification failed. Please try again.",
+            )
+        if payment.get("id") != transaction.provider_payment_id and transaction.provider_payment_id:
+            transaction.status = "failed"
+            raise AppError(
+                "Payment ID mismatch",
+                status_code=400,
+                code="payment_id_mismatch",
+                user_message="Payment verification failed. Please try again.",
+            )
+        if int(payment.get("amount") or 0) != expected_amount or payment.get("currency") != "INR":
+            transaction.status = "failed"
+            raise AppError(
+                "Payment amount mismatch",
+                status_code=400,
+                code="payment_amount_mismatch",
+                user_message="Payment verification failed. Please try again.",
+            )
+        if payment.get("status") != "captured":
+            transaction.status = "failed"
+            raise AppError(
+                "Payment is not captured",
+                status_code=400,
+                code="payment_not_captured",
+                user_message="Payment was not completed. No Pro access was activated.",
+            )
+
     @property
     def _razorpay_ready(self) -> bool:
-        return bool(self.settings.razorpay_key_id and self.settings.razorpay_key_secret)
+        return bool(
+            self.settings.razorpay_key_id
+            and self.settings.razorpay_key_secret
+            and self.settings.razorpay_key_id.startswith("rzp_live_")
+        )
 
     def _verify_signature(self, order_id: str, payment_id: str, signature: str) -> bool:
         digest = hmac.new(
