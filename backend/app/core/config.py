@@ -105,10 +105,6 @@ class Settings(BaseSettings):
             raise ValueError("JWT_SECRET_KEY must be set in production")
         if self.environment == "production" and not (self.gemini_api_key or self.openai_api_key or self.anthropic_api_key):
             raise ValueError("At least one AI provider key must be set in production")
-        if self.environment == "production" and not (
-            self.razorpay_key_id.startswith("rzp_live_") and self.razorpay_key_secret
-        ):
-            raise ValueError("Live Razorpay credentials must be set in production")
         return self
 
 

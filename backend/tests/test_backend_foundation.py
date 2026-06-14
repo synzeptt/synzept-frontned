@@ -47,8 +47,6 @@ def test_production_frontend_origin_is_allowed_without_wildcard():
         environment="production",
         JWT_SECRET_KEY="production-secret",
         gemini_api_key="gemini-key",
-        razorpay_key_id="rzp_live_testkey",
-        razorpay_key_secret="razorpay-secret",
     )
 
     assert settings.cors_origin_list == ["http://localhost:3000", "https://app.synzept.com"]
