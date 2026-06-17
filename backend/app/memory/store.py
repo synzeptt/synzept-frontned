@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.memory.constants import MEMORY_TYPE_LONG, MEMORY_TYPE_PROJECT
-from app.models.memory import Memory
+from app.models.memory import Memory, MemoryTrustEvent
 from app.services.embedding_service import EmbeddingService
 
 logger = logging.getLogger(__name__)
@@ -41,6 +41,20 @@ class MemoryStore:
             content_hash=hashlib.sha256(" ".join(content.lower().split()).encode()).hexdigest(),
         )
         self.session.add(memory)
+        await self.session.flush()
+        self.session.add(
+            MemoryTrustEvent(
+                memory_id=memory.id,
+                user_id=user_id,
+                action="created",
+                reason="Memory was created manually or during onboarding.",
+                caused_by_type="user" if category == "manual" else "system",
+                caused_by_id=conversation_id,
+                before={},
+                after={"content": memory.content, "category": memory.category, "importance": memory.importance_score},
+                metadata_={},
+            )
+        )
         await self.session.flush()
         if self.embeddings and memory_type in ("long_term", "project"):
             try:

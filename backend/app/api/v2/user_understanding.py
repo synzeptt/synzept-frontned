@@ -7,6 +7,7 @@ from app.core.dependencies import get_current_user, get_db
 from app.models.user import User
 from app.schemas.user_understanding import (
     UserUnderstandingCreate,
+    UserUnderstandingProfileOut,
     UserUnderstandingOut,
     UserUnderstandingUpdate,
 )
@@ -18,6 +19,11 @@ router = APIRouter(prefix="/user-understanding")
 @router.get("", response_model=list[UserUnderstandingOut])
 async def list_understanding(user: User = Depends(get_current_user), session: AsyncSession = Depends(get_db)):
     return await UserUnderstandingService(session).list_for_user(user)
+
+
+@router.get("/profile", response_model=UserUnderstandingProfileOut)
+async def understanding_profile(user: User = Depends(get_current_user), session: AsyncSession = Depends(get_db)):
+    return await UserUnderstandingService(session).profile_for_user(user)
 
 
 @router.post("", response_model=UserUnderstandingOut)

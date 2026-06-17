@@ -1,4 +1,6 @@
+from collections import Counter
 from datetime import datetime, timezone
+import re
 from uuid import UUID
 
 from sqlalchemy import or_, select
@@ -16,6 +18,9 @@ from app.models.relationship_graph_phase5 import RelationshipEdge, RelationshipN
 from app.models.task import Task
 from app.models.timeline_event import TimelineEvent
 from app.schemas.relationship_graph_phase5 import (
+    GraphAnswerOut,
+    GraphContextItemOut,
+    GraphContextOut,
     RelationshipEdgeCreate,
     RelationshipEdgeUpdate,
     RelationshipNodeCreate,
@@ -33,19 +38,29 @@ class RelationshipGraphPhase5Service:
     async def refresh(self, user_id: UUID) -> dict:
         node_cache: dict[tuple[str, str], RelationshipNode] = {}
 
-        def entity_key(node_type: str, entity_id) -> tuple[str, str]:
-            return (node_type, str(entity_id) if entity_id else "self")
+        def entity_key(node_type: str, entity_id, title: str = "") -> tuple[str, str]:
+            if entity_id:
+                return (node_type, str(entity_id))
+            if node_type == "user":
+                return (node_type, "self")
+            return (node_type, title.strip().casefold())
 
         async def node(node_type: str, entity_id, title: str, description: str = "") -> RelationshipNode:
-            key = entity_key(node_type, entity_id)
+            key = entity_key(node_type, entity_id, title)
+            clauses = [
+                RelationshipNode.user_id == user_id,
+                RelationshipNode.node_type == node_type,
+            ]
+            if entity_id:
+                clauses.append(RelationshipNode.entity_id == entity_id)
+            elif node_type == "user":
+                clauses.append(RelationshipNode.entity_id.is_(None))
+            else:
+                clauses.extend((RelationshipNode.entity_id.is_(None), RelationshipNode.title == title[:240]))
             if key in node_cache:
                 return node_cache[key]
             result = await self.session.execute(
-                select(RelationshipNode).where(
-                    RelationshipNode.user_id == user_id,
-                    RelationshipNode.node_type == node_type,
-                    RelationshipNode.entity_id == entity_id,
-                )
+                select(RelationshipNode).where(*clauses)
             )
             existing = result.scalar_one_or_none()
             if existing:
@@ -107,57 +122,67 @@ class RelationshipGraphPhase5Service:
         timeline = await self._timeline(user_id)
 
         user_node = await node("user", None, "You", "Workspace owner")
+        project_lookup = {item.id: item for item in projects}
         project_nodes = {item.id: await node("project", item.id, item.name, item.context_summary or item.description or "") for item in projects}
         goal_nodes = {item.id: await node("goal", item.id, item.title, item.description or "") for item in goals}
 
         for project_node in project_nodes.values():
-            await edge(user_node, project_node, "owns", "This project belongs to your workspace.", 0.85)
+            await edge(user_node, project_node, "supports", "This project belongs to your workspace.", 0.85)
         for goal in goals:
             goal_node = goal_nodes[goal.id]
-            await edge(user_node, goal_node, "pursues", "This goal belongs to your workspace.", 0.82)
+            await edge(user_node, goal_node, "supports", "This goal belongs to your workspace.", 0.82)
             if goal.project_id and goal.project_id in project_nodes:
-                await edge(goal_node, project_nodes[goal.project_id], "drives_project", f"{goal.title} is linked to this project.", 0.86)
+                await edge(project_nodes[goal.project_id], goal_node, "supports", f"{project_lookup[goal.project_id].name} supports {goal.title}.", 0.86)
         for task in tasks:
             task_node = await node("task", task.id, task.title, task.description or f"Status: {task.status}")
-            await edge(user_node, task_node, "has_task", "This task belongs to your workspace.", 0.62)
+            await edge(user_node, task_node, "related_to", "This task belongs to your workspace.", 0.62)
             if task.project_id and task.project_id in project_nodes:
-                await edge(project_nodes[task.project_id], task_node, "contains_task", f"{task.title} is part of this project.", 0.84)
+                await edge(task_node, project_nodes[task.project_id], "supports", f"{task.title} moves this project forward.", 0.84)
+            if getattr(task, "milestone_id", None):
+                await edge(task_node, user_node, "depends_on", "This task depends on its milestone sequence.", 0.55)
         for note in notes:
             note_node = await node("note", note.id, note.title or "Untitled note", note.summary or note.content[:240])
+            knowledge_node = await node("knowledge", note.id, note.title or "Knowledge note", note.summary or note.content[:240])
+            await edge(note_node, knowledge_node, "created_from", "This knowledge was created from a note.", 0.72)
             if note.project_id and note.project_id in project_nodes:
-                await edge(project_nodes[note.project_id], note_node, "has_note", "This note preserves project context.", 0.72)
+                await edge(knowledge_node, project_nodes[note.project_id], "supports", "This knowledge preserves project context.", 0.72)
             if note.goal_id and note.goal_id in goal_nodes:
-                await edge(goal_nodes[note.goal_id], note_node, "has_note", "This note preserves goal context.", 0.72)
+                await edge(knowledge_node, goal_nodes[note.goal_id], "supports", "This knowledge preserves goal context.", 0.72)
         for memory in memories:
             memory_node = await node("memory", memory.id, memory.summary or memory.content[:80], memory.content[:240])
-            await edge(user_node, memory_node, "remembers", "This memory is part of your approved workspace context.", min(max(memory.importance_score, 0.45), 0.95))
+            knowledge_node = await node("knowledge", memory.id, memory.summary or memory.content[:80], memory.content[:240])
+            await edge(memory_node, knowledge_node, "created_from", "This knowledge was created from memory.", 0.78)
+            await edge(user_node, knowledge_node, "related_to", "This knowledge is part of your approved workspace context.", min(max(memory.importance_score, 0.45), 0.95))
             if memory.project_id and memory.project_id in project_nodes:
-                await edge(project_nodes[memory.project_id], memory_node, "has_memory", "This memory is tied to project context.", 0.76)
+                await edge(knowledge_node, project_nodes[memory.project_id], "supports", "This knowledge is tied to project context.", 0.76)
         for conversation in conversations:
             conversation_node = await node("conversation", conversation.id, conversation.title or "Untitled conversation", conversation.summary or conversation.active_intent or "")
             if conversation.project_id and conversation.project_id in project_nodes:
-                await edge(project_nodes[conversation.project_id], conversation_node, "has_conversation", "This conversation is attached to the project.", 0.72)
+                await edge(conversation_node, project_nodes[conversation.project_id], "created_from", "This conversation created project context.", 0.72)
         for decision in decisions:
-            decision_node = await node("decision", decision.id, decision.title, decision.description or f"Status: {decision.status}")
+            detail = decision.description or decision.reason or decision.outcome or f"Status: {decision.status}"
+            decision_node = await node("decision", decision.id, decision.title, detail)
             if decision.project_id in project_nodes:
-                await edge(project_nodes[decision.project_id], decision_node, "has_decision", "This decision shapes project direction.", 0.88)
+                await edge(decision_node, project_nodes[decision.project_id], "influences", "This decision shapes project direction.", 0.88)
         for decision in legacy_decisions:
             decision_node = await node("decision", decision.id, decision.decision, f"Status: {decision.status}")
             if decision.project_id in project_nodes:
-                await edge(project_nodes[decision.project_id], decision_node, "has_decision", "This decision shapes project direction.", 0.84)
+                await edge(decision_node, project_nodes[decision.project_id], "influences", "This decision shapes project direction.", 0.84)
         for loop_item in loops:
             loop_node = await node("open_loop", loop_item.id, loop_item.title, loop_item.description or f"Status: {loop_item.status}")
             if loop_item.project_id in project_nodes:
-                await edge(project_nodes[loop_item.project_id], loop_node, "has_open_loop", "This unfinished work needs project attention.", 0.9)
+                await edge(loop_node, project_nodes[loop_item.project_id], "blocks", "This unfinished work can block project momentum.", 0.9)
         for loop_item in legacy_loops:
             loop_node = await node("open_loop", loop_item.id, loop_item.loop, f"Status: {loop_item.status}")
             if loop_item.project_id in project_nodes:
-                await edge(project_nodes[loop_item.project_id], loop_node, "has_open_loop", "This unfinished work needs project attention.", 0.86)
+                await edge(loop_node, project_nodes[loop_item.project_id], "blocks", "This unfinished work can block project momentum.", 0.86)
         for event in timeline:
             event_node = await node("timeline_event", event.id, event.title, event.description or event.event_type)
-            await edge(user_node, event_node, "has_timeline_event", "This event is part of your workspace history.", 0.55 + min(event.importance, 0.4))
+            await edge(event_node, user_node, "created_from", "This event is part of your workspace history.", 0.55 + min(event.importance, 0.4))
             if event.project_id and event.project_id in project_nodes:
-                await edge(project_nodes[event.project_id], event_node, "has_timeline_event", "This event changed project context.", 0.72 + min(event.importance, 0.2))
+                await edge(event_node, project_nodes[event.project_id], "influences", "This event changed project context.", 0.72 + min(event.importance, 0.2))
+
+        await self._person_edges(user_id, node, edge, [*notes, *memories, *conversations], project_nodes)
 
         await self._keyword_edges(user_id)
         await self.session.flush()
@@ -253,7 +278,7 @@ class RelationshipGraphPhase5Service:
                     "nodeId": str(edge["sourceNodeId"]),
                 }
                 for edge in strong_edges
-                if edge["relationshipType"] in {"mentions_same_context", "has_open_loop", "has_decision"}
+                if edge["relationshipType"] in {"related_to", "blocks", "influences", "depends_on"}
             ],
             *[
                 {
@@ -265,6 +290,72 @@ class RelationshipGraphPhase5Service:
                 for item in isolated[:3]
             ],
         ][:8]
+
+    async def context_for_query(self, user_id: UUID, query: str, *, limit: int = 12) -> GraphContextOut:
+        graph = await self.refresh(user_id)
+        nodes = graph["nodes"]
+        edges = graph["edges"]
+        node_by_id = {str(node["id"]): node for node in nodes}
+        tokens = self._keywords(query)
+        scored_nodes = sorted(
+            (
+                (self._score(tokens, f"{node['title']} {node.get('description', '')}"), node)
+                for node in nodes
+            ),
+            key=lambda item: item[0],
+            reverse=True,
+        )
+        seed_nodes = [node for score, node in scored_nodes if score > 0][:5]
+        if not seed_nodes:
+            seed_nodes = [node for node in nodes if node["nodeType"] in {"goal", "project"}][:4]
+        seed_ids = {str(node["id"]) for node in seed_nodes}
+
+        connected: list[GraphContextItemOut] = []
+        for edge in sorted(edges, key=lambda item: item["strength"], reverse=True):
+            source_id = str(edge["sourceNodeId"])
+            target_id = str(edge["targetNodeId"])
+            if source_id not in seed_ids and target_id not in seed_ids and not self._query_wants_edge(query, edge["relationshipType"]):
+                continue
+            other_id = target_id if source_id in seed_ids else source_id
+            node = node_by_id.get(other_id) or node_by_id.get(source_id)
+            if not node:
+                continue
+            connected.append(self._context_item(node, edge))
+            if len(connected) >= limit:
+                break
+
+        blockers = [item for item in connected if item.relationshipType == "blocks" or item.nodeType == "open_loop"][:6]
+        supporting = [item for item in connected if item.relationshipType in {"supports", "depends_on", "related_to", "created_from"}][:6]
+        decisions = [item for item in connected if item.nodeType == "decision" or item.relationshipType == "influences"][:6]
+        next_actions = [item for item in connected if item.nodeType in {"task", "open_loop", "project"}][:6]
+        return GraphContextOut(
+            query=query,
+            currentEntities=[self._context_item(node, {"relationshipType": "related_to", "reason": "Matched the question.", "strength": 0.7}) for node in seed_nodes[:6]],
+            blockers=blockers,
+            supportingContext=supporting,
+            decisions=decisions,
+            nextActions=next_actions,
+        )
+
+    async def answer(self, user_id: UUID, question: str) -> GraphAnswerOut:
+        context = await self.context_for_query(user_id, question)
+        lower = question.casefold()
+        if "block" in lower:
+            evidence = context.blockers
+            if evidence:
+                answer = "Your clearest blockers are " + "; ".join(item.title for item in evidence[:4]) + "."
+            else:
+                answer = "I do not see a graph blocker yet. Refresh the graph after adding open loops or blocked tasks."
+        elif "connected" in lower or "related" in lower:
+            evidence = [item for item in [*context.currentEntities, *context.supportingContext] if item.nodeType == "project"][:6]
+            answer = "Connected projects: " + ("; ".join(item.title for item in evidence) if evidence else "none visible yet.")
+        elif "decision" in lower or "affected" in lower or "outcome" in lower:
+            evidence = context.decisions
+            answer = "Relevant decisions: " + ("; ".join(item.title for item in evidence[:5]) if evidence else "none connected yet.")
+        else:
+            evidence = context.nextActions or context.blockers or context.supportingContext
+            answer = "Work next on " + (evidence[0].title if evidence else "the most active goal or project after refreshing the graph") + "."
+        return GraphAnswerOut(question=question, answer=answer, evidence=evidence[:8])
 
     async def get_edge(self, user_id: UUID, edge_id: UUID) -> RelationshipEdge:
         result = await self.session.execute(
@@ -330,6 +421,54 @@ class RelationshipGraphPhase5Service:
             "edges": [self._edge_out(item) for item in edges],
         }
 
+    async def _person_edges(self, user_id: UUID, node, edge, sources, project_nodes: dict[UUID, RelationshipNode]) -> None:
+        person_mentions: Counter[str] = Counter()
+        source_text: list[tuple[object, str, UUID | None]] = []
+        for item in sources:
+            text = " ".join(
+                str(part)
+                for part in (
+                    getattr(item, "title", None),
+                    getattr(item, "summary", None),
+                    getattr(item, "content", None),
+                    getattr(item, "description", None),
+                    getattr(item, "active_intent", None),
+                )
+                if part
+            )
+            if not text:
+                continue
+            names = self._people(text)
+            if not names:
+                continue
+            project_id = getattr(item, "project_id", None)
+            source_text.append((item, text, project_id))
+            person_mentions.update(names)
+
+        for person_name, count in person_mentions.items():
+            if count < 1:
+                continue
+            person_node = await node("person", None, person_name, "Person mentioned in workspace context.")
+            await edge(person_node, await node("user", None, "You", "Workspace owner"), "related_to", "This person appears in your workspace context.", min(0.55 + count * 0.08, 0.88))
+            for _, text, project_id in source_text:
+                if person_name not in text or not project_id or project_id not in project_nodes:
+                    continue
+                await edge(person_node, project_nodes[project_id], "influences", f"{person_name} appears in context for this project.", 0.62)
+
+    @staticmethod
+    def _people(text: str) -> list[str]:
+        candidates = re.findall(r"\b(?:with|from|for|by|customer|client|founder|user)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)", text)
+        stop = {"Synzept", "Project", "Goal", "Decision", "Open Loop", "Founder Dashboard"}
+        seen: set[str] = set()
+        people: list[str] = []
+        for candidate in candidates:
+            clean = candidate.strip()
+            if clean in stop or clean.casefold() in seen:
+                continue
+            seen.add(clean.casefold())
+            people.append(clean)
+        return people[:8]
+
     async def _keyword_edges(self, user_id: UUID) -> None:
         nodes = await self.list_nodes(user_id)
         existing = {
@@ -346,8 +485,8 @@ class RelationshipGraphPhase5Service:
                 shared = sorted(left_words & self._keywords(f"{right.title} {right.description}"))
                 if len(shared) < 2:
                     continue
-                key = (str(left.id), str(right.id), "mentions_same_context")
-                reverse_key = (str(right.id), str(left.id), "mentions_same_context")
+                key = (str(left.id), str(right.id), "related_to")
+                reverse_key = (str(right.id), str(left.id), "related_to")
                 if key in existing or reverse_key in existing:
                     continue
                 self.session.add(
@@ -355,7 +494,7 @@ class RelationshipGraphPhase5Service:
                         user_id=user_id,
                         source_node_id=left.id,
                         target_node_id=right.id,
-                        relationship_type="mentions_same_context",
+                        relationship_type="related_to",
                         reason=f"Both mention {', '.join(shared[:3])}.",
                         strength=min(0.55 + len(shared) * 0.08, 0.85),
                     )
@@ -422,8 +561,36 @@ class RelationshipGraphPhase5Service:
         }
 
     @staticmethod
-    def _keywords(value: str) -> set[str]:
-        import re
+    def _context_item(node: dict, edge: dict) -> GraphContextItemOut:
+        return GraphContextItemOut(
+            nodeId=node["id"],
+            nodeType=node["nodeType"],
+            title=node["title"],
+            description=node.get("description", ""),
+            relationshipType=edge.get("relationshipType", "related_to"),
+            reason=edge.get("reason", ""),
+            strength=edge.get("strength", 0.5),
+        )
 
-        stop = {"this", "that", "with", "from", "project", "task", "note", "decision", "memory", "the", "and", "for"}
+    @staticmethod
+    def _score(tokens: set[str], value: str) -> float:
+        if not tokens:
+            return 0
+        words = RelationshipGraphPhase5Service._keywords(value)
+        if not words:
+            return 0
+        return len(tokens & words) / len(tokens)
+
+    @staticmethod
+    def _query_wants_edge(query: str, relationship_type: str) -> bool:
+        text = query.casefold()
+        return (
+            ("block" in text and relationship_type == "blocks")
+            or ("decision" in text and relationship_type == "influences")
+            or ("next" in text and relationship_type in {"blocks", "supports", "depends_on"})
+        )
+
+    @staticmethod
+    def _keywords(value: str) -> set[str]:
+        stop = {"this", "that", "with", "from", "project", "task", "note", "decision", "memory", "knowledge", "conversation", "goal", "the", "and", "for", "what", "which", "next", "work"}
         return {item for item in re.findall(r"[a-z0-9]+", value.casefold()) if len(item) > 3 and item not in stop}

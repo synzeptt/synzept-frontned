@@ -19,7 +19,6 @@ import { ProGate } from "@/components/pro/pro-gate";
 import { RecoveryBanner } from "@/components/ui/recovery-banner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api, type DailyBriefSnapshot } from "@/lib/api";
-import { sampleDailyBrief } from "@/lib/sample-data";
 import { PageFrame } from "@frontend/components/layout/page-frame";
 
 type BriefItem = {
@@ -150,7 +149,7 @@ export default function DailyBriefPage() {
                   <p className="mt-2 max-w-2xl text-sm leading-6 text-stone-300">{nextStep.detail || "This is the clearest continuation point in your workspace."}</p>
                 </div>
                 <Link
-                  href={nextStep.href || "/dashboard"}
+                  href={nextStep.href || "/agent"}
                   className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-white px-4 text-sm font-medium text-stone-950 transition hover:bg-stone-100"
                 >
                   Continue
@@ -334,12 +333,12 @@ function toBriefContent(brief: DailyBriefSnapshot | null): BriefContent {
     briefDate: new Date().toISOString(),
     updatedAt: null,
     createdAt: null,
-    recommendedNextStep: sampleDailyBrief.recommendedNextStep,
-    whatMattersToday: sampleDailyBrief.whatMattersToday,
-    openLoops: sampleDailyBrief.openLoops,
-    recentProgress: sampleDailyBrief.recentProgress,
-    projectsNeedingAttention: sampleDailyBrief.projectsNeedingAttention,
-    contextToRemember: sampleDailyBrief.contextToRemember,
+    recommendedNextStep: {},
+    whatMattersToday: [],
+    openLoops: [],
+    recentProgress: [],
+    projectsNeedingAttention: [],
+    contextToRemember: [],
   };
 }
 

@@ -4,13 +4,16 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.conversation import Conversation
+from app.models.chief_of_staff import Commitment
 from app.models.memory import Memory
+from app.models.project_intelligence_phase2 import Decision, OpenLoop
 from app.utils.text import tokenize, truncate
 
 
@@ -60,6 +63,9 @@ class ConversationIntelligenceService:
         conversation.active_intent = self.active_intent(state)
         if project_id and not conversation.project_id:
             conversation.project_id = project_id
+        if project_id and hasattr(self.session, "execute") and hasattr(self.session, "add"):
+            await self._persist_project_continuity(project_id, state)
+            await self._persist_commitments(conversation, user_message=user_message, project_id=project_id)
         return state
 
     async def related_context(
@@ -180,6 +186,97 @@ class ConversationIntelligenceService:
         if state.topics:
             return truncate("Continue: " + ", ".join(state.topics[:5]), 500)
         return ""
+
+    async def _persist_project_continuity(
+        self,
+        project_id: UUID,
+        state: ConversationContinuityState,
+    ) -> None:
+        for text in state.open_loops[:3]:
+            title = self._title_from_sentence(text)
+            if await self._exists(OpenLoop, project_id, title):
+                continue
+            self.session.add(
+                OpenLoop(
+                    project_id=project_id,
+                    title=title,
+                    description=f"Detected from conversation: {truncate(text, 320)}",
+                    status="open",
+                )
+            )
+
+    async def _persist_commitments(self, conversation: Conversation, *, user_message: str, project_id: UUID | None) -> None:
+        commitments = self.extract_commitments(user_message)
+        if not commitments:
+            return
+        for commitment in commitments[:3]:
+            if await self._commitment_exists(conversation.user_id, commitment):
+                continue
+            self.session.add(
+                Commitment(
+                    user_id=conversation.user_id,
+                    source_type="conversation",
+                    source_id=conversation.id,
+                    project_id=project_id,
+                    title=commitment,
+                    detail=f"Detected commitment from conversation: {truncate(user_message, 360)}",
+                    status="open",
+                    evidence={"conversation_id": str(conversation.id)},
+                )
+            )
+
+    async def _commitment_exists(self, user_id: UUID, title: str) -> bool:
+        result = await self.session.execute(
+            select(Commitment.id).where(Commitment.user_id == user_id, Commitment.title == title, Commitment.status == "open").limit(1)
+        )
+        return result.scalar_one_or_none() is not None
+        for text in state.decisions[:2]:
+            title = self._title_from_sentence(text)
+            if await self._exists(Decision, project_id, title):
+                continue
+            self.session.add(
+                Decision(
+                    project_id=project_id,
+                    title=title,
+                    description=truncate(text, 500),
+                    reason=self._reason_from_sentence(text),
+                    status="decided",
+                    decided_at=datetime.now(timezone.utc),
+                )
+            )
+
+    async def _exists(self, model, project_id: UUID, title: str) -> bool:
+        result = await self.session.execute(
+            select(model.id).where(model.project_id == project_id, model.title == title).limit(1)
+        )
+        return result.scalar_one_or_none() is not None
+
+    @staticmethod
+    def _title_from_sentence(text: str) -> str:
+        clean = re.sub(r"^(decision|decided|todo|to-do|next step)\s*[:\-]\s*", "", text.strip(), flags=re.IGNORECASE)
+        return truncate(clean.rstrip(". "), 120)
+
+    @staticmethod
+    def _reason_from_sentence(text: str) -> str:
+        match = re.search(r"\b(because|so that|to)\b\s+(.+)$", text, flags=re.IGNORECASE)
+        return truncate(match.group(2).strip().rstrip(". "), 320) if match else ""
+
+    @staticmethod
+    def extract_commitments(text: str) -> list[str]:
+        patterns = (
+            r"\bI will\s+([^.!?\n]+)",
+            r"\bI'll\s+([^.!?\n]+)",
+            r"\bI commit to\s+([^.!?\n]+)",
+            r"\bwe will\s+([^.!?\n]+)",
+            r"\blet's\s+([^.!?\n]+)",
+        )
+        commitments: list[str] = []
+        for pattern in patterns:
+            for match in re.finditer(pattern, text, flags=re.IGNORECASE):
+                clean = truncate(match.group(1).strip(" ."), 180)
+                if len(clean) >= 6:
+                    commitments.append(clean[0].upper() + clean[1:])
+        return commitments[:5]
 
     @staticmethod
     def _relevance(query_tokens: set[str], content: str) -> float:

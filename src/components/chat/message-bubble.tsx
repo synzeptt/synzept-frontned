@@ -2,20 +2,25 @@
 
 import { memo, useState } from "react";
 import { motion } from "framer-motion";
-import { Check, Copy, ThumbsDown, ThumbsUp } from "lucide-react";
+import { Check, CircleHelp, Copy, Loader2, ThumbsDown, ThumbsUp } from "lucide-react";
 import { Markdown } from "./markdown";
 import { cn } from "@/lib/cn";
-import { api } from "@/lib/api";
+import { api, type MemoryExplain } from "@/lib/api";
 
 type Props = {
   role: "user" | "assistant" | "system";
   content: string;
   isStreaming?: boolean;
+  messageId?: string;
 };
 
-function MessageBubbleComponent({ role, content, isStreaming }: Props) {
+function MessageBubbleComponent({ role, content, isStreaming, messageId }: Props) {
   const [copied, setCopied] = useState(false);
   const [rated, setRated] = useState<"up" | "down" | null>(null);
+  const [explanationOpen, setExplanationOpen] = useState(false);
+  const [explanationLoading, setExplanationLoading] = useState(false);
+  const [explanationError, setExplanationError] = useState<string | null>(null);
+  const [explanation, setExplanation] = useState<MemoryExplain | null>(null);
   const isUser = role === "user";
 
   const copy = async () => {
@@ -32,6 +37,25 @@ function MessageBubbleComponent({ role, content, isStreaming }: Props) {
       message: rating === 5 ? "Useful response" : "Response needs improvement",
       metadata: { surface: "chat" },
     }).catch(() => undefined);
+  };
+
+  const explain = async () => {
+    if (!messageId) return;
+    if (explanationOpen && explanation) {
+      setExplanationOpen(false);
+      return;
+    }
+    setExplanationOpen(true);
+    if (explanation) return;
+    setExplanationLoading(true);
+    setExplanationError(null);
+    try {
+      setExplanation(await api.explainMemoryMessage(messageId));
+    } catch {
+      setExplanationError("Synzept could not load the explanation for this reply.");
+    } finally {
+      setExplanationLoading(false);
+    }
   };
 
   return (
@@ -66,6 +90,17 @@ function MessageBubbleComponent({ role, content, isStreaming }: Props) {
         )}
         {!isUser && content && !isStreaming && (
           <div className="absolute right-2 top-2 flex gap-1 opacity-0 transition group-hover:opacity-100">
+            {messageId && (
+              <button
+                type="button"
+                onClick={explain}
+                className={cn("rounded-lg p-1.5 text-muted hover:bg-stone-100 hover:text-stone-900", explanationOpen && "text-accent")}
+                aria-label="Why did Synzept say this?"
+                title="Why did Synzept say this?"
+              >
+                <CircleHelp className="h-3.5 w-3.5" />
+              </button>
+            )}
             <button
               type="button"
               onClick={() => rate(5)}
@@ -95,8 +130,45 @@ function MessageBubbleComponent({ role, content, isStreaming }: Props) {
             </button>
           </div>
         )}
+        {explanationOpen && !isUser && messageId && (
+          <div className="mt-4 rounded-lg border border-stone-200 bg-stone-50 p-3 text-sm text-stone-700">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted">Why did Synzept say this?</p>
+              {explanationLoading && <Loader2 className="h-4 w-4 animate-spin text-muted" />}
+            </div>
+            {explanationError ? (
+              <p className="mt-2 text-sm text-red-700">{explanationError}</p>
+            ) : explanation ? (
+              <div className="mt-3 space-y-3">
+                <p className="text-sm leading-6 text-stone-700">{explanation.explanation}</p>
+                <ExplainGroup title="Memory used" items={explanation.memories_used.map((item) => item.summary || item.content)} />
+                <ExplainGroup title="Projects used" items={explanation.projects_used.map((item) => item.title)} />
+                <ExplainGroup title="Open loops used" items={explanation.open_loops_used.map((item) => item.title)} />
+                <ExplainGroup title="Decisions used" items={explanation.decisions_used.map((item) => item.title)} />
+              </div>
+            ) : explanationLoading ? (
+              <p className="mt-2 text-sm text-muted">Loading explanation...</p>
+            ) : null}
+          </div>
+        )}
       </div>
     </motion.div>
+  );
+}
+
+function ExplainGroup({ title, items }: { title: string; items: string[] }) {
+  if (!items.length) return null;
+  return (
+    <div>
+      <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted">{title}</p>
+      <div className="mt-1.5 space-y-1">
+        {items.slice(0, 4).map((item) => (
+          <p key={item} className="rounded-md bg-white px-2.5 py-1.5 text-sm text-stone-700 shadow-sm">
+            {item}
+          </p>
+        ))}
+      </div>
+    </div>
   );
 }
 

@@ -220,7 +220,7 @@ class NotificationService:
                 message="You have unfinished work waiting in Synzept. Open your workspace to continue where you left off.",
                 priority="high" if threshold >= 7 else "medium",
                 dedupe_key=f"return_to_work:{threshold}:{last_seen.date().isoformat()}",
-                metadata={"href": "/dashboard", "daysInactive": days, "unfinished": unfinished, "openLoops": open_loops},
+                metadata={"href": "/agent", "daysInactive": days, "unfinished": unfinished, "openLoops": open_loops},
             )
         ]
 
@@ -274,7 +274,7 @@ class NotificationService:
                     email=user.email,
                     subject=candidate.title,
                     message=candidate.message,
-                    action_url=f"{self.settings.frontend_url.rstrip('/')}{candidate.metadata.get('href', '/dashboard')}",
+                    action_url=f"{self.settings.frontend_url.rstrip('/')}{candidate.metadata.get('href', '/agent')}",
                 )
                 notification.status = "sent"
                 notification.sent_at = datetime.now(timezone.utc)

@@ -50,6 +50,9 @@ async def initialize_local_database() -> None:
         await conn.run_sync(_ensure_local_relationship_graph_schema)
         await conn.run_sync(_ensure_local_subscription_schema)
         await conn.run_sync(_ensure_local_notification_schema)
+        await conn.run_sync(_ensure_local_chief_of_staff_schema)
+        await conn.run_sync(_ensure_local_autonomous_workspace_schema)
+        await conn.run_sync(_ensure_local_memory_trust_schema)
 
 
 def _ensure_local_memory_schema(connection) -> None:
@@ -100,7 +103,20 @@ def _ensure_local_core_schema(connection) -> None:
 def _ensure_local_knows_you_schema(connection) -> None:
     """Add Phase 1 Synzept Knows You columns to existing SQLite databases."""
     understanding_columns = {row[1] for row in connection.exec_driver_sql("PRAGMA table_info(user_understanding)")}
-    for column in ("personal", "professional", "goals", "preferences", "learning", "current_focus"):
+    for column in (
+        "personal",
+        "professional",
+        "goals",
+        "preferences",
+        "learning",
+        "current_focus",
+        "current_mission",
+        "active_projects",
+        "open_loops",
+        "recent_progress",
+        "recent_decisions",
+        "next_suggested_actions",
+    ):
         if understanding_columns and column not in understanding_columns:
             connection.exec_driver_sql(f"ALTER TABLE user_understanding ADD COLUMN {column} JSON NOT NULL DEFAULT '{{}}'")
 
@@ -116,6 +132,13 @@ def _ensure_local_project_intelligence_phase2_schema(connection) -> None:
         connection.exec_driver_sql("ALTER TABLE projects ADD COLUMN current_focus TEXT NOT NULL DEFAULT ''")
     if project_columns and "recommended_next_step" not in project_columns:
         connection.exec_driver_sql("ALTER TABLE projects ADD COLUMN recommended_next_step TEXT NOT NULL DEFAULT ''")
+    decision_columns = {row[1] for row in connection.exec_driver_sql("PRAGMA table_info(decisions)")}
+    if decision_columns and "reason" not in decision_columns:
+        connection.exec_driver_sql("ALTER TABLE decisions ADD COLUMN reason TEXT NOT NULL DEFAULT ''")
+    if decision_columns and "outcome" not in decision_columns:
+        connection.exec_driver_sql("ALTER TABLE decisions ADD COLUMN outcome TEXT NOT NULL DEFAULT ''")
+    if decision_columns and "decided_at" not in decision_columns:
+        connection.exec_driver_sql("ALTER TABLE decisions ADD COLUMN decided_at DATETIME")
 
 
 def _ensure_local_timeline_phase3_schema(connection) -> None:
@@ -171,7 +194,7 @@ def _ensure_local_relationship_graph_schema(connection) -> None:
         return
     sql_rows = list(connection.exec_driver_sql("SELECT sql FROM sqlite_master WHERE type='table' AND name='relationship_nodes'"))
     table_sql = sql_rows[0][0] if sql_rows else ""
-    if "open_loop" in table_sql and "conversation" in table_sql:
+    if "open_loop" in table_sql and "conversation" in table_sql and "knowledge" in table_sql and "person" in table_sql:
         return
     connection.exec_driver_sql("PRAGMA foreign_keys=OFF")
     connection.exec_driver_sql("ALTER TABLE relationship_nodes RENAME TO relationship_nodes_old")
@@ -187,7 +210,7 @@ def _ensure_local_relationship_graph_schema(connection) -> None:
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
-            CONSTRAINT ck_relationship_nodes_type CHECK (node_type IN ('user', 'goal', 'project', 'task', 'open_loop', 'decision', 'timeline_event', 'note', 'memory', 'conversation')),
+            CONSTRAINT ck_relationship_nodes_type CHECK (node_type IN ('user', 'goal', 'project', 'task', 'open_loop', 'decision', 'timeline_event', 'note', 'memory', 'knowledge', 'person', 'conversation')),
             CONSTRAINT uq_relationship_nodes_entity UNIQUE (user_id, node_type, entity_id),
             FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE
         )
@@ -296,3 +319,135 @@ def _ensure_local_notification_schema(connection) -> None:
     connection.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_notifications_status ON notifications (status)")
     connection.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_notifications_priority ON notifications (priority)")
     connection.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_notifications_scheduled_for ON notifications (scheduled_for)")
+
+
+def _ensure_local_chief_of_staff_schema(connection) -> None:
+    connection.exec_driver_sql(
+        """
+        CREATE TABLE IF NOT EXISTS chief_of_staff_snapshots (
+            id CHAR(36) NOT NULL,
+            user_id CHAR(36) NOT NULL,
+            snapshot_date DATE NOT NULL,
+            snapshot_type VARCHAR(40) NOT NULL DEFAULT 'daily',
+            executive_brief JSON NOT NULL DEFAULT '{}',
+            opportunities JSON NOT NULL DEFAULT '[]',
+            risks JSON NOT NULL DEFAULT '[]',
+            priorities JSON NOT NULL DEFAULT '[]',
+            strategic_suggestions JSON NOT NULL DEFAULT '[]',
+            momentum JSON NOT NULL DEFAULT '{}',
+            founder_report JSON NOT NULL DEFAULT '{}',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            CONSTRAINT uq_chief_of_staff_snapshot UNIQUE (user_id, snapshot_date, snapshot_type),
+            FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE
+        )
+        """
+    )
+    connection.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_chief_of_staff_snapshots_user_id ON chief_of_staff_snapshots (user_id)")
+    connection.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_chief_of_staff_snapshots_snapshot_date ON chief_of_staff_snapshots (snapshot_date)")
+    connection.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_chief_of_staff_snapshots_snapshot_type ON chief_of_staff_snapshots (snapshot_type)")
+    connection.exec_driver_sql(
+        """
+        CREATE TABLE IF NOT EXISTS commitments (
+            id CHAR(36) NOT NULL,
+            user_id CHAR(36) NOT NULL,
+            source_type VARCHAR(40) NOT NULL DEFAULT 'conversation',
+            source_id CHAR(36),
+            project_id CHAR(36),
+            goal_id CHAR(36),
+            title VARCHAR(240) NOT NULL,
+            detail TEXT NOT NULL DEFAULT '',
+            status VARCHAR(30) NOT NULL DEFAULT 'open',
+            due_at DATETIME,
+            completed_at DATETIME,
+            evidence JSON NOT NULL DEFAULT '{}',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE,
+            FOREIGN KEY(project_id) REFERENCES projects (id) ON DELETE SET NULL,
+            FOREIGN KEY(goal_id) REFERENCES goals (id) ON DELETE SET NULL
+        )
+        """
+    )
+    for column in ("user_id", "source_type", "source_id", "project_id", "goal_id", "status", "due_at"):
+        connection.exec_driver_sql(f"CREATE INDEX IF NOT EXISTS ix_commitments_{column} ON commitments ({column})")
+
+
+def _ensure_local_autonomous_workspace_schema(connection) -> None:
+    connection.exec_driver_sql(
+        """
+        CREATE TABLE IF NOT EXISTS execution_plans (
+            id CHAR(36) NOT NULL,
+            user_id CHAR(36) NOT NULL,
+            goal_id CHAR(36) NOT NULL,
+            project_id CHAR(36),
+            status VARCHAR(30) NOT NULL DEFAULT 'active',
+            plan JSON NOT NULL DEFAULT '{}',
+            planned JSON NOT NULL DEFAULT '[]',
+            completed JSON NOT NULL DEFAULT '[]',
+            blocked JSON NOT NULL DEFAULT '[]',
+            metrics JSON NOT NULL DEFAULT '{}',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            CONSTRAINT uq_execution_plans_goal UNIQUE (user_id, goal_id),
+            FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE,
+            FOREIGN KEY(goal_id) REFERENCES goals (id) ON DELETE CASCADE,
+            FOREIGN KEY(project_id) REFERENCES projects (id) ON DELETE SET NULL
+        )
+        """
+    )
+    for column in ("user_id", "goal_id", "project_id", "status"):
+        connection.exec_driver_sql(f"CREATE INDEX IF NOT EXISTS ix_execution_plans_{column} ON execution_plans ({column})")
+    connection.exec_driver_sql(
+        """
+        CREATE TABLE IF NOT EXISTS autonomous_suggestions (
+            id CHAR(36) NOT NULL,
+            user_id CHAR(36) NOT NULL,
+            project_id CHAR(36),
+            goal_id CHAR(36),
+            suggestion_type VARCHAR(60) NOT NULL,
+            title VARCHAR(240) NOT NULL,
+            detail TEXT NOT NULL DEFAULT '',
+            priority VARCHAR(20) NOT NULL DEFAULT 'medium',
+            status VARCHAR(30) NOT NULL DEFAULT 'pending',
+            evidence JSON NOT NULL DEFAULT '{}',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE,
+            FOREIGN KEY(project_id) REFERENCES projects (id) ON DELETE SET NULL,
+            FOREIGN KEY(goal_id) REFERENCES goals (id) ON DELETE SET NULL
+        )
+        """
+    )
+    for column in ("user_id", "project_id", "goal_id", "suggestion_type", "priority", "status"):
+        connection.exec_driver_sql(f"CREATE INDEX IF NOT EXISTS ix_autonomous_suggestions_{column} ON autonomous_suggestions ({column})")
+
+
+def _ensure_local_memory_trust_schema(connection) -> None:
+    connection.exec_driver_sql(
+        """
+        CREATE TABLE IF NOT EXISTS memory_trust_events (
+            id CHAR(36) NOT NULL,
+            memory_id CHAR(36),
+            user_id CHAR(36) NOT NULL,
+            action VARCHAR(40) NOT NULL,
+            reason TEXT NOT NULL DEFAULT '',
+            caused_by_type VARCHAR(40) NOT NULL DEFAULT 'system',
+            caused_by_id CHAR(36),
+            before JSON NOT NULL DEFAULT '{}',
+            after JSON NOT NULL DEFAULT '{}',
+            metadata JSON NOT NULL DEFAULT '{}',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            FOREIGN KEY(memory_id) REFERENCES memories (id) ON DELETE SET NULL,
+            FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE
+        )
+        """
+    )
+    for column in ("memory_id", "user_id", "action", "caused_by_type", "caused_by_id"):
+        connection.exec_driver_sql(f"CREATE INDEX IF NOT EXISTS ix_memory_trust_events_{column} ON memory_trust_events ({column})")

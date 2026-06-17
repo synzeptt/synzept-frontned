@@ -6,9 +6,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.dependencies import get_current_user, get_db
 from app.models.user import User
 from app.schemas.proactive_intelligence import (
+    ChiefOfStaffOut,
+    CommitmentOut,
     DailyPlanOut,
+    ExecutiveBriefOut,
     FocusOut,
+    FounderReportOut,
     IntelligenceItemOut,
+    MomentumScoreOut,
     ProjectHealthOut,
     ProactiveOverviewOut,
     ProactiveWeeklyReviewOut,
@@ -28,9 +33,39 @@ async def generate_daily_plan(user: User = Depends(get_current_user), session: A
     return await ProactiveIntelligenceService(session).generate_daily_plan(user.id)
 
 
+@router.get("/chief-of-staff", response_model=ChiefOfStaffOut)
+async def chief_of_staff(user: User = Depends(get_current_user), session: AsyncSession = Depends(get_db)):
+    return await ProactiveIntelligenceService(session).chief_of_staff(user.id)
+
+
+@router.get("/executive-brief", response_model=ExecutiveBriefOut)
+async def executive_brief(user: User = Depends(get_current_user), session: AsyncSession = Depends(get_db)):
+    return (await ProactiveIntelligenceService(session).chief_of_staff(user.id)).executive_brief
+
+
+@router.get("/priorities", response_model=list[IntelligenceItemOut])
+async def priorities(user: User = Depends(get_current_user), session: AsyncSession = Depends(get_db)):
+    return (await ProactiveIntelligenceService(session).chief_of_staff(user.id, persist=False)).priorities
+
+
+@router.get("/commitments", response_model=list[CommitmentOut])
+async def commitments(user: User = Depends(get_current_user), session: AsyncSession = Depends(get_db)):
+    return (await ProactiveIntelligenceService(session).chief_of_staff(user.id, persist=False)).commitments
+
+
+@router.get("/momentum", response_model=MomentumScoreOut)
+async def momentum(user: User = Depends(get_current_user), session: AsyncSession = Depends(get_db)):
+    return (await ProactiveIntelligenceService(session).chief_of_staff(user.id, persist=False)).momentum
+
+
 @router.post("/weekly-review", response_model=ProactiveWeeklyReviewOut)
 async def generate_weekly_review(user: User = Depends(get_current_user), session: AsyncSession = Depends(get_db)):
     return await ProactiveIntelligenceService(session).generate_weekly_review(user.id)
+
+
+@router.get("/founder-report", response_model=FounderReportOut)
+async def founder_report(user: User = Depends(get_current_user), session: AsyncSession = Depends(get_db)):
+    return await ProactiveIntelligenceService(session).founder_report(user.id)
 
 
 @router.get("/project-health", response_model=list[ProjectHealthOut])

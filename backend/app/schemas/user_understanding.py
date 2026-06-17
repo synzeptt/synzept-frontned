@@ -33,3 +33,15 @@ class UserUnderstandingOut(ORMModel):
     learned_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
+
+
+class UserUnderstandingProfileOut(ORMModel):
+    user_id: UUID
+    current_mission: list[str] = Field(default_factory=list)
+    current_focus: list[str] = Field(default_factory=list)
+    active_projects: list[str] = Field(default_factory=list)
+    open_loops: list[str] = Field(default_factory=list)
+    recent_progress: list[str] = Field(default_factory=list)
+    recent_decisions: list[str] = Field(default_factory=list)
+    next_suggested_actions: list[str] = Field(default_factory=list)
+    updated_at: datetime | None = None

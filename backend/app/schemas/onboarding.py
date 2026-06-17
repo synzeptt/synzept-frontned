@@ -34,6 +34,19 @@ class OnboardingWorkspaceIn(BaseModel):
     skipped: bool = False
 
 
+class FirstRunIntelligenceIn(BaseModel):
+    building: str = Field(min_length=1, max_length=500)
+    top_goals: list[str] = Field(default_factory=list)
+    current_focus: str = Field(min_length=1, max_length=500)
+    important_projects: list[str] = Field(default_factory=list)
+    success_90_days: str = Field(min_length=1, max_length=1000)
+
+    @field_validator("top_goals", "important_projects")
+    @classmethod
+    def trim_first_run_lists(cls, value: list[str]) -> list[str]:
+        return [v.strip() for v in value if v and v.strip()][:5]
+
+
 class OnboardingFirstChatIn(BaseModel):
     message: str | None = Field(default=None, max_length=4000)
     use_suggested_prompt: bool = True
@@ -78,6 +91,7 @@ class OnboardingCompleteOut(BaseModel):
     memories_created: int = 0
     conversation_id: UUID | None = None
     welcome_message: str = ""
+    welcome_brief: dict = Field(default_factory=dict)
     dashboard_preview: OnboardingDashboardPreview = Field(default_factory=OnboardingDashboardPreview)
     analytics: OnboardingAnalyticsSummary = Field(default_factory=OnboardingAnalyticsSummary)
 

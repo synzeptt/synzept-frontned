@@ -8,11 +8,13 @@ from app.core.exceptions import NotFoundError
 from app.models.project import Project
 from app.models.timeline_event import TimelineEvent
 from app.schemas.timeline_phase3 import TimelineEventCreate, TimelineEventUpdate
+from app.services.workspace_activity_service import WorkspaceActivityService
 
 
 class TimelinePhase3Service:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
+        self.activity = WorkspaceActivityService(session)
 
     async def list_events(self, user_id: UUID, project_id: UUID | None = None) -> list[dict]:
         conditions = [TimelineEvent.user_id == user_id]
@@ -40,6 +42,13 @@ class TimelinePhase3Service:
         )
         self.session.add(item)
         await self.session.flush()
+        await self.activity.record(
+            user_id=user_id,
+            action=f"timeline_{item.event_type}",
+            title=item.title,
+            detail=item.description or "",
+            project_id=item.project_id,
+        )
         return self._out(item)
 
     async def get_event(self, user_id: UUID, event_id: UUID) -> dict:
@@ -63,6 +72,13 @@ class TimelinePhase3Service:
             item.importance = updates["importance"]
         item.updated_at = datetime.now(timezone.utc)
         await self.session.flush()
+        await self.activity.record(
+            user_id=user_id,
+            action=f"timeline_{item.event_type}_updated",
+            title=item.title,
+            detail=item.description or "",
+            project_id=item.project_id,
+        )
         return self._out(item)
 
     async def delete_event(self, user_id: UUID, event_id: UUID) -> None:

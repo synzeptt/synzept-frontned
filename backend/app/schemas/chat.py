@@ -90,4 +90,5 @@ class ChatResponse(BaseModel):
     message_id: UUID
     reply: str
     intent: str | None = None
+    trust_context: dict = Field(default_factory=dict)
     suggestions: list[ActionSuggestionOut] = Field(default_factory=list)

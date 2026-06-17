@@ -15,11 +15,13 @@ from app.schemas.project_intelligence_phase2 import (
     ProjectCreatePhase2,
     ProjectUpdatePhase2,
 )
+from app.services.workspace_activity_service import WorkspaceActivityService
 
 
 class ProjectIntelligencePhase2Service:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
+        self.activity = WorkspaceActivityService(session)
 
     async def list_projects(self, user_id: UUID) -> list[dict]:
         result = await self.session.execute(
@@ -40,6 +42,7 @@ class ProjectIntelligencePhase2Service:
         )
         self.session.add(project)
         await self.session.flush()
+        await self.activity.record(user_id=user_id, action="project_created", title=project.name, detail=project.current_focus or project.description or "", project_id=project.id)
         return self._project_out(project)
 
     async def get_project(self, user_id: UUID, project_id: UUID) -> dict:
@@ -60,6 +63,7 @@ class ProjectIntelligencePhase2Service:
             project.status = updates["status"]
         project.updated_at = datetime.now(timezone.utc)
         await self.session.flush()
+        await self.activity.record(user_id=user_id, action="project_updated", title=project.name, detail=project.recommended_next_step or project.current_focus or "", project_id=project.id)
         return self._project_out(project)
 
     async def delete_project(self, user_id: UUID, project_id: UUID) -> None:
@@ -68,6 +72,7 @@ class ProjectIntelligencePhase2Service:
         project.deleted_at = datetime.now(timezone.utc)
         project.updated_at = datetime.now(timezone.utc)
         await self.session.flush()
+        await self.activity.record(user_id=user_id, action="project_archived", title=project.name, project_id=project.id)
 
     async def list_open_loops(self, user_id: UUID, project_id: UUID) -> list[dict]:
         await self._owned_project(user_id, project_id)
@@ -88,6 +93,7 @@ class ProjectIntelligencePhase2Service:
         )
         self.session.add(item)
         await self.session.flush()
+        await self.activity.record(user_id=user_id, action="open_loop_created", title=item.title, detail=item.description or "", project_id=project_id)
         return self._open_loop_out(item)
 
     async def update_open_loop(self, user_id: UUID, item_id: UUID, data: OpenLoopUpdate) -> dict:
@@ -101,6 +107,7 @@ class ProjectIntelligencePhase2Service:
             item.status = updates["status"]
         item.updated_at = datetime.now(timezone.utc)
         await self.session.flush()
+        await self.activity.record(user_id=user_id, action="open_loop_updated", title=item.title, detail=item.description or "", project_id=item.project_id)
         return self._open_loop_out(item)
 
     async def delete_open_loop(self, user_id: UUID, item_id: UUID) -> None:
@@ -108,6 +115,7 @@ class ProjectIntelligencePhase2Service:
         item.status = "archived"
         item.updated_at = datetime.now(timezone.utc)
         await self.session.flush()
+        await self.activity.record(user_id=user_id, action="open_loop_archived", title=item.title, project_id=item.project_id)
 
     async def list_decisions(self, user_id: UUID, project_id: UUID) -> list[dict]:
         await self._owned_project(user_id, project_id)
@@ -122,10 +130,14 @@ class ProjectIntelligencePhase2Service:
             project_id=project_id,
             title=data.title.strip(),
             description=data.description.strip(),
+            reason=data.reason.strip(),
+            outcome=data.outcome.strip(),
             status=data.status,
+            decided_at=datetime.now(timezone.utc) if data.status == "decided" else None,
         )
         self.session.add(item)
         await self.session.flush()
+        await self.activity.record(user_id=user_id, action="decision_created", title=item.title, detail=item.description or "", project_id=project_id)
         return self._decision_out(item)
 
     async def update_decision(self, user_id: UUID, item_id: UUID, data: DecisionUpdate) -> dict:
@@ -135,16 +147,26 @@ class ProjectIntelligencePhase2Service:
             item.title = updates["title"].strip()
         if "description" in updates and updates["description"] is not None:
             item.description = updates["description"].strip()
+        if "reason" in updates and updates["reason"] is not None:
+            item.reason = updates["reason"].strip()
+        if "outcome" in updates and updates["outcome"] is not None:
+            item.outcome = updates["outcome"].strip()
         if "status" in updates and updates["status"] is not None:
             item.status = updates["status"]
+            if item.status == "decided" and not item.decided_at:
+                item.decided_at = datetime.now(timezone.utc)
+            elif item.status == "pending":
+                item.decided_at = None
         item.updated_at = datetime.now(timezone.utc)
         await self.session.flush()
+        await self.activity.record(user_id=user_id, action="decision_updated", title=item.title, detail=item.description or "", project_id=item.project_id)
         return self._decision_out(item)
 
     async def delete_decision(self, user_id: UUID, item_id: UUID) -> None:
         item = await self._owned_decision(user_id, item_id)
         await self.session.delete(item)
         await self.session.flush()
+        await self.activity.record(user_id=user_id, action="decision_deleted", title=item.title, project_id=item.project_id)
 
     async def _owned_project(self, user_id: UUID, project_id: UUID) -> Project:
         result = await self.session.execute(
@@ -214,7 +236,10 @@ class ProjectIntelligencePhase2Service:
             "projectId": item.project_id,
             "title": item.title,
             "description": item.description or "",
+            "reason": item.reason or "",
+            "outcome": item.outcome or "",
             "status": item.status,
+            "decidedAt": item.decided_at,
             "createdAt": item.created_at,
             "updatedAt": item.updated_at,
         }

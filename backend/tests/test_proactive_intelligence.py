@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 import app.models  # noqa: F401
 from app.database.base import Base
 from app.models.user import User
+from app.models.chief_of_staff import Commitment
 from app.schemas.goal import GoalCreate, MilestoneCreate
 from app.schemas.project import ProjectCreate
 from app.schemas.task import TaskCreate, TaskUpdate
@@ -64,6 +65,10 @@ async def test_proactive_engine_detects_risk_blockers_and_focus(session_factory)
         assert overview.focus.project_title == "Synzept"
         assert overview.focus.highest_impact_action.title == "Finish recommendation rules"
         assert overview.project_health[0].risk_score > 0
+        assert overview.chief_of_staff is not None
+        assert overview.chief_of_staff.executive_brief.recommended_next_action is not None
+        assert overview.chief_of_staff.momentum.score >= 0
+        assert overview.chief_of_staff.risks
 
 
 @pytest.mark.asyncio
@@ -85,3 +90,36 @@ async def test_weekly_review_reports_wins_and_next_steps(session_factory):
 
         assert "Close release checklist" in review.wins
         assert review.period_start < review.period_end
+
+
+@pytest.mark.asyncio
+async def test_chief_of_staff_detects_opportunities_commitments_and_founder_report(session_factory):
+    user_id = uuid4()
+    async with session_factory() as session:
+        session.add(User(id=user_id, email="chief@example.com"))
+        await session.flush()
+        workspace = WorkspaceService(session)
+        project = await workspace.create_project(user_id, ProjectCreate(name="Launch Synzept", description="Startup launch and payments"))
+        goals = GoalProgressService(session)
+        goal = await goals.create_goal(user_id, GoalCreate(title="Reach 100 paying users", project_id=project.id))
+        session.add(
+            Commitment(
+                user_id=user_id,
+                project_id=project.id,
+                goal_id=goal.id,
+                title="Launch this week",
+                detail="User committed to launch.",
+                status="open",
+                due_at=datetime.now(timezone.utc) - timedelta(days=1),
+            )
+        )
+        await session.flush()
+
+        chief = await ProactiveIntelligenceService(session).chief_of_staff(user_id)
+
+        assert chief.executive_brief.what_matters_now
+        assert any(item.type == "missed_commitment" for item in chief.risks)
+        assert chief.priorities
+        assert chief.momentum.trend in {"up", "down", "flat"}
+        assert chief.founder_report is not None
+        assert chief.founder_report.recommendations

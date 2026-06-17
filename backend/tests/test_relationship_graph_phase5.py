@@ -97,6 +97,47 @@ def test_relationship_graph_api_lifecycle_and_neighborhood(client):
     assert client.delete(f"/api/relationship-graph/nodes/{decision.json()['id']}").status_code == 200
 
 
+def test_relationship_graph_context_entities_and_answers(client):
+    goal = client.post(
+        "/api/relationship-graph/nodes",
+        json={"nodeType": "goal", "title": "100 paying users", "description": "Growth target"},
+    ).json()
+    project = client.post(
+        "/api/relationship-graph/nodes",
+        json={"nodeType": "project", "title": "Synzept", "description": "Personal intelligence system"},
+    ).json()
+    person = client.post(
+        "/api/relationship-graph/nodes",
+        json={"nodeType": "person", "title": "Asha Founder", "description": "Potential customer"},
+    )
+    assert person.status_code == 200
+    knowledge = client.post(
+        "/api/relationship-graph/nodes",
+        json={"nodeType": "knowledge", "title": "Marketing positioning", "description": "Founder dashboard can drive acquisition"},
+    )
+    assert knowledge.status_code == 200
+    loop = client.post(
+        "/api/relationship-graph/nodes",
+        json={"nodeType": "open_loop", "title": "Marketing", "description": "Customer acquisition loop is unfinished"},
+    ).json()
+    client.post(
+        "/api/relationship-graph/edges",
+        json={"sourceNodeId": project["id"], "targetNodeId": goal["id"], "relationshipType": "supports", "reason": "Synzept supports the paying users goal.", "strength": 0.88},
+    )
+    client.post(
+        "/api/relationship-graph/edges",
+        json={"sourceNodeId": loop["id"], "targetNodeId": project["id"], "relationshipType": "blocks", "reason": "Marketing is the acquisition blocker.", "strength": 0.91},
+    )
+
+    context = client.get("/api/relationship-graph/context", params={"q": "What is blocking my goal?"})
+    assert context.status_code == 200
+    assert any(item["title"] == "Marketing" for item in context.json()["blockers"])
+
+    answer = client.get("/api/relationship-graph/answer", params={"q": "What is blocking my goal?"})
+    assert answer.status_code == 200
+    assert "Marketing" in answer.json()["answer"]
+
+
 @pytest.mark.asyncio
 async def test_relationship_graph_rejects_cross_user_edges(tmp_path):
     engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'relationship-cross-user.db'}")

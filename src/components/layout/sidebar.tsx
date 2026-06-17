@@ -3,16 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  Brain,
   CalendarDays,
-  Lightbulb,
-  RotateCcw,
   LayoutDashboard,
-  MessageSquare,
-  Network,
-  FolderKanban,
-  StickyNote,
-  ListTodo,
+  ListChecks,
+  History,
   Settings,
+  Sparkles,
+  Target,
 } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { UpgradeCta } from "@/components/pro/upgrade-cta";
@@ -20,15 +18,13 @@ import { cn } from "@/lib/cn";
 import { useAuthStore } from "@/stores/auth";
 
 const links = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/dashboard", label: "OS", icon: LayoutDashboard },
+  { href: "/autonomous-workspace", label: "Execution", icon: Target },
+  { href: "/agent", label: "Agent", icon: Sparkles },
   { href: "/daily-brief", label: "Daily Brief", icon: CalendarDays },
-  { href: "/open-loops", label: "Open Loops", icon: RotateCcw },
-  { href: "/learning-engine", label: "Learning", icon: Lightbulb },
-  { href: "/relationship-graph", label: "Graph", icon: Network },
-  { href: "/chat", label: "Work", icon: MessageSquare },
-  { href: "/projects", label: "Projects", icon: FolderKanban },
-  { href: "/notes", label: "Notes", icon: StickyNote },
-  { href: "/tasks", label: "Tasks", icon: ListTodo },
+  { href: "/open-loops", label: "Open Loops", icon: ListChecks },
+  { href: "/weekly-reflection", label: "Weekly", icon: History },
+  { href: "/knows-you", label: "Knows You", icon: Brain },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 

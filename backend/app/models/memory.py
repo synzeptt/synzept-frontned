@@ -77,3 +77,20 @@ class MemoryRevision(Base, TimestampMixin):
     metadata_: Mapped[dict] = mapped_column("metadata", JSONB, default=dict)
 
     memory = relationship("Memory", back_populates="revisions")
+
+
+class MemoryTrustEvent(Base, TimestampMixin):
+    __tablename__ = "memory_trust_events"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    memory_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("memories.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    action: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    reason: Mapped[str] = mapped_column(Text, default="")
+    caused_by_type: Mapped[str] = mapped_column(String(40), default="system", index=True)
+    caused_by_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True, index=True)
+    before: Mapped[dict] = mapped_column(JSONB, default=dict)
+    after: Mapped[dict] = mapped_column(JSONB, default=dict)
+    metadata_: Mapped[dict] = mapped_column("metadata", JSONB, default=dict)

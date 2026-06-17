@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.dependencies import get_current_user, get_db
 from app.models.user import User
 from app.schemas.onboarding import (
+    FirstRunIntelligenceIn,
     OnboardingCompleteOut,
     OnboardingContextIn,
     OnboardingFirstChatIn,
@@ -64,6 +65,15 @@ async def onboarding_complete(
     session: AsyncSession = Depends(get_db),
 ):
     return await OnboardingService(session).complete(user)
+
+
+@router.post("/first-run-intelligence", response_model=OnboardingCompleteOut)
+async def onboarding_first_run_intelligence(
+    body: FirstRunIntelligenceIn,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+):
+    return await OnboardingService(session).complete_first_run_intelligence(user, body)
 
 
 @router.post("/skip", response_model=OnboardingCompleteOut)

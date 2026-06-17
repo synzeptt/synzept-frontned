@@ -31,6 +31,7 @@ class Orchestrator:
             "reply": result.reply,
             "intent": result.intent.category.value,
             "suggestions": result.suggestions,
+            "trust_context": result.context.trust_context,
         }
 
     async def stream(

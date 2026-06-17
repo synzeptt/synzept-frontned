@@ -13,7 +13,7 @@ from app.infrastructure.jobs import JobType, enqueue
 from app.memory.embedding_service import EmbeddingGenerationService
 from app.memory.extraction_service import ConversationTurn, ExtractedMemory, MemoryExtractionService, MEMORY_TYPES
 from app.core.exceptions import NotFoundError
-from app.models.memory import Memory, MemoryRevision
+from app.models.memory import Memory, MemoryRevision, MemoryTrustEvent
 from app.models.user import User
 
 
@@ -91,6 +91,7 @@ class MemoryService:
         self.session.add(memory)
         await self.session.flush()
         await self._record_revision(memory, action="created")
+        await self._record_trust_event(memory, action="created", reason="Synzept created this memory from conversation context.", caused_by_type="conversation", caused_by_id=item.conversation_id)
 
         if self.embeddings:
             embedding = await self.embeddings.upsert_embedding(
@@ -126,6 +127,7 @@ class MemoryService:
         memory.version += 1
         await self.session.flush()
         await self._record_revision(memory, action="updated")
+        await self._record_trust_event(memory, action="edited", reason="Memory was edited by the user.", caused_by_type="user")
         return memory
 
     async def delete_memory(self, *, user_id: UUID, memory_id: UUID) -> None:
@@ -134,6 +136,7 @@ class MemoryService:
         memory.deleted_at = datetime.now(timezone.utc)
         await self.session.flush()
         await self._record_revision(memory, action="deleted")
+        await self._record_trust_event(memory, action="deleted", reason="Memory was deleted by the user.", caused_by_type="user")
 
     async def search_memory(
         self,
@@ -212,6 +215,7 @@ class MemoryService:
         memory.version += 1
         await self.session.flush()
         await self._record_revision(memory, action="merged")
+        await self._record_trust_event(memory, action="merged", reason="Synzept merged a repeated memory signal.", caused_by_type="conversation", caused_by_id=item.conversation_id)
         return memory
 
     async def _get_owned(self, *, user_id: UUID, memory_id: UUID) -> Memory:
@@ -233,6 +237,35 @@ class MemoryService:
                 content=memory.content,
                 category=memory.category or memory.memory_type,
                 importance_score=memory.importance_score,
+                metadata_=dict(memory.metadata_ or {}),
+            )
+        )
+        await self.session.flush()
+
+    async def _record_trust_event(
+        self,
+        memory: Memory,
+        *,
+        action: str,
+        reason: str,
+        caused_by_type: str,
+        caused_by_id: UUID | None = None,
+    ) -> None:
+        self.session.add(
+            MemoryTrustEvent(
+                memory_id=memory.id,
+                user_id=memory.user_id,
+                action=action,
+                reason=reason,
+                caused_by_type=caused_by_type,
+                caused_by_id=caused_by_id,
+                before={},
+                after={
+                    "content": memory.content,
+                    "category": memory.category,
+                    "importance": memory.importance_score,
+                    "confidence": memory.confidence,
+                },
                 metadata_=dict(memory.metadata_ or {}),
             )
         )

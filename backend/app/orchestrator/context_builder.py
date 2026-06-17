@@ -12,8 +12,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.conversation import Conversation
 from app.models.message import Message
 from app.models.project import Project
+from app.models.project_intelligence_phase2 import Decision, OpenLoop
 from app.models.task import Task
 from app.models.user import User
+from app.models.user_understanding import UserUnderstanding
 from app.memory.memory_service import MemoryService
 from app.services.goal_progress_service import GoalProgressService
 from app.orchestrator.conversation_intelligence import ConversationIntelligenceService
@@ -21,6 +23,9 @@ from app.orchestrator.intent_service import OrchestrationIntent, OrchestrationIn
 from app.tasks.service import OPEN_STATUSES
 from app.orchestrator.project_context_service import ProjectContextBundle, ProjectContextService
 from app.retrieval.retrieval_service import RetrievalFilters, SemanticRetrievalService
+from app.services.autonomous_workspace_service import AutonomousWorkspaceService
+from app.services.relationship_graph_phase5_service import RelationshipGraphPhase5Service
+from app.services.proactive_intelligence_service import ProactiveIntelligenceService
 from app.utils.text import truncate
 from app.infrastructure.monitoring import monitor
 
@@ -37,6 +42,11 @@ class ContextBundle:
     conversation_intelligence: list[str] = field(default_factory=list)
     personalization: list[str] = field(default_factory=list)
     progress_context: list[str] = field(default_factory=list)
+    personal_intelligence: list[str] = field(default_factory=list)
+    graph_context: list[str] = field(default_factory=list)
+    chief_of_staff_context: list[str] = field(default_factory=list)
+    autonomous_workspace_context: list[str] = field(default_factory=list)
+    trust_context: dict = field(default_factory=dict)
     project: ProjectContextBundle = field(default_factory=ProjectContextBundle)
 
 
@@ -109,6 +119,15 @@ class ContextBuilder:
             ),
             personalization=self._personalization_cues(user, ranked),
             progress_context=await self._progress_context(user_id),
+            personal_intelligence=await self._personal_intelligence_context(user_id),
+            graph_context=await self._graph_context(user_id, clean_query(message)),
+            chief_of_staff_context=await self._chief_of_staff_context(user_id),
+            autonomous_workspace_context=await self._autonomous_workspace_context(user_id),
+            trust_context=await self._trust_context(
+                user_id=user_id,
+                ranked=ranked,
+                project_id=active_project_id(project_id, conversation.project_id),
+            ),
             project=project_context,
         )
 
@@ -219,6 +238,188 @@ class ContextBuilder:
         lines.extend(f"Recommended next action: {action.title} - {action.reason}" for action in actions)
         return lines[:8]
 
+    async def _personal_intelligence_context(self, user_id: UUID) -> list[str]:
+        understanding_result = await self.session.execute(
+            select(UserUnderstanding)
+            .where(UserUnderstanding.user_id == user_id)
+            .order_by(UserUnderstanding.updated_at.desc())
+            .limit(40)
+        )
+        tasks_result = await self.session.execute(
+            select(Task)
+            .where(Task.user_id == user_id, Task.deleted_at.is_(None), Task.status.in_(OPEN_STATUSES))
+            .order_by(Task.updated_at.desc())
+            .limit(6)
+        )
+        projects = await self.session.execute(
+            select(Project)
+            .where(Project.user_id == user_id, Project.deleted_at.is_(None), Project.status == "active")
+            .order_by(Project.updated_at.desc())
+            .limit(6)
+        )
+        active_projects = list(projects.scalars().all())
+        project_ids = [project.id for project in active_projects]
+        decisions: list[Decision] = []
+        loops: list[OpenLoop] = []
+        if project_ids:
+            decision_result = await self.session.execute(
+                select(Decision)
+                .where(Decision.project_id.in_(project_ids))
+                .order_by(Decision.updated_at.desc())
+                .limit(8)
+            )
+            loop_result = await self.session.execute(
+                select(OpenLoop)
+                .where(OpenLoop.project_id.in_(project_ids), OpenLoop.status == "open")
+                .order_by(OpenLoop.updated_at.desc())
+                .limit(8)
+            )
+            decisions = list(decision_result.scalars().all())
+            loops = list(loop_result.scalars().all())
+        understanding = list(understanding_result.scalars().all())
+        tasks = list(tasks_result.scalars().all())
+        lines: list[str] = []
+        mission = self._first_understanding(
+            understanding,
+            titles=("Current Mission", "Mission", "North Star", "Long-Term Goals", "Short-Term Goals"),
+            categories=("current_mission", "goals"),
+        )
+        focus = self._first_understanding(
+            understanding,
+            titles=("Current Focus", "Current Priorities", "Active Projects"),
+            categories=("current_focus", "recent_priorities"),
+        )
+        if mission:
+            lines.append(f"Current mission: {mission}")
+        if focus:
+            lines.append(f"Current focus: {focus}")
+        if active_projects:
+            lines.append("Active projects: " + "; ".join(project.name for project in active_projects[:4]))
+        if tasks:
+            lines.append("Top unfinished work: " + "; ".join(task.title for task in tasks[:4]))
+        pending_decisions = [decision for decision in decisions if decision.status == "pending"]
+        decided = [decision for decision in decisions if decision.status == "decided"]
+        if loops:
+            lines.append("Open loops: " + "; ".join(loop.title for loop in loops[:4]))
+        if pending_decisions:
+            lines.append("Pending decisions: " + "; ".join(decision.title for decision in pending_decisions[:3]))
+        if decided:
+            lines.append(
+                "Recent decisions: "
+                + "; ".join(
+                    f"{decision.title}"
+                    + (f" because {decision.reason}" if decision.reason else "")
+                    + (f" outcome: {decision.outcome}" if decision.outcome else "")
+                    for decision in decided[:3]
+                )
+            )
+        return [truncate(line, 380) for line in lines[:8]]
+
+    async def _graph_context(self, user_id: UUID, query: str) -> list[str]:
+        try:
+            context = await RelationshipGraphPhase5Service(self.session).context_for_query(user_id, query, limit=10)
+        except Exception as exc:
+            logger.warning("relationship graph context failed", extra={"operation": "graph_context", "error_code": exc.__class__.__name__})
+            return []
+        items = [
+            *context.blockers[:4],
+            *context.decisions[:4],
+            *context.supportingContext[:4],
+            *context.nextActions[:4],
+        ]
+        seen: set[str] = set()
+        lines: list[str] = []
+        for item in items:
+            key = f"{item.nodeType}:{item.title}:{item.relationshipType}"
+            if key in seen:
+                continue
+            seen.add(key)
+            lines.append(
+                truncate(
+                    f"{item.nodeType.replace('_', ' ').title()}: {item.title} "
+                    f"({item.relationshipType.replace('_', ' ')}; {item.reason or item.description})",
+                    360,
+                )
+            )
+            if len(lines) >= 8:
+                break
+        return lines
+
+    async def _chief_of_staff_context(self, user_id: UUID) -> list[str]:
+        try:
+            chief = await ProactiveIntelligenceService(self.session).chief_of_staff(user_id, persist=False)
+        except Exception as exc:
+            logger.warning("chief of staff context failed", extra={"operation": "chief_of_staff_context", "error_code": exc.__class__.__name__})
+            return []
+        lines: list[str] = []
+        if chief.executive_brief.recommended_next_action:
+            action = chief.executive_brief.recommended_next_action
+            lines.append(f"Recommended next action: {action.title} - {action.detail}")
+        lines.extend(f"Risk: {item.title} - {item.detail}" for item in chief.risks[:3])
+        lines.extend(f"Opportunity: {item.title} - {item.detail}" for item in chief.opportunities[:3])
+        lines.extend(f"Commitment: {item.title} ({item.status})" for item in chief.commitments[:3])
+        lines.append(f"Momentum: {chief.momentum.score}/100, trend {chief.momentum.trend}. {chief.momentum.explanation}")
+        return [truncate(line, 360) for line in lines[:9]]
+
+    async def _autonomous_workspace_context(self, user_id: UUID) -> list[str]:
+        try:
+            service = AutonomousWorkspaceService(self.session)
+            execution = await service.execution_state(user_id)
+            weekly = await service.weekly_plan(user_id)
+            suggestions = await service.generate_suggestions(user_id)
+        except Exception as exc:
+            logger.warning("autonomous workspace context failed", extra={"operation": "autonomous_workspace_context", "error_code": exc.__class__.__name__})
+            return []
+
+        lines = [f"Execution state: {len(execution.planned)} planned, {len(execution.completed)} completed, {len(execution.blocked)} blocked."]
+        if weekly.priority_focus:
+            lines.append(f"Weekly priority focus: {weekly.priority_focus}")
+        lines.extend(f"This week: {item.title} - {item.detail}" for item in weekly.this_week[:3])
+        lines.extend(f"Next week: {item.title} - {item.detail}" for item in weekly.next_week[:2])
+        lines.extend(f"Autonomous suggestion: {item.title} - {item.detail}" for item in suggestions[:3])
+        return [truncate(line, 360) for line in lines[:9]]
+
+    async def _trust_context(self, *, user_id: UUID, ranked, project_id: UUID | None) -> dict:
+        memories = [
+            {
+                "id": str(item.memory.id),
+                "content": truncate(item.memory.summary or item.memory.content, 180),
+                "confidence": item.memory.confidence,
+                "source": item.memory.source,
+            }
+            for item in ranked[:8]
+        ]
+        projects: list[str] = []
+        open_loops: list[str] = []
+        decisions: list[str] = []
+        if project_id:
+            projects.append(str(project_id))
+            loops = await self.session.execute(select(OpenLoop.id).where(OpenLoop.project_id == project_id, OpenLoop.status == "open").limit(8))
+            decision_rows = await self.session.execute(select(Decision.id).where(Decision.project_id == project_id).order_by(Decision.updated_at.desc()).limit(8))
+            open_loops = [str(item) for item in loops.scalars()]
+            decisions = [str(item) for item in decision_rows.scalars()]
+        return {"memories": memories, "projects": projects, "open_loops": open_loops, "decisions": decisions}
+
+    @staticmethod
+    def _first_understanding(
+        items: list[UserUnderstanding],
+        *,
+        titles: tuple[str, ...],
+        categories: tuple[str, ...],
+    ) -> str:
+        title_keys = {title.casefold() for title in titles}
+        category_keys = {category.casefold() for category in categories}
+        for item in items:
+            if item.title.casefold() in title_keys or item.category.casefold() in category_keys:
+                lines = [line.strip(" -*\t") for line in item.value.replace(";", "\n").splitlines() if line.strip(" -*\t")]
+                if lines:
+                    return lines[0]
+        return ""
+
 
 def active_project_id(explicit_project_id: UUID | None, conversation_project_id: UUID | None) -> UUID | None:
     return explicit_project_id or conversation_project_id
+
+
+def clean_query(value: str) -> str:
+    return truncate(value, 400)

@@ -128,6 +128,26 @@ class ReturningUserOut(BaseModel):
     context_to_remember: list[ReturnContextOut] = Field(default_factory=list)
 
 
+class PersonalOSOut(BaseModel):
+    greeting: str = "Good morning"
+    current_mission: str = ""
+    current_focus: str = ""
+    top_priorities: list[ReturnContextOut] = Field(default_factory=list)
+    open_loops: list[ReturnOpenLoopOut] = Field(default_factory=list)
+    recent_progress: list[ReturnChangeOut] = Field(default_factory=list)
+    active_projects: list[ReturnContextOut] = Field(default_factory=list)
+    recent_decisions: list[ReturnContextOut] = Field(default_factory=list)
+    suggested_next_action: ReturnRecommendationOut = Field(
+        default_factory=lambda: ReturnRecommendationOut(
+            title="Choose one meaningful priority for today.",
+            reason="Synzept needs one active anchor to preserve continuity.",
+            href="/projects",
+        )
+    )
+    daily_focus: str = ""
+    risks: list[ReturnContextOut] = Field(default_factory=list)
+
+
 class DashboardOut(BaseModel):
     projects: list[ProjectOut]
     recent_conversations: list[ConversationOut] = Field(default_factory=list)
@@ -144,6 +164,7 @@ class DashboardOut(BaseModel):
     continuity_timeline: list[ContinuityTimelineOut] = Field(default_factory=list)
     memory_evolution: list[str] = Field(default_factory=list)
     returning_user: ReturningUserOut = Field(default_factory=ReturningUserOut)
+    personal_os: PersonalOSOut = Field(default_factory=PersonalOSOut)
     stats: DashboardStatsOut = Field(default_factory=DashboardStatsOut)
     briefing: str
     daily: DailyExperienceOut | None = None

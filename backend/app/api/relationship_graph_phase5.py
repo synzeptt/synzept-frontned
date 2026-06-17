@@ -1,11 +1,13 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import get_db, require_pro_user
 from app.models.user import User
 from app.schemas.relationship_graph_phase5 import (
+    GraphAnswerOut,
+    GraphContextOut,
     RelationshipEdgeCreate,
     RelationshipEdgeOut,
     RelationshipEdgeUpdate,
@@ -33,6 +35,24 @@ async def refresh_graph(user: User = Depends(require_pro_user), session: AsyncSe
 @router.get("/insights")
 async def graph_insights(user: User = Depends(require_pro_user), session: AsyncSession = Depends(get_db)):
     return {"insights": await RelationshipGraphPhase5Service(session).insights(user.id)}
+
+
+@router.get("/context", response_model=GraphContextOut)
+async def graph_context(
+    q: str = Query(min_length=1, max_length=400),
+    user: User = Depends(require_pro_user),
+    session: AsyncSession = Depends(get_db),
+):
+    return await RelationshipGraphPhase5Service(session).context_for_query(user.id, q)
+
+
+@router.get("/answer", response_model=GraphAnswerOut)
+async def graph_answer(
+    q: str = Query(min_length=1, max_length=400),
+    user: User = Depends(require_pro_user),
+    session: AsyncSession = Depends(get_db),
+):
+    return await RelationshipGraphPhase5Service(session).answer(user.id, q)
 
 
 @router.get("/nodes", response_model=list[RelationshipNodeOut])

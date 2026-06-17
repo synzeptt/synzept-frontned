@@ -1,5 +1,3 @@
-import { redirect } from "next/navigation";
+import { MemoryPage } from "@frontend/app/memory-page";
 
-export default function MemoryPage() {
-  redirect("/settings");
-}
+export default MemoryPage;

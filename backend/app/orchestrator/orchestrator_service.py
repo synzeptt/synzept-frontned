@@ -81,13 +81,13 @@ class OrchestratorService:
                 )
             reply = validate_ai_response(response.content)
             usage = response.usage
-            metadata = self._message_metadata(response)
+            metadata = {**self._message_metadata(response), "trust_context": plan["context"].trust_context}
             provider_name = response.metadata.provider
             model_name = response.metadata.model
         except Exception as exc:
             reply = safe_error_message(getattr(exc, "code", "ai_provider_error"))
             usage = TokenUsage(estimated=True)
-            metadata = {"status": "failed", "error_code": getattr(exc, "code", exc.__class__.__name__)}
+            metadata = {"status": "failed", "error_code": getattr(exc, "code", exc.__class__.__name__), "trust_context": plan["context"].trust_context}
             provider_name = None
             model_name = None
         assistant = await self.chat.add_message(
@@ -174,7 +174,7 @@ class OrchestratorService:
             token_count=usage.total_tokens if usage else None,
             provider_name=metadata.provider if metadata else None,
             model_name=metadata.model if metadata else None,
-            metadata={**self._stream_metadata(metadata, usage), **(metadata_payload if "metadata_payload" in locals() else {})},
+            metadata={**self._stream_metadata(metadata, usage), "trust_context": plan["context"].trust_context, **(metadata_payload if "metadata_payload" in locals() else {})},
         )
         await self.conversation_intel.update_after_turn(
             conversation=conversation,

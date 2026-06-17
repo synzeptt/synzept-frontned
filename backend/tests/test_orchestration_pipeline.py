@@ -69,6 +69,15 @@ def test_conversation_intelligence_extracts_decisions_and_open_loops():
     assert "onboarding" in state.topics
 
 
+def test_conversation_intelligence_extracts_commitments():
+    commitments = ConversationIntelligenceService.extract_commitments(
+        "I will launch this week. I'll talk to five users before Friday."
+    )
+
+    assert "Launch this week" in commitments
+    assert "Talk to five users before Friday" in commitments
+
+
 @pytest.mark.asyncio
 async def test_conversation_intelligence_updates_summary_and_project_link():
     conversation = SimpleNamespace(id=uuid4(), project_id=None, summary="", active_intent="")

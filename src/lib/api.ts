@@ -177,7 +177,7 @@ function logRequestFailure(path: string, err: unknown) {
   });
 }
 
-export type ChatMessage = { role: "user" | "assistant" | "system"; content: string; id?: string };
+export type ChatMessage = { role: "user" | "assistant" | "system"; content: string; id?: string; metadata?: Record<string, unknown> };
 
 export type Conversation = {
   id: string;
@@ -242,7 +242,10 @@ export type Decision = {
   projectId: string;
   title: string;
   description: string;
+  reason?: string;
+  outcome?: string;
   status: "pending" | "decided";
+  decidedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -283,6 +286,19 @@ export type LearningSuggestion = {
   updatedAt: string;
 };
 
+export type UserUnderstandingItem = {
+  id: string;
+  user_id: string;
+  category: string;
+  title: string;
+  value: string;
+  source: "user" | "learned";
+  confidence: number | null;
+  learned_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type LearningEngine = {
   observations: LearningObservation[];
   suggestions: LearningSuggestion[];
@@ -291,12 +307,24 @@ export type LearningEngine = {
 export type RelationshipNode = {
   id: string;
   userId: string;
-  nodeType: "user" | "goal" | "project" | "task" | "open_loop" | "decision" | "timeline_event" | "note" | "memory" | "conversation";
+  nodeType: "user" | "goal" | "project" | "task" | "open_loop" | "decision" | "timeline_event" | "note" | "memory" | "knowledge" | "person" | "conversation";
   entityId: string | null;
   title: string;
   description: string;
   createdAt: string;
   updatedAt: string;
+};
+
+export type UserUnderstandingProfile = {
+  user_id: string;
+  current_mission: string[];
+  current_focus: string[];
+  active_projects: string[];
+  open_loops: string[];
+  recent_progress: string[];
+  recent_decisions: string[];
+  next_suggested_actions: string[];
+  updated_at: string | null;
 };
 
 export type RelationshipEdge = {
@@ -327,6 +355,31 @@ export type RelationshipInsight = {
   title: string;
   detail: string;
   nodeId: string;
+};
+
+export type GraphContextItem = {
+  nodeId: string;
+  nodeType: string;
+  title: string;
+  description: string;
+  relationshipType: string;
+  reason: string;
+  strength: number;
+};
+
+export type GraphContext = {
+  query: string;
+  currentEntities: GraphContextItem[];
+  blockers: GraphContextItem[];
+  supportingContext: GraphContextItem[];
+  decisions: GraphContextItem[];
+  nextActions: GraphContextItem[];
+};
+
+export type GraphAnswer = {
+  question: string;
+  answer: string;
+  evidence: GraphContextItem[];
 };
 
 export type ContextSnapshot = {
@@ -438,6 +491,80 @@ export type GoalDashboard = {
   recommendations: NextAction[];
 };
 
+export type AgentMemoryItem = {
+  id: string;
+  type: string;
+  title: string;
+  detail: string;
+  happened_at: string;
+  why_it_mattered: string;
+  project_id: string | null;
+  goal_id: string | null;
+  task_id: string | null;
+  note_id: string | null;
+};
+
+export type AgentMemoryTimeline = {
+  items: AgentMemoryItem[];
+  what_changed: string[];
+  unfinished: string[];
+  recommended_next_step: string;
+  incomplete_goals: string[];
+  important_decisions: string[];
+  recall_prompts: string[];
+};
+
+export type ConnectedEntity = {
+  id: string;
+  title: string;
+  type: string;
+};
+
+export type MemoryTrustRecord = {
+  id: string;
+  content: string;
+  category: string | null;
+  memory_type: string;
+  source: string;
+  confidence: number;
+  summary: string | null;
+  importance: number;
+  importance_score: number;
+  version: number;
+  project_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type MemoryTrustEvent = {
+  id: string;
+  memory_id: string | null;
+  action: string;
+  reason: string;
+  caused_by_type: string;
+  caused_by_id: string | null;
+  before: Record<string, unknown>;
+  after: Record<string, unknown>;
+  metadata: Record<string, unknown>;
+  created_at: string;
+};
+
+export type MemoryExplorerItem = {
+  memory: MemoryTrustRecord;
+  connected_projects: ConnectedEntity[];
+  connected_goals: ConnectedEntity[];
+  timeline: MemoryTrustEvent[];
+};
+
+export type MemoryExplain = {
+  message_id: string;
+  memories_used: MemoryTrustRecord[];
+  projects_used: ConnectedEntity[];
+  open_loops_used: ConnectedEntity[];
+  decisions_used: ConnectedEntity[];
+  explanation: string;
+};
+
 export type WorkspaceInsight = {
   type: string;
   title: string;
@@ -507,6 +634,140 @@ export type ProactiveOverview = {
     reasons: string[];
   }>;
   recommendations: IntelligenceItem[];
+  chief_of_staff?: ChiefOfStaff | null;
+};
+
+export type ExecutiveBrief = {
+  generated_at: string;
+  what_changed: string[];
+  what_matters_now: string[];
+  needs_attention: IntelligenceItem[];
+  recommended_next_action: IntelligenceItem | null;
+};
+
+export type MomentumScore = {
+  score: number;
+  trend: "up" | "down" | "flat" | string;
+  activity_score: number;
+  progress_score: number;
+  consistency_score: number;
+  explanation: string;
+};
+
+export type Commitment = {
+  id: string;
+  title: string;
+  detail: string;
+  status: string;
+  due_at: string | null;
+  project_id: string | null;
+  goal_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type FounderReport = {
+  period_start: string;
+  period_end: string;
+  growth: string[];
+  revenue: string[];
+  customers: string[];
+  retention: string[];
+  product_progress: string[];
+  recommendations: IntelligenceItem[];
+};
+
+export type ChiefOfStaff = {
+  executive_brief: ExecutiveBrief;
+  opportunities: IntelligenceItem[];
+  risks: IntelligenceItem[];
+  priorities: IntelligenceItem[];
+  commitments: Commitment[];
+  momentum: MomentumScore;
+  strategic_suggestions: IntelligenceItem[];
+  founder_report: FounderReport | null;
+};
+
+export type WeeklyReview = {
+  period_start: string;
+  period_end: string;
+  wins: string[];
+  progress_made: string[];
+  missed_objectives: string[];
+  suggested_next_steps: IntelligenceItem[];
+};
+
+export type ExecutionTaskRef = {
+  id: string;
+  title: string;
+  project_id: string | null;
+  status: string;
+};
+
+export type ExecutionPlan = {
+  id: string;
+  goal_id: string;
+  project_id: string | null;
+  status: string;
+  plan: Record<string, unknown>;
+  planned: ExecutionTaskRef[];
+  completed: ExecutionTaskRef[];
+  blocked: ExecutionTaskRef[];
+  metrics: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export type GoalPlan = {
+  goal: Goal;
+  execution_plan: ExecutionPlan;
+  milestones_created: number;
+  tasks_created: number;
+  open_loops_created: number;
+  suggested_actions: IntelligenceItem[];
+};
+
+export type ExecutionState = {
+  planned: ExecutionTaskRef[];
+  completed: ExecutionTaskRef[];
+  blocked: ExecutionTaskRef[];
+};
+
+export type GoalProgressEstimate = {
+  goal_id: string;
+  current_progress: number;
+  remaining_work: string[];
+  estimated_completion_days: number | null;
+  estimated_completion_label: string;
+};
+
+export type WeeklyPlan = {
+  generated_at: string;
+  this_week: IntelligenceItem[];
+  next_week: IntelligenceItem[];
+  priority_focus: string;
+};
+
+export type AutonomousSuggestion = {
+  id: string;
+  suggestion_type: string;
+  title: string;
+  detail: string;
+  priority: string;
+  status: string;
+  project_id: string | null;
+  goal_id: string | null;
+  evidence: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AutonomousWorkspace = {
+  plans: ExecutionPlan[];
+  project_health: ProactiveOverview["project_health"];
+  execution: ExecutionState;
+  weekly_plan: WeeklyPlan;
+  suggestions: AutonomousSuggestion[];
 };
 
 export type ContinuityAssistant = {
@@ -698,6 +959,20 @@ export type ReturningUser = {
   context_to_remember?: ReturnContext[];
 };
 
+export type PersonalOS = {
+  greeting: string;
+  current_mission: string;
+  current_focus: string;
+  top_priorities: ReturnContext[];
+  open_loops: ReturnOpenLoop[];
+  recent_progress: ReturnChange[];
+  active_projects: ReturnContext[];
+  recent_decisions: ReturnContext[];
+  suggested_next_action: ReturnRecommendation;
+  daily_focus: string;
+  risks: ReturnContext[];
+};
+
 export type Dashboard = {
   projects: Project[];
   recent_conversations?: Conversation[];
@@ -714,6 +989,7 @@ export type Dashboard = {
   recent_activity?: RecentActivity[];
   continuity_cards?: ContinuityCard[];
   returning_user?: ReturningUser;
+  personal_os?: PersonalOS;
   stats?: DashboardStats;
   briefing: string;
   daily?: DailyExperience | null;
@@ -909,6 +1185,14 @@ export type OnboardingAnalyticsSummary = {
   events_tracked: number;
 };
 
+export type FirstRunIntelligenceInput = {
+  building: string;
+  top_goals: string[];
+  current_focus: string;
+  important_projects: string[];
+  success_90_days: string;
+};
+
 export const api = {
   signup: (email: string, password: string) =>
     request<AuthTokens>("/api/v1/auth/signup", {
@@ -1061,6 +1345,7 @@ export const api = {
   onboardingComplete: () =>
     request<{
       welcome_message: string;
+      welcome_brief?: Record<string, unknown>;
       tasks_created: number;
       memories_created: number;
       dashboard_preview: OnboardingDashboardPreview;
@@ -1070,15 +1355,66 @@ export const api = {
       { method: "POST" },
     ),
 
+  completeFirstRunIntelligence: (data: FirstRunIntelligenceInput) =>
+    request<{
+      welcome_message: string;
+      welcome_brief: Record<string, unknown>;
+      tasks_created: number;
+      memories_created: number;
+      dashboard_preview: OnboardingDashboardPreview;
+      analytics: OnboardingAnalyticsSummary;
+    }>("/api/v1/onboarding/first-run-intelligence", { method: "POST", body: JSON.stringify(data) }),
+
   onboardingSkip: () =>
     request<{ welcome_message: string }>("/api/v1/onboarding/skip", { method: "POST" }),
 
   getDashboard: () => request<Dashboard>("/api/v1/dashboard"),
   getGoalDashboard: () => request<GoalDashboard>("/api/v2/goals/dashboard"),
+  listGoals: (status?: string) => request<Goal[]>(`/api/v2/goals${status ? `?status=${encodeURIComponent(status)}` : ""}`),
+  createGoal: (data: { title: string; description?: string; project_id?: string | null }) =>
+    request<Goal>("/api/v2/goals", { method: "POST", body: JSON.stringify(data) }),
+  updateGoal: (id: string, data: Partial<Pick<Goal, "title" | "description" | "status" | "project_id">>) =>
+    request<Goal>(`/api/v2/goals/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+  getAgentMemoryTimeline: (days = 90, limit = 80) =>
+    request<AgentMemoryTimeline>(`/api/v2/agent-memory/timeline?days=${days}&limit=${limit}`),
+  listMemoryExplorer: (includeIgnored = false) =>
+    request<MemoryExplorerItem[]>(`/api/v2/memory/explorer?include_ignored=${includeIgnored ? "true" : "false"}`),
+  getMemoryTimeline: (memoryId: string) => request<MemoryTrustEvent[]>(`/api/v2/memory/${memoryId}/timeline`),
+  updateMemoryV2: (id: string, data: Partial<Pick<MemoryTrustRecord, "content" | "category" | "importance">> & { reason?: string | null }) =>
+    request<MemoryTrustRecord>(`/api/v2/memory/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+  mergeMemory: (id: string, data: { source_memory_id: string; reason?: string | null }) =>
+    request<MemoryTrustRecord>(`/api/v2/memory/${id}/merge`, { method: "POST", body: JSON.stringify(data) }),
+  ignoreMemory: (id: string) => request<{ ok: boolean }>(`/api/v2/memory/${id}/ignore`, { method: "POST" }),
+  deleteMemoryV2: (id: string) => request<{ ok: boolean }>(`/api/v2/memory/${id}`, { method: "DELETE" }),
+  explainMemoryMessage: (messageId: string) => request<MemoryExplain>(`/api/v2/memory/explain/${messageId}`),
   getWorkspace: () => request<Workspace>("/api/v2/workspace"),
   searchWorkspace: (q: string) => request<{ query: string; results: WorkspaceSearchResult[] }>(`/api/v2/workspace/search?q=${encodeURIComponent(q)}`),
   getProactiveOverview: () => request<ProactiveOverview>("/api/v2/proactive-intelligence/overview"),
+  getChiefOfStaff: () => request<ChiefOfStaff>("/api/v2/proactive-intelligence/chief-of-staff"),
+  getFounderReport: () => request<FounderReport>("/api/v2/proactive-intelligence/founder-report"),
+  generateWeeklyReview: () => request<WeeklyReview>("/api/v2/proactive-intelligence/weekly-review", { method: "POST" }),
+  getAutonomousWorkspace: () => request<AutonomousWorkspace>("/api/v2/autonomous-workspace"),
+  generateGoalPlan: (goalId: string, createStructure = true) =>
+    request<GoalPlan>("/api/v2/autonomous-workspace/goal-plan", {
+      method: "POST",
+      body: JSON.stringify({ goal_id: goalId, create_structure: createStructure }),
+    }),
+  getAutonomousProjectHealth: () => request<ProactiveOverview["project_health"]>("/api/v2/autonomous-workspace/project-health"),
+  getExecutionState: () => request<ExecutionState>("/api/v2/autonomous-workspace/execution"),
+  getGoalProgressEstimate: (goalId: string) =>
+    request<GoalProgressEstimate>(`/api/v2/autonomous-workspace/goals/${goalId}/progress`),
+  getAutonomousWeeklyPlan: () => request<WeeklyPlan>("/api/v2/autonomous-workspace/weekly-plan"),
+  generateAutonomousSuggestions: () =>
+    request<AutonomousSuggestion[]>("/api/v2/autonomous-workspace/suggestions/generate", { method: "POST" }),
   getContinuityAssistant: () => request<ContinuityAssistant>("/api/v2/continuity-assistant/overview"),
+  listUserUnderstanding: () => request<UserUnderstandingItem[]>("/api/v2/user-understanding"),
+  getUserUnderstandingProfile: () => request<UserUnderstandingProfile>("/api/v2/user-understanding/profile"),
+  createUserUnderstanding: (data: { category: string; title: string; value: string }) =>
+    request<UserUnderstandingItem>("/api/v2/user-understanding", { method: "POST", body: JSON.stringify({ ...data, source: "user" }) }),
+  updateUserUnderstanding: (id: string, data: Partial<Pick<UserUnderstandingItem, "title" | "value">>) =>
+    request<UserUnderstandingItem>(`/api/v2/user-understanding/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteUserUnderstanding: (id: string) =>
+    request<{ ok: boolean }>(`/api/v2/user-understanding/${id}`, { method: "DELETE" }),
 
   joinWaitlist: (data: { email: string; name?: string; role?: string; intended_use?: string }) =>
     request<{ id: string; email: string; status: string; created_at: string }>("/api/v1/launch/waitlist", {
@@ -1131,7 +1467,7 @@ export const api = {
   listConversations: () => request<Conversation[]>("/api/v1/conversations"),
 
   getMessages: (conversationId: string) =>
-    request<Array<{ id: string; role: string; content: string; conversation_id: string }>>(
+    request<Array<{ id: string; role: string; content: string; conversation_id: string; metadata?: Record<string, unknown> }>>(
       `/api/v1/conversations/${conversationId}/messages`,
     ),
 
@@ -1273,10 +1609,10 @@ export const api = {
 
   listDecisions: (projectId: string) => request<Decision[]>(`/api/projects/${projectId}/decisions`),
 
-  createDecision: (projectId: string, data: { title: string; description?: string; status?: Decision["status"] }) =>
+  createDecision: (projectId: string, data: { title: string; description?: string; reason?: string; outcome?: string; status?: Decision["status"] }) =>
     request<Decision>(`/api/projects/${projectId}/decisions`, { method: "POST", body: JSON.stringify(data) }),
 
-  updateDecision: (id: string, data: Partial<Pick<Decision, "title" | "description" | "status">>) =>
+  updateDecision: (id: string, data: Partial<Pick<Decision, "title" | "description" | "reason" | "outcome" | "status">>) =>
     request<Decision>(`/api/decisions/${id}`, { method: "PUT", body: JSON.stringify(data) }),
 
   deleteDecision: (id: string) =>
@@ -1325,6 +1661,10 @@ export const api = {
 
   getRelationshipInsights: () =>
     request<{ insights: RelationshipInsight[] }>("/api/relationship-graph/insights"),
+  getRelationshipContext: (q: string) =>
+    request<GraphContext>(`/api/relationship-graph/context?q=${encodeURIComponent(q)}`),
+  answerRelationshipQuestion: (q: string) =>
+    request<GraphAnswer>(`/api/relationship-graph/answer?q=${encodeURIComponent(q)}`),
 
   createRelationshipNode: (data: { nodeType: RelationshipNode["nodeType"]; title: string; description?: string; entityId?: string | null }) =>
     request<RelationshipNode>("/api/relationship-graph/nodes", { method: "POST", body: JSON.stringify(data) }),

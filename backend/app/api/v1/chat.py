@@ -51,6 +51,7 @@ async def send_message(
         message_id=result["message_id"],
         reply=result["reply"],
         intent=result.get("intent"),
+        trust_context=result.get("trust_context", {}),
         suggestions=result.get("suggestions", []),
     )
 

@@ -11,14 +11,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import AppError
 from app.memory.store import MemoryStore
 from app.models.conversation import Conversation
+from app.models.goal import Goal
 from app.models.memory import Memory
 from app.models.note import Note
 from app.models.project import Project
+from app.models.project_intelligence_phase2 import OpenLoop
 from app.models.task import Task
 from app.models.user import User
 from app.models.user_profile import UserProfile
+from app.models.user_understanding import UserUnderstanding
 from app.orchestrator.pipeline import Orchestrator
 from app.schemas.onboarding import (
+    FirstRunIntelligenceIn,
     OnboardingCompleteOut,
     OnboardingContextIn,
     OnboardingDashboardPreview,
@@ -27,9 +31,12 @@ from app.schemas.onboarding import (
     OnboardingStatusOut,
     OnboardingWorkspaceIn,
 )
+from app.schemas.goal import GoalCreate
 from app.schemas.task import TaskCreate
+from app.services.autonomous_workspace_service import AutonomousWorkspaceService
 from app.services.daily_summary_service import DailySummaryService
 from app.services.embedding_service import EmbeddingService
+from app.services.goal_progress_service import GoalProgressService
 from app.services.onboarding import OnboardingAnalytics
 from app.services.user_profile_service import UserProfileService
 from app.tasks.service import TaskService
@@ -353,6 +360,111 @@ class OnboardingService:
             analytics=await self.analytics.summary(user.id, self._prefs(user)),
         )
 
+    async def complete_first_run_intelligence(self, user: User, data: FirstRunIntelligenceIn) -> OnboardingCompleteOut:
+        profile = await self.profiles.get_or_create(user.id)
+        name = user.display_name or profile.display_name or user.email.split("@")[0]
+        goals = data.top_goals or [data.building]
+        project_names = data.important_projects or [data.building]
+        current_mission = f"Build {data.building}".strip()
+        current_focus = data.current_focus.strip()
+
+        user.display_name = name
+        user.profile_summary = truncate(
+            "\n".join(
+                [
+                    f"Current mission: {current_mission}",
+                    f"Current focus: {current_focus}",
+                    "Top goals: " + "; ".join(goals[:5]),
+                    f"90-day success: {data.success_90_days}",
+                ]
+            ),
+            700,
+        )
+        profile.display_name = name
+        profile.goals = goals[:5]
+        profile.summary = user.profile_summary
+        profile.routines = {"priorities": [current_focus, *goals[:3]][:5]}
+        profile.work_preferences = {"primary_role": data.building, "work_type": "first_run_intelligence"}
+
+        projects = await self._seed_first_run_projects(user, project_names, current_focus, data.success_90_days)
+        goals_created = await self._seed_first_run_goals(user.id, goals, projects, data.success_90_days)
+        open_loops = await self._seed_first_run_open_loops(projects, goals, current_focus, data.success_90_days)
+        await self._seed_first_run_understanding(
+            user.id,
+            current_mission=current_mission,
+            current_focus=current_focus,
+            goals=goals,
+            projects=projects,
+            open_loops=open_loops,
+            success_90_days=data.success_90_days,
+        )
+        await self.initialize_memories(user)
+
+        first_goal = goals_created[0] if goals_created else None
+        if first_goal:
+            try:
+                await AutonomousWorkspaceService(self.session).goal_to_plan(user.id, first_goal.id, create_structure=True)
+            except Exception as exc:
+                logger.warning("First-run autonomous plan generation failed: %s", exc)
+
+        weekly = await AutonomousWorkspaceService(self.session).weekly_plan(user.id)
+        first_actions = [item.title for item in weekly.this_week[:4]] or [
+            f"Clarify the first milestone for {goals[0]}",
+            f"Spend 25 minutes moving {current_focus} forward",
+        ]
+        welcome_brief = {
+            "currentMission": current_mission,
+            "currentFocus": current_focus,
+            "topGoals": goals[:5],
+            "activeProjects": [project.name for project in projects[:5]],
+            "openLoops": [loop.title for loop in open_loops[:5]],
+            "suggestedFirstActions": first_actions,
+            "initialWeeklyPlan": {
+                "thisWeek": [item.title for item in weekly.this_week[:5]],
+                "nextWeek": [item.title for item in weekly.next_week[:5]],
+                "priorityFocus": weekly.priority_focus or current_focus,
+            },
+            "success90Days": data.success_90_days,
+        }
+
+        prefs = self._prefs(user)
+        onboarding = dict(prefs.get("onboarding", {}))
+        onboarding["first_run_intelligence"] = data.model_dump()
+        onboarding["welcome_brief"] = welcome_brief
+        prefs["onboarding"] = onboarding
+        user.preferences = prefs
+
+        user.onboarding_state = STATE_COMPLETE
+        profile.onboarding_completed = True
+        self._mark_step(user, "profile", initialized="profile", resume_step="workspace")
+        self._mark_step(user, "workspace", initialized="workspace", resume_step="memory")
+        self._mark_step(user, "memory", initialized="memory", resume_step="dashboard")
+        self._mark_step(user, "dashboard", initialized="dashboard", resume_step="complete")
+        self._mark_step(user, "complete", initialized="first_run_intelligence", resume_step="complete")
+        await self.analytics.track(
+            user_id=user.id,
+            event_type="first_run_intelligence_completed",
+            step="complete",
+            metadata={"goals": len(goals), "projects": len(projects), "open_loops": len(open_loops)},
+        )
+
+        return OnboardingCompleteOut(
+            state=STATE_COMPLETE,
+            project_id=projects[0].id if projects else None,
+            tasks_created=sum(len(goal.milestones[0].tasks) for goal in goals_created if goal.milestones),
+            memories_created=await self._memory_count(user.id),
+            conversation_id=await self._onboarding_conversation_id(user.id),
+            welcome_message=f"Welcome, {name}. Synzept has built your first workspace around {current_mission}.",
+            welcome_brief=welcome_brief,
+            dashboard_preview=OnboardingDashboardPreview(
+                suggested_priorities=goals[:5],
+                starter_structure=["Current Mission", "Active Projects", "Open Loops", "Initial Weekly Plan"],
+                continuity_summary=f"Synzept is ready to guide {current_mission} with focus on {current_focus}.",
+                next_actions=first_actions,
+            ),
+            analytics=await self.analytics.summary(user.id, self._prefs(user)),
+        )
+
     async def skip_to_complete(self, user: User) -> OnboardingCompleteOut:
         """Recover interrupted onboarding - seed a minimal workspace."""
         if user.onboarding_state == STATE_COMPLETE:
@@ -401,6 +513,136 @@ class OnboardingService:
         self.session.add(project)
         await self.session.flush()
         return project
+
+    async def _seed_first_run_projects(
+        self,
+        user: User,
+        project_names: list[str],
+        current_focus: str,
+        success_90_days: str,
+    ) -> list[Project]:
+        existing_result = await self.session.execute(
+            select(Project).where(Project.user_id == user.id, Project.deleted_at.is_(None))
+        )
+        existing_by_name = {project.name.casefold(): project for project in existing_result.scalars()}
+        projects: list[Project] = []
+        for index, name in enumerate(project_names[:5]):
+            key = name.casefold()
+            project = existing_by_name.get(key)
+            if not project:
+                project = Project(
+                    user_id=user.id,
+                    name=name[:200],
+                    description=f"First-run project for: {success_90_days}",
+                    status="active",
+                    current_focus=current_focus if index == 0 else f"Move {name} forward.",
+                    recommended_next_step=f"Define the next concrete action for {name}.",
+                    context_summary=f"Created during first-run intelligence. 90-day success: {success_90_days}",
+                )
+                self.session.add(project)
+                await self.session.flush()
+            else:
+                project.status = "active"
+                project.current_focus = project.current_focus or current_focus
+                project.recommended_next_step = project.recommended_next_step or f"Define the next concrete action for {name}."
+                project.context_summary = project.context_summary or f"90-day success: {success_90_days}"
+            projects.append(project)
+        return projects
+
+    async def _seed_first_run_goals(self, user_id: UUID, goals: list[str], projects: list[Project], success_90_days: str) -> list[Goal]:
+        service = GoalProgressService(self.session)
+        existing = await service.list_goals(user_id)
+        existing_titles = {goal.title.casefold(): goal for goal in existing}
+        created: list[Goal] = []
+        primary_project = projects[0] if projects else None
+        for title in goals[:5]:
+            goal = existing_titles.get(title.casefold())
+            if not goal:
+                goal = await service.create_goal(
+                    user_id,
+                    GoalCreate(
+                        title=title,
+                        description=f"Created from first-run onboarding. 90-day success: {success_90_days}",
+                        project_id=primary_project.id if primary_project else None,
+                    ),
+                )
+            created.append(goal)
+        return created
+
+    async def _seed_first_run_open_loops(
+        self,
+        projects: list[Project],
+        goals: list[str],
+        current_focus: str,
+        success_90_days: str,
+    ) -> list[OpenLoop]:
+        if not projects:
+            return []
+        project = projects[0]
+        titles = [
+            f"Turn {current_focus} into a concrete next action",
+            f"Define first milestone for {goals[0] if goals else project.name}",
+            f"Track 90-day success: {success_90_days[:120]}",
+        ]
+        existing = await self.session.execute(
+            select(OpenLoop).where(OpenLoop.project_id == project.id, OpenLoop.title.in_(titles))
+        )
+        existing_by_title = {item.title: item for item in existing.scalars()}
+        loops: list[OpenLoop] = []
+        for title in titles:
+            loop = existing_by_title.get(title)
+            if not loop:
+                loop = OpenLoop(project_id=project.id, title=title[:240], description="Created during first-run intelligence.", status="open")
+                self.session.add(loop)
+                await self.session.flush()
+            loops.append(loop)
+        return loops
+
+    async def _seed_first_run_understanding(
+        self,
+        user_id: UUID,
+        *,
+        current_mission: str,
+        current_focus: str,
+        goals: list[str],
+        projects: list[Project],
+        open_loops: list[OpenLoop],
+        success_90_days: str,
+    ) -> None:
+        entries = [
+            ("current_mission", "Current Mission", current_mission, {"statement": current_mission}),
+            ("current_focus", "Current Focus", current_focus, {"statement": current_focus}),
+            ("goals", "Top Goals", "; ".join(goals[:5]), {"items": goals[:5]}),
+            ("active_projects", "Active Projects", "; ".join(project.name for project in projects[:5]), {"items": [project.name for project in projects[:5]]}),
+            ("open_loops", "Initial Open Loops", "; ".join(loop.title for loop in open_loops[:5]), {"items": [loop.title for loop in open_loops[:5]]}),
+            ("success_metrics", "90-Day Success", success_90_days, {"statement": success_90_days}),
+            ("next_suggested_actions", "Suggested First Actions", f"Start with: {current_focus}", {"items": [current_focus]}),
+        ]
+        for category, title, value, payload in entries:
+            await self._upsert_understanding(user_id, category, title, value, payload)
+
+    async def _upsert_understanding(self, user_id: UUID, category: str, title: str, value: str, payload: dict) -> None:
+        result = await self.session.execute(
+            select(UserUnderstanding).where(UserUnderstanding.user_id == user_id, UserUnderstanding.category == category, UserUnderstanding.title == title).limit(1)
+        )
+        item = result.scalar_one_or_none()
+        if not item:
+            item = UserUnderstanding(user_id=user_id, category=category, title=title[:120], value=value or title, source="user", confidence=1.0)
+            self.session.add(item)
+        item.value = truncate(value or title, 4000)
+        if category == "current_mission":
+            item.current_mission = payload
+        elif category == "current_focus":
+            item.current_focus = payload
+        elif category == "active_projects":
+            item.active_projects = payload
+        elif category == "open_loops":
+            item.open_loops = payload
+        elif category == "goals":
+            item.goals = payload
+        elif category == "next_suggested_actions":
+            item.next_suggested_actions = payload
+        await self.session.flush()
 
     async def _memory_count(self, user_id: UUID) -> int:
         result = await self.session.execute(

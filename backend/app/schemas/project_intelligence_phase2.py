@@ -67,12 +67,16 @@ class OpenLoopOut(BaseModel):
 class DecisionCreate(BaseModel):
     title: str = Field(min_length=1, max_length=240)
     description: str = Field(default="", max_length=4000)
+    reason: str = Field(default="", max_length=4000)
+    outcome: str = Field(default="", max_length=4000)
     status: DecisionStatus = "pending"
 
 
 class DecisionUpdate(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=240)
     description: str | None = Field(default=None, max_length=4000)
+    reason: str | None = Field(default=None, max_length=4000)
+    outcome: str | None = Field(default=None, max_length=4000)
     status: DecisionStatus | None = None
 
 
@@ -83,6 +87,9 @@ class DecisionOut(BaseModel):
     projectId: UUID
     title: str
     description: str
+    reason: str = ""
+    outcome: str = ""
     status: DecisionStatus
+    decidedAt: datetime | None = None
     createdAt: datetime
     updatedAt: datetime

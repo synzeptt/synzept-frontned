@@ -15,7 +15,6 @@ import { ProGate } from "@/components/pro/pro-gate";
 import { RecoveryBanner } from "@/components/ui/recovery-banner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api, type OpenLoopEngineItem } from "@/lib/api";
-import { sampleOpenLoops } from "@/lib/sample-data";
 import { PageFrame } from "@frontend/components/layout/page-frame";
 
 const typeLabels: Record<OpenLoopEngineItem["type"], string> = {
@@ -52,9 +51,7 @@ export default function OpenLoopsPage() {
   }, []);
 
   const activeItems = items.filter((item) => item.status === "open");
-  const displayItems = activeItems.length ? activeItems : sampleOpenLoops;
-  const summary = useMemo(() => summarize(displayItems), [displayItems]);
-  const showingSamples = !activeItems.length;
+  const summary = useMemo(() => summarize(activeItems), [activeItems]);
 
   const refresh = () => {
     startRefresh(() => {
@@ -122,9 +119,18 @@ export default function OpenLoopsPage() {
                 <p className="mt-1 text-xs text-muted-foreground">Nothing closes automatically. You decide what is complete, snoozed, or ignored.</p>
               </div>
               <div className="divide-y divide-border">
-                {displayItems.map((item) => (
-                  <OpenLoopRow key={item.id} item={item} onAction={act} sample={showingSamples} />
+                {activeItems.map((item) => (
+                  <OpenLoopRow key={item.id} item={item} onAction={act} />
                 ))}
+                {!activeItems.length && (
+                  <div className="px-4 py-6">
+                    <p className="text-sm font-medium text-stone-950">No open loops need attention right now.</p>
+                    <p className="mt-1 text-sm leading-6 text-muted-foreground">Create tasks, decisions, notes, or project open loops and Synzept will surface unresolved work here.</p>
+                    <Link href="/projects" className="mt-3 inline-flex h-9 items-center rounded-md border border-border px-3 text-sm font-medium text-stone-700 hover:bg-stone-50">
+                      Open Projects
+                    </Link>
+                  </div>
+                )}
               </div>
             </section>
           </>
@@ -138,11 +144,9 @@ export default function OpenLoopsPage() {
 function OpenLoopRow({
   item,
   onAction,
-  sample = false,
 }: {
   item: OpenLoopEngineItem;
   onAction: (item: OpenLoopEngineItem, action: "complete" | "snooze" | "ignore") => void;
-  sample?: boolean;
 }) {
   return (
     <article className="grid gap-3 px-4 py-4 md:grid-cols-[minmax(0,1.2fr)_160px_120px_110px_110px_190px] md:items-center">
@@ -157,27 +161,21 @@ function OpenLoopRow({
       <Pill value={item.status} tone="green" />
       <Pill value={item.priority} tone={item.priority === "high" ? "amber" : "neutral"} />
       <div className="text-xs text-muted-foreground md:text-right">
-        <p>{sample ? "Example loop" : `Created ${formatDate(item.createdAt)}`}</p>
-        {sample ? (
-          <Link href="/projects" className="mt-2 inline-flex rounded-md border border-border px-2 py-1 text-stone-700 hover:bg-stone-50">
-            Create project
-          </Link>
-        ) : (
-          <div className="mt-2 flex flex-wrap gap-2 md:justify-end">
-            <button className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-stone-700 hover:bg-stone-50" onClick={() => onAction(item, "complete")}>
-              <Check className="h-3.5 w-3.5" />
-              Complete
-            </button>
-            <button className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-stone-700 hover:bg-stone-50" onClick={() => onAction(item, "snooze")}>
-              <Pause className="h-3.5 w-3.5" />
-              Snooze
-            </button>
-            <button className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-stone-700 hover:bg-stone-50" onClick={() => onAction(item, "ignore")}>
-              <Archive className="h-3.5 w-3.5" />
-              Ignore
-            </button>
-          </div>
-        )}
+        <p>{`Created ${formatDate(item.createdAt)}`}</p>
+        <div className="mt-2 flex flex-wrap gap-2 md:justify-end">
+          <button className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-stone-700 hover:bg-stone-50" onClick={() => onAction(item, "complete")}>
+            <Check className="h-3.5 w-3.5" />
+            Complete
+          </button>
+          <button className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-stone-700 hover:bg-stone-50" onClick={() => onAction(item, "snooze")}>
+            <Pause className="h-3.5 w-3.5" />
+            Snooze
+          </button>
+          <button className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-stone-700 hover:bg-stone-50" onClick={() => onAction(item, "ignore")}>
+            <Archive className="h-3.5 w-3.5" />
+            Ignore
+          </button>
+        </div>
       </div>
     </article>
   );

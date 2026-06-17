@@ -31,5 +31,11 @@ class UserUnderstanding(Base, TimestampMixin):
     preferences: Mapped[dict] = mapped_column(JSONB, default=dict)
     learning: Mapped[dict] = mapped_column(JSONB, default=dict)
     current_focus: Mapped[dict] = mapped_column(JSONB, default=dict)
+    current_mission: Mapped[dict] = mapped_column(JSONB, default=dict)
+    active_projects: Mapped[dict] = mapped_column(JSONB, default=dict)
+    open_loops: Mapped[dict] = mapped_column(JSONB, default=dict)
+    recent_progress: Mapped[dict] = mapped_column(JSONB, default=dict)
+    recent_decisions: Mapped[dict] = mapped_column(JSONB, default=dict)
+    next_suggested_actions: Mapped[dict] = mapped_column(JSONB, default=dict)
 
     user = relationship("User", back_populates="understanding")

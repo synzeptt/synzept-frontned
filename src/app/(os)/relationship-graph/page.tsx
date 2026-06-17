@@ -6,10 +6,19 @@ import { PageHeader } from "@/components/layout/page-header";
 import { ProGate } from "@/components/pro/pro-gate";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { api, type RelationshipEdge, type RelationshipGraph, type RelationshipInsight, type RelationshipNode } from "@/lib/api";
+import { api, type GraphAnswer, type RelationshipEdge, type RelationshipGraph, type RelationshipInsight, type RelationshipNode } from "@/lib/api";
 import { cn } from "@/lib/cn";
 
-const nodeOrder = ["user", "goal", "project", "task", "open_loop", "decision", "timeline_event", "note", "memory", "conversation"];
+const nodeOrder = ["goal", "project", "task", "person", "decision", "open_loop", "knowledge", "conversation", "timeline_event", "note", "memory", "user"];
+const visualLayers = [
+  { label: "Goals", types: ["goal"] },
+  { label: "Projects", types: ["project"] },
+  { label: "Tasks", types: ["task"] },
+  { label: "People", types: ["person"] },
+  { label: "Decisions", types: ["decision"] },
+  { label: "Open Loops", types: ["open_loop"] },
+  { label: "Knowledge", types: ["knowledge", "memory", "note", "conversation"] },
+];
 
 export default function RelationshipGraphPage() {
   const [graph, setGraph] = useState<RelationshipGraph>({ nodes: [], edges: [] });
@@ -19,6 +28,9 @@ export default function RelationshipGraphPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [question, setQuestion] = useState("What is blocking my goal?");
+  const [answer, setAnswer] = useState<GraphAnswer | null>(null);
+  const [asking, setAsking] = useState(false);
 
   const nodeById = useMemo(() => new Map(graph.nodes.map((node) => [node.id, node])), [graph.nodes]);
   const selected = selectedId ? nodeById.get(selectedId) || null : graph.nodes[0] || null;
@@ -83,6 +95,19 @@ export default function RelationshipGraphPage() {
     }
   }
 
+  async function askGraph() {
+    if (!question.trim()) return;
+    setAsking(true);
+    setMessage(null);
+    try {
+      setAnswer(await api.answerRelationshipQuestion(question.trim()));
+    } catch {
+      setMessage("Graph question could not be answered.");
+    } finally {
+      setAsking(false);
+    }
+  }
+
   return (
     <div className="h-full overflow-y-auto">
       <PageHeader label="Relationship Graph" title="What is connected and what matters?" />
@@ -112,6 +137,38 @@ export default function RelationshipGraphPage() {
             <Metric label="Relationships" value={graph.edges.length} />
             <Metric label="Discoveries" value={insights.length} />
           </div>
+        </section>
+
+        <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
+          <VisualGraph nodes={graph.nodes} edges={graph.edges} selectedId={selected?.id || null} onSelect={setSelectedId} />
+          <section className="rounded-lg border border-border bg-white p-4 shadow-soft">
+            <p className="text-sm font-semibold text-stone-950">Ask the Graph</p>
+            <div className="mt-3 space-y-2">
+              <input
+                value={question}
+                onChange={(event) => setQuestion(event.target.value)}
+                className="h-10 w-full rounded-md border border-border bg-white px-3 text-sm outline-none focus:border-accent/40 focus:ring-2 focus:ring-accent/10"
+                placeholder="What is blocking my goal?"
+              />
+              <Button onClick={askGraph} disabled={asking || !question.trim()} className="w-full">
+                <Search className="mr-1.5 h-4 w-4" />
+                {asking ? "Reading graph..." : "Ask"}
+              </Button>
+            </div>
+            {answer && (
+              <div className="mt-4 rounded-md bg-stone-50 px-3 py-3">
+                <p className="text-sm font-medium text-stone-950">{answer.answer}</p>
+                <div className="mt-3 space-y-2">
+                  {answer.evidence.slice(0, 4).map((item) => (
+                    <button key={`${item.nodeId}-${item.relationshipType}`} onClick={() => setSelectedId(item.nodeId)} className="block w-full rounded-md bg-white px-3 py-2 text-left text-xs leading-5 text-stone-700 hover:bg-stone-100">
+                      <span className="font-medium text-stone-950">{item.title}</span>
+                      <span className="block text-muted">{item.relationshipType.replace(/_/g, " ")} - {item.reason || item.description}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </section>
         </section>
 
         <section className="grid gap-5 lg:grid-cols-[280px_minmax(0,1fr)_330px]">
@@ -217,6 +274,69 @@ function RelationshipRow({ edge, source, target }: { edge: RelationshipEdge; sou
       </div>
       <p className="mt-1 text-xs leading-5 text-muted">{edge.reason || `Strength ${Math.round(edge.strength * 100)}%.`}</p>
     </div>
+  );
+}
+
+function VisualGraph({
+  nodes,
+  edges,
+  selectedId,
+  onSelect,
+}: {
+  nodes: RelationshipNode[];
+  edges: RelationshipEdge[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+}) {
+  const edgeCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    edges.forEach((edge) => {
+      counts.set(edge.sourceNodeId, (counts.get(edge.sourceNodeId) || 0) + 1);
+      counts.set(edge.targetNodeId, (counts.get(edge.targetNodeId) || 0) + 1);
+    });
+    return counts;
+  }, [edges]);
+
+  return (
+    <section className="overflow-hidden rounded-lg border border-border bg-white p-4 shadow-soft">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm font-semibold text-stone-950">Context Graph</p>
+        <Badge variant="muted">Goal to knowledge path</Badge>
+      </div>
+      <div className="mt-4 overflow-x-auto">
+        <div className="grid min-w-[920px] grid-cols-7 gap-3">
+          {visualLayers.map((layer, index) => {
+            const layerNodes = nodes
+              .filter((node) => layer.types.includes(node.nodeType))
+              .sort((a, b) => (edgeCounts.get(b.id) || 0) - (edgeCounts.get(a.id) || 0))
+              .slice(0, 5);
+            return (
+              <div key={layer.label} className="relative">
+                {index < visualLayers.length - 1 && <div className="absolute left-[calc(100%+0.15rem)] top-10 hidden h-px w-3 bg-stone-200 lg:block" />}
+                <p className="mb-2 text-xs font-medium uppercase tracking-[0.12em] text-muted">{layer.label}</p>
+                <div className="space-y-2">
+                  {layerNodes.map((node) => (
+                    <button
+                      key={node.id}
+                      type="button"
+                      onClick={() => onSelect(node.id)}
+                      className={cn(
+                        "min-h-16 w-full rounded-md border px-2 py-2 text-left text-xs transition",
+                        selectedId === node.id ? "border-stone-900 bg-stone-100" : "border-stone-200 bg-stone-50 hover:bg-stone-100",
+                      )}
+                    >
+                      <span className="line-clamp-2 font-medium text-stone-950">{node.title}</span>
+                      <span className="mt-1 block text-[11px] text-muted">{edgeCounts.get(node.id) || 0} links</span>
+                    </button>
+                  ))}
+                  {!layerNodes.length && <div className="min-h-16 rounded-md border border-dashed border-stone-200 px-2 py-2 text-xs leading-5 text-muted">No {layer.label.toLowerCase()} yet</div>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </section>
   );
 }
 

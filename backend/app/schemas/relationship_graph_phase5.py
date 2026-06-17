@@ -4,7 +4,20 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-NodeType = Literal["user", "goal", "project", "task", "open_loop", "decision", "timeline_event", "note", "memory", "conversation"]
+NodeType = Literal[
+    "user",
+    "goal",
+    "project",
+    "task",
+    "open_loop",
+    "decision",
+    "timeline_event",
+    "note",
+    "memory",
+    "knowledge",
+    "person",
+    "conversation",
+]
 
 
 class RelationshipNodeCreate(BaseModel):
@@ -69,3 +82,28 @@ class RelationshipNeighborhoodOut(BaseModel):
     node: RelationshipNodeOut
     relatedNodes: list[RelationshipNodeOut]
     edges: list[RelationshipEdgeOut]
+
+
+class GraphContextItemOut(BaseModel):
+    nodeId: UUID
+    nodeType: str
+    title: str
+    description: str = ""
+    relationshipType: str = "related_to"
+    reason: str = ""
+    strength: float = 0.5
+
+
+class GraphContextOut(BaseModel):
+    query: str
+    currentEntities: list[GraphContextItemOut] = Field(default_factory=list)
+    blockers: list[GraphContextItemOut] = Field(default_factory=list)
+    supportingContext: list[GraphContextItemOut] = Field(default_factory=list)
+    decisions: list[GraphContextItemOut] = Field(default_factory=list)
+    nextActions: list[GraphContextItemOut] = Field(default_factory=list)
+
+
+class GraphAnswerOut(BaseModel):
+    question: str
+    answer: str
+    evidence: list[GraphContextItemOut] = Field(default_factory=list)

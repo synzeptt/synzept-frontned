@@ -7,7 +7,17 @@ from app.core.dependencies import get_current_user, get_db
 from app.memory.extraction_service import ExtractedMemory
 from app.memory.memory_service import MemoryService
 from app.models.user import User
-from app.schemas.memory import MemoryCreate, MemoryOut, MemoryUpdate, UserMemoryProfile
+from app.schemas.memory import (
+    MemoryCreate,
+    MemoryExplainOut,
+    MemoryExplorerItemOut,
+    MemoryMergeIn,
+    MemoryOut,
+    MemoryTrustEventOut,
+    MemoryUpdate,
+    UserMemoryProfile,
+)
+from app.services.memory_trust_service import MemoryTrustService
 
 router = APIRouter(prefix="/memory")
 
@@ -26,6 +36,24 @@ async def search_memory(
     session: AsyncSession = Depends(get_db),
 ):
     return await MemoryService(session).search_memory(user_id=user.id, query=q, category=category, limit=limit)
+
+
+@router.get("/explorer", response_model=list[MemoryExplorerItemOut])
+async def memory_explorer(
+    include_ignored: bool = False,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+):
+    return await MemoryTrustService(session).explorer(user.id, include_ignored=include_ignored)
+
+
+@router.get("/{memory_id}/timeline", response_model=list[MemoryTrustEventOut])
+async def memory_timeline(
+    memory_id: UUID,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+):
+    return await MemoryTrustService(session).timeline(user.id, memory_id)
 
 
 @router.post("", response_model=MemoryOut)
@@ -53,13 +81,43 @@ async def update_memory(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
-    return await MemoryService(session).update_memory(
+    return await MemoryTrustService(session).update_memory(
         user_id=user.id,
         memory_id=memory_id,
         content=body.content,
         category=body.category,
         importance_score=body.importance,
+        reason=body.reason,
     )
+
+
+@router.post("/{memory_id}/merge", response_model=MemoryOut)
+async def merge_memory(
+    memory_id: UUID,
+    body: MemoryMergeIn,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+):
+    return await MemoryTrustService(session).merge(user.id, memory_id, body.source_memory_id, reason=body.reason)
+
+
+@router.post("/{memory_id}/ignore")
+async def ignore_memory(
+    memory_id: UUID,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+):
+    await MemoryTrustService(session).ignore(user.id, memory_id)
+    return {"ok": True}
+
+
+@router.get("/explain/{message_id}", response_model=MemoryExplainOut)
+async def explain_message_memory(
+    message_id: UUID,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+):
+    return await MemoryTrustService(session).explain_message(user.id, message_id)
 
 
 @router.delete("/{memory_id}")
@@ -68,5 +126,5 @@ async def delete_memory(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
-    await MemoryService(session).delete_memory(user_id=user.id, memory_id=memory_id)
+    await MemoryTrustService(session).delete(user.id, memory_id)
     return {"ok": True}

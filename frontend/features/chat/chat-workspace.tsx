@@ -190,6 +190,13 @@ export function ChatWorkspace() {
         setActiveConversation(result.conversation_id);
         updateLastAssistant(result.reply);
       }
+      const syncedConversationId = useChatStore.getState().activeConversationId;
+      if (syncedConversationId) {
+        const rows = await api.getMessages(syncedConversationId);
+        startTransition(() => {
+          setMessages(rows.map((row) => ({ id: row.id, role: row.role as "user" | "assistant" | "system", content: row.content, metadata: row.metadata })));
+        });
+      }
       void loadConversations(true);
       void api.trackEvent("chat_response_completed", "chat", {
         conversation_id: activeConversationId,
@@ -264,6 +271,7 @@ export function ChatWorkspace() {
                 key={message.id || index}
                 role={message.role as "user" | "assistant"}
                 content={message.content}
+                messageId={message.id}
                 isStreaming={isStreaming && index === visibleMessages.length - 1 && message.role === "assistant"}
               />
             ))}

@@ -2,22 +2,21 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarDays, FolderKanban, LayoutDashboard, RotateCcw, Settings } from "lucide-react";
+import { Brain, LayoutDashboard, ListChecks, Sparkles } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 const links = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/daily-brief", label: "Brief", icon: CalendarDays },
-  { href: "/open-loops", label: "Loops", icon: RotateCcw },
-  { href: "/projects", label: "Projects", icon: FolderKanban },
-  { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/dashboard", label: "OS", icon: LayoutDashboard },
+  { href: "/agent", label: "Agent", icon: Sparkles },
+  { href: "/open-loops", label: "Loops", icon: ListChecks },
+  { href: "/knows-you", label: "Knows You", icon: Brain },
 ];
 
 export function MobileNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 grid grid-cols-5 border-t border-border bg-surface-raised/95 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-md md:hidden">
+    <nav className="fixed bottom-0 left-0 right-0 z-40 grid grid-cols-4 border-t border-border bg-surface-raised/95 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-md md:hidden">
       {links.map(({ href, label, icon: Icon }) => {
         const active = pathname === href || pathname.startsWith(`${href}/`);
         return (

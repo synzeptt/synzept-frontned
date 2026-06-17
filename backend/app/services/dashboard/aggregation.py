@@ -19,12 +19,14 @@ from app.models.project_intelligence_phase2 import Decision
 from app.models.task import Task
 from app.models.timeline_event import TimelineEvent
 from app.models.user import User
+from app.models.user_understanding import UserUnderstanding
 from app.schemas.daily import DailyExperienceOut, DailySuggestion
 from app.schemas.dashboard import (
     ContinuityThemeOut,
     ContinuityTimelineOut,
     DashboardOut,
     DashboardStatsOut,
+    PersonalOSOut,
     RecentActivityOut,
     ReturnActivityCountsOut,
     ReturnChangeOut,
@@ -99,6 +101,18 @@ class DashboardAggregationService:
             memories=memories,
             recent_activity=recent_activity,
         )
+        personal_os = await self._personal_os(
+            user,
+            projects=projects,
+            conversations=conversations,
+            notes=notes,
+            tasks=tasks,
+            unfinished_tasks=unfinished_tasks,
+            priorities=priorities,
+            recent_activity=recent_activity,
+            continuity_cards=continuity_cards,
+            returning_user=returning_user,
+        )
 
         return DashboardOut(
             projects=projects[:8],
@@ -116,6 +130,7 @@ class DashboardAggregationService:
             recent_activity=recent_activity,
             continuity_cards=continuity_cards,
             returning_user=returning_user,
+            personal_os=personal_os,
             stats=DashboardStatsOut(
                 active_projects=len([project for project in projects if project.status == "active"]),
                 open_tasks=len(unfinished_tasks),
@@ -129,6 +144,115 @@ class DashboardAggregationService:
             focus_areas=daily.focus_areas,
             suggestions=[DailySuggestion(**suggestion) for suggestion in daily_raw.get("suggestions", [])],
         )
+
+    async def _personal_os(
+        self,
+        user: User,
+        *,
+        projects: list[Project],
+        conversations: list[Conversation],
+        notes: list[Note],
+        tasks: list[Task],
+        unfinished_tasks: list[Task],
+        priorities: list[Task],
+        recent_activity: list[RecentActivityOut],
+        continuity_cards,
+        returning_user: ReturningUserOut,
+    ) -> PersonalOSOut:
+        understanding = await self._understanding(user.id)
+        open_loop_engine = await OpenLoopsEngineService(self.session).list(user.id)
+        decisions = await self._return_decisions(user.id)
+        active_projects = [project for project in projects if project.status == "active"]
+        current_mission = self._understanding_first(
+            understanding,
+            titles=("Current Mission", "Mission", "North Star", "Long-Term Goals", "Short-Term Goals"),
+            categories=("current_mission", "goals"),
+        ) or self._mission_from_projects(active_projects, unfinished_tasks)
+        current_focus = self._understanding_first(
+            understanding,
+            titles=("Current Focus", "Current Priorities", "Active Projects"),
+            categories=("current_focus", "recent_priorities"),
+        ) or self._focus_from_workspace(active_projects, priorities, continuity_cards)
+
+        loop_rows = [
+            ReturnOpenLoopOut(
+                id=item.id,
+                title=item.title,
+                description=item.description,
+                project_id=item.projectId,
+                project_name=item.projectName,
+                type=item.type,
+                priority=item.priority,
+                href=item.href,
+                next_step=item.nextStep,
+            )
+            for item in open_loop_engine.items[:6]
+        ]
+        suggested = returning_user.recommended_next_step or self._return_recommendation(
+            open_loops=loop_rows,
+            continuity_cards=continuity_cards,
+            unfinished_tasks=unfinished_tasks,
+            projects=projects,
+        )
+        recent_decisions = [
+            ReturnContextOut(
+                title=decision.title,
+                detail=decision.outcome or decision.reason or decision.description or "Decision recorded.",
+                type="decision",
+                href=f"/projects/{decision.project_id}",
+            )
+            for decision in decisions
+            if decision.status == "decided"
+        ][:5]
+        risks = [
+            ReturnContextOut(
+                title=loop.title,
+                detail=loop.description or loop.next_step,
+                type=loop.type,
+                href=loop.href,
+            )
+            for loop in loop_rows
+            if loop.priority == "high" or loop.type in {"blocked_work", "pending_decision"}
+        ][:4]
+
+        return PersonalOSOut(
+            greeting=f"Good morning, {user.display_name or 'there'}",
+            current_mission=current_mission,
+            current_focus=current_focus,
+            top_priorities=[
+                ReturnContextOut(
+                    title=task.title,
+                    detail=task.description or task.priority or "Priority task",
+                    type="task",
+                    href="/tasks",
+                )
+                for task in priorities[:5]
+            ],
+            open_loops=loop_rows,
+            recent_progress=recent_activity[:6],
+            active_projects=[
+                ReturnContextOut(
+                    title=project.name,
+                    detail=project.current_focus or project.recommended_next_step or project.description or "Active project.",
+                    type="project",
+                    href=f"/projects/{project.id}",
+                )
+                for project in active_projects[:6]
+            ],
+            recent_decisions=recent_decisions,
+            suggested_next_action=suggested,
+            daily_focus=suggested.title,
+            risks=risks,
+        )
+
+    async def _understanding(self, user_id) -> list[UserUnderstanding]:
+        result = await self.session.execute(
+            select(UserUnderstanding)
+            .where(UserUnderstanding.user_id == user_id)
+            .order_by(UserUnderstanding.updated_at.desc())
+            .limit(80)
+        )
+        return list(result.scalars().all())
 
     async def _returning_user_experience(
         self,
@@ -586,6 +710,52 @@ class DashboardAggregationService:
             reason="Synzept needs one active project, task, or note to preserve continuity.",
             href="/projects",
         )
+
+    @staticmethod
+    def _understanding_first(
+        items: list[UserUnderstanding],
+        *,
+        titles: tuple[str, ...],
+        categories: tuple[str, ...],
+    ) -> str:
+        title_keys = {title.casefold() for title in titles}
+        category_keys = {category.casefold() for category in categories}
+        for item in items:
+            if item.title.casefold() in title_keys or item.category.casefold() in category_keys:
+                values = DashboardAggregationService._split_lines(item.value)
+                if values:
+                    return values[0]
+        return ""
+
+    @staticmethod
+    def _mission_from_projects(projects: list[Project], tasks: list[Task]) -> str:
+        launch_project = next((project for project in projects if "launch" in project.name.casefold()), None)
+        if launch_project:
+            return f"Move {launch_project.name} forward with one concrete launch outcome."
+        if projects:
+            return f"Keep momentum on {projects[0].name}."
+        if tasks:
+            return f"Complete {tasks[0].title} and preserve the next step."
+        return "Build one clear anchor for your work today."
+
+    @staticmethod
+    def _focus_from_workspace(projects: list[Project], tasks: list[Task], continuity_cards) -> str:
+        project = next((item for item in projects if item.current_focus), None)
+        if project:
+            return project.current_focus
+        if tasks:
+            return tasks[0].title
+        if continuity_cards:
+            return continuity_cards[0].title
+        if projects:
+            return projects[0].recommended_next_step or projects[0].name
+        return "Capture the first priority Synzept should track."
+
+    @staticmethod
+    def _split_lines(value: str | None) -> list[str]:
+        if not value:
+            return []
+        return [line.strip(" -*\t") for line in value.replace(";", "\n").splitlines() if line.strip(" -*\t")]
 
     @staticmethod
     def _return_context(

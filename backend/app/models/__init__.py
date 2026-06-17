@@ -1,6 +1,8 @@
 from app.models.ai_interaction import AIInteraction
+from app.models.autonomous_workspace import AutonomousSuggestion, ExecutionPlan
 from app.models.conversation import Conversation
 from app.models.context_engine_phase6 import ContextSnapshot
+from app.models.chief_of_staff import ChiefOfStaffSnapshot, Commitment
 from app.models.continuity_assistant_phase7 import ContinuityAssistantSnapshot
 from app.models.daily_brief_phase8 import DailyBriefSnapshot
 from app.models.daily_summary import DailySummary
@@ -12,7 +14,7 @@ from app.models.graph import GraphEdge, GraphNode
 from app.models.launch import InviteCode, WaitlistEntry
 from app.models.learning import LearningObservation, LearningSuggestion
 from app.models.learning_signal import LearningSignal
-from app.models.memory import Memory, MemoryRevision
+from app.models.memory import Memory, MemoryRevision, MemoryTrustEvent
 from app.models.message import Message
 from app.models.note import Note
 from app.models.notification import Notification
@@ -40,11 +42,14 @@ __all__ = [
     "PasswordResetToken",
     "Conversation",
     "ContextSnapshot",
+    "ChiefOfStaffSnapshot",
+    "Commitment",
     "ContinuityAssistantSnapshot",
     "DailyBriefSnapshot",
     "Message",
     "Memory",
     "MemoryRevision",
+    "MemoryTrustEvent",
     "Embedding",
     "FeedbackItem",
     "UsageEvent",
@@ -74,6 +79,8 @@ __all__ = [
     "DailySummary",
     "DailyBrief",
     "AIInteraction",
+    "AutonomousSuggestion",
+    "ExecutionPlan",
     "WorkspaceActivity",
     "TimelineEvent",
     "Subscription",

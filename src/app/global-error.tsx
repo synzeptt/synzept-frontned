@@ -20,15 +20,15 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
           <section className="w-full max-w-md rounded-md border border-border bg-white p-6 text-center">
             <h1 className="text-xl font-semibold">Synzept needs a quick refresh</h1>
             <p className="mt-3 text-sm leading-6 text-stone-600">
-              Synzept could not render this view, but your workspace data remains safe. Retry the view or return to the dashboard.
+              Synzept could not render this view, but your workspace data remains safe. Retry the view or return to the Agent.
             </p>
             <div className="mt-6 flex justify-center gap-3">
               <Button onClick={reset}>
                 <RotateCcw className="mr-2 h-4 w-4" />
                 Retry
               </Button>
-              <Button variant="outline" onClick={() => (window.location.href = "/dashboard")}>
-                Dashboard
+              <Button variant="outline" onClick={() => (window.location.href = "/agent")}>
+                Agent
               </Button>
             </div>
           </section>

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { Bell, CalendarDays, Clock3, CreditCard, FolderKanban, Menu, PanelsTopLeft, Settings, X } from "lucide-react";
+import { Bell, Brain, CalendarDays, ChevronDown, ChevronUp, History, LayoutDashboard, ListChecks, Menu, Settings, Sparkles, Target, X } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { CopyrightLine } from "@/components/copyright-line";
 import { MobileNav } from "@/components/layout/mobile-nav";
@@ -19,13 +19,15 @@ import { useWorkspaceUIStore } from "@frontend/store/workspace-ui";
 
 const navSections = [
   {
-    label: "Launch workflow",
+    label: "Synzept",
     items: [
-      { href: "/dashboard", label: "Dashboard", icon: PanelsTopLeft },
-      { href: "/projects", label: "Projects", icon: FolderKanban },
+      { href: "/dashboard", label: "Personal OS", icon: LayoutDashboard },
+      { href: "/autonomous-workspace", label: "Execution", icon: Target },
+      { href: "/agent", label: "Agent", icon: Sparkles },
       { href: "/daily-brief", label: "Daily Brief", icon: CalendarDays },
-      { href: "/timeline", label: "Timeline", icon: Clock3 },
-      { href: "/billing", label: "Billing", icon: CreditCard },
+      { href: "/open-loops", label: "Open Loops", icon: ListChecks },
+      { href: "/weekly-reflection", label: "Weekly Reflection", icon: History },
+      { href: "/knows-you", label: "Knows You", icon: Brain },
     ],
   },
   {
@@ -42,6 +44,8 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   const { hydrate, isAuthenticated, isLoading, user } = useAuthStore();
   const { sidebarOpen, setSidebarOpen } = useWorkspaceUIStore();
   const [digest, setDigest] = useState<NotificationDigest | null>(null);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [dismissedNotifications, setDismissedNotifications] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     hydrate();
@@ -79,7 +83,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   const sidebar = (
     <aside className="flex h-full w-[264px] shrink-0 flex-col border-r border-border bg-white">
       <div className="flex h-16 items-center justify-between px-4">
-        <Link href="/dashboard" className="flex items-center" aria-label="Synzept dashboard">
+        <Link href="/dashboard" className="flex items-center" aria-label="Synzept Personal OS">
           <BrandLogo imageClassName="h-8" />
         </Link>
         <button
@@ -121,36 +125,6 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
       </nav>
 
       <div className="m-3 space-y-3">
-        {digest && digest.notifications.length > 0 && (
-          <div className="rounded-lg border border-border bg-white p-3">
-            <div className="flex items-center justify-between gap-2">
-              <p className="flex items-center gap-2 text-xs font-medium text-stone-950">
-                <Bell className="h-3.5 w-3.5 text-stone-500" />
-                Notifications
-              </p>
-              {digest.unread > 0 && <span className="rounded-md bg-stone-900 px-1.5 py-0.5 text-[10px] text-white">{digest.unread}</span>}
-            </div>
-            <div className="mt-2 space-y-1">
-              {digest.notifications.slice(0, 2).map((item) => {
-                const href = typeof item.metadata.href === "string" ? item.metadata.href : "/dashboard";
-                return (
-                  <Link
-                    key={item.id}
-                    href={href}
-                    onClick={() => {
-                      setSidebarOpen(false);
-                      void api.markNotificationRead(item.id).then(setDigest).catch(() => null);
-                    }}
-                    className="block rounded-md bg-stone-50 px-2 py-2 text-xs leading-5 text-stone-700 hover:bg-stone-100"
-                  >
-                    <span className="line-clamp-1 font-medium text-stone-950">{item.title}</span>
-                    <span className="line-clamp-2 text-stone-500">{item.message}</span>
-                  </Link>
-                );
-              })}
-            </div>
-          </div>
-        )}
         <div className="rounded-lg border border-border bg-stone-50 p-3">
           <p className="text-xs font-medium text-stone-950">Current Plan: {user?.is_pro ? "Pro" : "Free"}</p>
           <p className="mt-1 text-[11px] leading-4 text-stone-500">{user?.is_pro ? "Pro features are unlocked." : "Upgrade for ₹399/month."}</p>
@@ -213,8 +187,85 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
           <main className="min-h-0 flex-1 overflow-hidden pb-[74px] md:pb-0">{children}</main>
         </div>
       </div>
+      <NotificationTray
+        digest={digest}
+        open={notificationsOpen}
+        dismissed={dismissedNotifications}
+        onToggle={() => setNotificationsOpen((value) => !value)}
+        onDismiss={(id) => {
+          setDismissedNotifications((current) => new Set([...current, id]));
+          void api.markNotificationRead(id).then(setDigest).catch(() => null);
+        }}
+        onRead={(id) => void api.markNotificationRead(id).then(setDigest).catch(() => null)}
+      />
       <UsageTracker />
       <MobileNav />
+    </div>
+  );
+}
+
+function NotificationTray({
+  digest,
+  open,
+  dismissed,
+  onToggle,
+  onDismiss,
+  onRead,
+}: {
+  digest: NotificationDigest | null;
+  open: boolean;
+  dismissed: Set<string>;
+  onToggle: () => void;
+  onDismiss: (id: string) => void;
+  onRead: (id: string) => void;
+}) {
+  const items = (digest?.notifications || []).filter((item) => !dismissed.has(item.id)).slice(0, 4);
+  const unread = items.filter((item) => !item.readAt).length;
+  if (!items.length) return null;
+
+  return (
+    <div className="fixed right-3 top-16 z-30 w-[min(320px,calc(100vw-1.5rem))] md:right-4 md:top-4">
+      <div className="rounded-lg border border-border bg-white/95 shadow-soft backdrop-blur">
+        <button
+          type="button"
+          onClick={onToggle}
+          className="flex h-10 w-full items-center justify-between gap-3 px-3 text-left text-sm"
+          aria-expanded={open}
+        >
+          <span className="flex min-w-0 items-center gap-2 font-medium text-stone-950">
+            <Bell className="h-4 w-4 text-stone-500" />
+            <span className="truncate">Notifications</span>
+          </span>
+          <span className="flex items-center gap-2">
+            {unread > 0 && <span className="rounded-md bg-stone-900 px-1.5 py-0.5 text-[10px] text-white">{unread}</span>}
+            {open ? <ChevronUp className="h-4 w-4 text-stone-500" /> : <ChevronDown className="h-4 w-4 text-stone-500" />}
+          </span>
+        </button>
+
+        {open && (
+          <div className="max-h-[45vh] space-y-1 overflow-y-auto border-t border-border p-2">
+            {items.map((item) => {
+              const href = typeof item.metadata.href === "string" ? item.metadata.href : "/agent";
+              return (
+                <div key={item.id} className="group flex gap-2 rounded-md bg-stone-50 p-2 text-xs leading-5">
+                  <Link href={href} onClick={() => onRead(item.id)} className="min-w-0 flex-1">
+                    <span className="line-clamp-1 font-medium text-stone-950">{item.title}</span>
+                    <span className="line-clamp-2 text-stone-500">{item.message}</span>
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => onDismiss(item.id)}
+                    className="grid h-6 w-6 shrink-0 place-items-center rounded-md text-stone-400 hover:bg-white hover:text-stone-900"
+                    aria-label="Dismiss notification"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
