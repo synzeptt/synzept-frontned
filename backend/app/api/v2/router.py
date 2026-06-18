@@ -4,6 +4,7 @@ from app.api.v2 import (
     agent_memory,
     autonomous_workspace,
     continuity_assistant,
+    continuity_mode,
     core,
     daily_brief,
     goals,
@@ -17,6 +18,7 @@ from app.api.v2 import (
 api_router = APIRouter(prefix="/api/v2")
 api_router.include_router(core.router, tags=["core-foundation"])
 api_router.include_router(continuity_assistant.router, tags=["continuity-assistant"])
+api_router.include_router(continuity_mode.router, tags=["continuity-mode"])
 api_router.include_router(user_understanding.router, tags=["user-understanding"])
 api_router.include_router(daily_brief.router, tags=["daily-brief"])
 api_router.include_router(project_intelligence.router, tags=["project-intelligence"])

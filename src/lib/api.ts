@@ -784,6 +784,25 @@ export type ContinuityAssistant = {
   hidden_connections: Array<{ title: string; detail: string; node_titles: string[] }>;
 };
 
+export type ContinuityModeAction = {
+  label: string;
+  prompt: string;
+  mode: string;
+  project_id: string | null;
+};
+
+export type ContinuityMode = {
+  headline: string;
+  last_focus: string;
+  what_changed: string[];
+  open_loops: string[];
+  recommended_next_action: string;
+  recommended_reason: string;
+  actions: ContinuityModeAction[];
+  memory_context: string[];
+  context_used: Record<string, number>;
+};
+
 export type ProjectContext = {
   project: Project;
   conversations: Conversation[];
@@ -1406,6 +1425,7 @@ export const api = {
   getAutonomousWeeklyPlan: () => request<WeeklyPlan>("/api/v2/autonomous-workspace/weekly-plan"),
   generateAutonomousSuggestions: () =>
     request<AutonomousSuggestion[]>("/api/v2/autonomous-workspace/suggestions/generate", { method: "POST" }),
+  getContinuityMode: () => request<ContinuityMode>("/api/v2/continuity-mode"),
   getContinuityAssistant: () => request<ContinuityAssistant>("/api/v2/continuity-assistant/overview"),
   listUserUnderstanding: () => request<UserUnderstandingItem[]>("/api/v2/user-understanding"),
   getUserUnderstandingProfile: () => request<UserUnderstandingProfile>("/api/v2/user-understanding/profile"),
