@@ -7,7 +7,7 @@ from app.schemas.base import ORMModel
 
 
 class FeedbackCreate(BaseModel):
-    feedback_type: str = Field(pattern="^(issue|suggestion|response_rating|memory_issue|bug|support)$")
+    feedback_type: str = Field(pattern="^(issue|suggestion|feature_request|improvement|general|response_rating|memory_issue|bug|support|user_interview)$")
     message: str | None = Field(default=None, max_length=4000)
     rating: int | None = Field(default=None, ge=1, le=5)
     conversation_id: UUID | None = None
@@ -22,7 +22,55 @@ class FeedbackOut(ORMModel):
     message: str | None
     rating: int | None
     status: str
+    metadata_: dict = Field(default_factory=dict, alias="metadata")
     created_at: datetime
+
+
+class FeedbackSignal(BaseModel):
+    id: UUID | None = None
+    title: str
+    detail: str
+    category: str
+    feedback_type: str
+    sentiment: str
+    status: str
+    votes: int = 0
+    demand_score: int = 0
+    created_at: datetime | None = None
+
+
+class FeedbackCategoryCount(BaseModel):
+    category: str
+    count: int
+
+
+class FeedbackIntelligenceOut(BaseModel):
+    total: int
+    user_sentiment: str
+    sentiment_score: int
+    categories: list[FeedbackCategoryCount] = Field(default_factory=list)
+    most_requested_features: list[FeedbackSignal] = Field(default_factory=list)
+    most_common_frustrations: list[FeedbackSignal] = Field(default_factory=list)
+    most_common_compliments: list[FeedbackSignal] = Field(default_factory=list)
+    emerging_trends: list[FeedbackSignal] = Field(default_factory=list)
+    top_reported_issues: list[FeedbackSignal] = Field(default_factory=list)
+    product_insights: dict = Field(default_factory=dict)
+
+
+class FeatureRequestOut(BaseModel):
+    id: UUID
+    title: str
+    detail: str
+    category: str
+    status: str
+    votes: int = 0
+    user_voted: bool = False
+    demand_score: int = 0
+    created_at: datetime
+
+
+class FeedbackStatusUpdate(BaseModel):
+    status: str = Field(pattern="^(new|planned|in_progress|shipped|closed)$")
 
 
 class UsageEventCreate(BaseModel):

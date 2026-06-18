@@ -14,6 +14,14 @@ export function UsageTracker() {
     const started = performance.now();
     api.trackEvent("daily_active", "app", { pathname });
     api.trackEvent("page_view", pathname.replace("/", "") || "agent", { pathname });
+    const visitCount = Number(localStorage.getItem("synzept-visit-count") || "0") + 1;
+    localStorage.setItem("synzept-visit-count", String(visitCount));
+    if (visitCount === 2) {
+      api.trackEvent("first_return_visit", "app", {
+        pathname,
+        referrer: document.referrer || null,
+      });
+    }
     if (!sessionStorage.getItem("synzept-return-session-tracked")) {
       sessionStorage.setItem("synzept-return-session-tracked", "1");
       api.trackEvent("return_session", "app", {
@@ -27,7 +35,10 @@ export function UsageTracker() {
         render_ms: Math.round(performance.now() - started),
       });
     });
-    return () => cancelAnimationFrame(frame);
+    return () => {
+      cancelAnimationFrame(frame);
+      api.trackEvent("time_spent", pathname.replace("/", "") || "app", { pathname }, Math.round((performance.now() - started) / 1000));
+    };
   }, [pathname]);
 
   return null;

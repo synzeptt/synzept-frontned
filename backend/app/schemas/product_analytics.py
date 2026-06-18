@@ -37,9 +37,71 @@ class AnalyticsDropOff(BaseModel):
     dropOffRate: float
 
 
+class FeatureUsageOut(BaseModel):
+    feature: str
+    events: int = 0
+    users: int = 0
+    timeSpentSeconds: int = 0
+
+
+class RetentionOut(BaseModel):
+    signupCohort: int = 0
+    returnedUsers: int = 0
+    retentionRate: float = 0
+
+
+class OnboardingMilestonesOut(BaseModel):
+    signupCompleted: int = 0
+    firstChat: int = 0
+    firstMemory: int = 0
+    firstReturnVisit: int = 0
+    onboardingCompleted: int = 0
+
+
+class FeedbackSignalOut(BaseModel):
+    id: str | None = None
+    title: str
+    detail: str
+    category: str
+    feedback_type: str
+    sentiment: str
+    status: str
+    votes: int = 0
+    demand_score: int = 0
+
+
+class FeedbackCategoryOut(BaseModel):
+    category: str
+    count: int
+
+
+class FeedbackProductInsightsOut(BaseModel):
+    what_users_want: list[FeedbackSignalOut] = Field(default_factory=list)
+    what_users_dislike: list[FeedbackSignalOut] = Field(default_factory=list)
+    what_users_like: list[FeedbackSignalOut] = Field(default_factory=list)
+    what_should_be_prioritized: list[FeedbackSignalOut] = Field(default_factory=list)
+
+
+class FeedbackAnalyticsOut(BaseModel):
+    total: int = 0
+    user_sentiment: str = "neutral"
+    sentiment_score: int = 0
+    categories: list[FeedbackCategoryOut] = Field(default_factory=list)
+    most_requested_features: list[FeedbackSignalOut] = Field(default_factory=list)
+    most_common_frustrations: list[FeedbackSignalOut] = Field(default_factory=list)
+    most_common_compliments: list[FeedbackSignalOut] = Field(default_factory=list)
+    emerging_trends: list[FeedbackSignalOut] = Field(default_factory=list)
+    top_reported_issues: list[FeedbackSignalOut] = Field(default_factory=list)
+    product_insights: FeedbackProductInsightsOut = Field(default_factory=FeedbackProductInsightsOut)
+
+
 class ProductAnalyticsOut(BaseModel):
     windowDays: int
     metrics: list[AnalyticsMetric] = Field(default_factory=list)
     funnel: list[AnalyticsFunnelStep] = Field(default_factory=list)
     dropOffs: list[AnalyticsDropOff] = Field(default_factory=list)
     daily: list[AnalyticsDailyPoint] = Field(default_factory=list)
+    feedback: FeedbackAnalyticsOut = Field(default_factory=FeedbackAnalyticsOut)
+    mostUsedFeatures: list[FeatureUsageOut] = Field(default_factory=list)
+    retention: RetentionOut = Field(default_factory=RetentionOut)
+    onboarding: OnboardingMilestonesOut = Field(default_factory=OnboardingMilestonesOut)

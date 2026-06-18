@@ -1,15 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { Activity, ArrowDownRight, BarChart3, RefreshCw, TrendingUp } from "lucide-react";
+import { Activity, ArrowDownRight, BarChart3, MessageSquareText, RefreshCw, TrendingUp } from "lucide-react";
 import { PageFrame } from "@frontend/components/layout/page-frame";
 import { Button } from "@/components/ui/button";
 import { RecoveryBanner } from "@/components/ui/recovery-banner";
 import { Skeleton } from "@/components/ui/skeleton";
-import { api, type ProductAnalytics } from "@/lib/api";
+import { api, type FeedbackSignal, type ProductAnalytics } from "@/lib/api";
 
 const metricOrder = [
   "signups",
+  "onboardingCompleted",
   "logins",
   "projectsCreated",
   "dailyActiveUsers",
@@ -112,6 +113,74 @@ export default function FounderAnalyticsPage() {
               </div>
             </section>
 
+            <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
+              <div className="rounded-lg border border-border bg-white p-5 shadow-soft">
+                <SectionTitle icon={<Activity className="h-4 w-4" />} title="Onboarding Milestones" />
+                <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                  <MiniMetric label="Signup completed" value={data.onboarding.signupCompleted} />
+                  <MiniMetric label="First chat" value={data.onboarding.firstChat} />
+                  <MiniMetric label="First memory" value={data.onboarding.firstMemory} />
+                  <MiniMetric label="First return" value={data.onboarding.firstReturnVisit} />
+                  <MiniMetric label="Onboarding done" value={data.onboarding.onboardingCompleted} />
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-border bg-white p-5 shadow-soft">
+                <SectionTitle icon={<TrendingUp className="h-4 w-4" />} title="Retention" />
+                <p className="mt-4 text-4xl font-semibold text-stone-950">{data.retention.retentionRate}%</p>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  {data.retention.returnedUsers} of {data.retention.signupCohort} signup users returned.
+                </p>
+              </div>
+            </section>
+
+            <section className="rounded-lg border border-border bg-white p-5 shadow-soft">
+              <SectionTitle icon={<BarChart3 className="h-4 w-4" />} title="Most Used Features" />
+              <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {data.mostUsedFeatures.slice(0, 9).map((feature) => (
+                  <div key={feature.feature} className="rounded-md bg-stone-50 px-3 py-3">
+                    <p className="text-sm font-medium capitalize text-stone-950">{feature.feature.replace(/[_-]/g, " ")}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {feature.users} users / {feature.events} events / {Math.round(feature.timeSpentSeconds / 60)} min
+                    </p>
+                  </div>
+                ))}
+                {!data.mostUsedFeatures.length && <p className="text-sm text-muted-foreground">Feature usage appears after users browse the app.</p>}
+              </div>
+            </section>
+
+            <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
+              <div className="rounded-lg border border-border bg-white p-5 shadow-soft">
+                <SectionTitle icon={<MessageSquareText className="h-4 w-4" />} title="Feedback Intelligence" />
+                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                  <FeedbackList title="Top Requested Features" items={data.feedback.most_requested_features} empty="No feature requests yet." />
+                  <FeedbackList title="Top Reported Issues" items={data.feedback.top_reported_issues} empty="No reported issues yet." />
+                  <FeedbackList title="Common Frustrations" items={data.feedback.most_common_frustrations} empty="No frustration patterns yet." />
+                  <FeedbackList title="Common Compliments" items={data.feedback.most_common_compliments} empty="No compliments yet." />
+                </div>
+              </div>
+
+              <div className="space-y-5">
+                <div className="rounded-lg border border-border bg-white p-5 shadow-soft">
+                  <SectionTitle icon={<TrendingUp className="h-4 w-4" />} title="User Sentiment" />
+                  <p className="mt-4 text-4xl font-semibold capitalize text-stone-950">{data.feedback.user_sentiment}</p>
+                  <p className="mt-2 text-sm text-muted-foreground">Sentiment score: {data.feedback.sentiment_score}</p>
+                  <div className="mt-4 space-y-2">
+                    {data.feedback.categories.slice(0, 7).map((item) => (
+                      <div key={item.category} className="flex items-center justify-between rounded-md bg-stone-50 px-3 py-2 text-sm">
+                        <span>{item.category}</span>
+                        <span className="font-semibold text-stone-950">{item.count}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="rounded-lg border border-border bg-white p-5 shadow-soft">
+                  <SectionTitle icon={<BarChart3 className="h-4 w-4" />} title="Weekly Product Insights" />
+                  <FeedbackList title="Prioritize" items={data.feedback.product_insights.what_should_be_prioritized} empty="No priority signal yet." compact />
+                </div>
+              </div>
+            </section>
+
             <section className="rounded-lg border border-border bg-white p-5 shadow-soft">
               <SectionTitle icon={<Activity className="h-4 w-4" />} title="Daily Movement" />
               <div className="mt-4 overflow-x-auto">
@@ -167,12 +236,42 @@ function MetricCard({ label, value, change }: { label: string; value: number; ch
   );
 }
 
+function MiniMetric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-md bg-stone-50 px-3 py-3">
+      <p className="text-2xl font-semibold text-stone-950">{value}</p>
+      <p className="mt-1 text-xs text-muted-foreground">{label}</p>
+    </div>
+  );
+}
+
 function SectionTitle({ icon, title }: { icon: ReactNode; title: string }) {
   return (
     <p className="flex items-center gap-2 text-sm font-semibold text-stone-950">
       {icon}
       {title}
     </p>
+  );
+}
+
+function FeedbackList({ title, items, empty, compact = false }: { title: string; items: FeedbackSignal[]; empty: string; compact?: boolean }) {
+  return (
+    <div className="rounded-md bg-stone-50 p-3">
+      <p className="text-sm font-semibold text-stone-950">{title}</p>
+      <div className="mt-3 space-y-2">
+        {items.slice(0, compact ? 4 : 5).map((item) => (
+          <div key={`${item.id || item.title}-${item.category}`} className="rounded-md bg-white px-3 py-2">
+            <div className="flex items-start justify-between gap-3">
+              <p className="line-clamp-2 text-sm font-medium text-stone-900">{item.title}</p>
+              <span className="shrink-0 rounded-md bg-stone-100 px-2 py-1 text-[11px] text-stone-600">{item.demand_score}</span>
+            </div>
+            <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{item.detail || item.category}</p>
+            <p className="mt-2 text-[11px] text-stone-500">{item.category} / {item.status.replace(/_/g, " ")} / {item.votes} votes</p>
+          </div>
+        ))}
+        {!items.length && <p className="text-sm leading-6 text-muted-foreground">{empty}</p>}
+      </div>
+    </div>
   );
 }
 

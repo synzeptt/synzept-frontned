@@ -1148,6 +1148,27 @@ export type ProductAnalyticsDailyPoint = {
   successfulPayments: number;
 };
 
+export type ProductAnalyticsFeatureUsage = {
+  feature: string;
+  events: number;
+  users: number;
+  timeSpentSeconds: number;
+};
+
+export type ProductAnalyticsRetention = {
+  signupCohort: number;
+  returnedUsers: number;
+  retentionRate: number;
+};
+
+export type ProductAnalyticsOnboarding = {
+  signupCompleted: number;
+  firstChat: number;
+  firstMemory: number;
+  firstReturnVisit: number;
+  onboardingCompleted: number;
+};
+
 export type ProductAnalyticsDropOff = {
   label: string;
   fromStep: string;
@@ -1156,12 +1177,58 @@ export type ProductAnalyticsDropOff = {
   dropOffRate: number;
 };
 
+export type FeedbackSignal = {
+  id: string | null;
+  title: string;
+  detail: string;
+  category: string;
+  feedback_type: string;
+  sentiment: string;
+  status: string;
+  votes: number;
+  demand_score: number;
+};
+
+export type FeedbackIntelligence = {
+  total: number;
+  user_sentiment: string;
+  sentiment_score: number;
+  categories: Array<{ category: string; count: number }>;
+  most_requested_features: FeedbackSignal[];
+  most_common_frustrations: FeedbackSignal[];
+  most_common_compliments: FeedbackSignal[];
+  emerging_trends: FeedbackSignal[];
+  top_reported_issues: FeedbackSignal[];
+  product_insights: {
+    what_users_want: FeedbackSignal[];
+    what_users_dislike: FeedbackSignal[];
+    what_users_like: FeedbackSignal[];
+    what_should_be_prioritized: FeedbackSignal[];
+  };
+};
+
+export type FeatureRequest = {
+  id: string;
+  title: string;
+  detail: string;
+  category: string;
+  status: "new" | "planned" | "in_progress" | "shipped" | "closed" | string;
+  votes: number;
+  user_voted: boolean;
+  demand_score: number;
+  created_at: string;
+};
+
 export type ProductAnalytics = {
   windowDays: number;
   metrics: ProductAnalyticsMetric[];
   funnel: ProductAnalyticsFunnelStep[];
   dropOffs: ProductAnalyticsDropOff[];
   daily: ProductAnalyticsDailyPoint[];
+  feedback: FeedbackIntelligence;
+  mostUsedFeatures: ProductAnalyticsFeatureUsage[];
+  retention: ProductAnalyticsRetention;
+  onboarding: ProductAnalyticsOnboarding;
 };
 
 export type AuthTokens = {
@@ -1449,7 +1516,7 @@ export const api = {
     }),
 
   sendFeedback: (data: {
-    feedback_type: "issue" | "suggestion" | "response_rating" | "memory_issue" | "bug" | "support";
+    feedback_type: "issue" | "suggestion" | "feature_request" | "improvement" | "general" | "response_rating" | "memory_issue" | "bug" | "support" | "user_interview";
     message?: string;
     rating?: number;
     conversation_id?: string;
@@ -1461,6 +1528,17 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+
+  getFeedbackIntelligence: (windowDays = 90) =>
+    request<FeedbackIntelligence>(`/api/v1/feedback/intelligence?window_days=${windowDays}`),
+
+  listFeatureRequests: () => request<FeatureRequest[]>("/api/v1/feedback/features"),
+
+  voteFeatureRequest: (id: string) =>
+    request<{ ok: boolean; votes: number }>(`/api/v1/feedback/${id}/vote`, { method: "POST" }),
+
+  updateFeatureStatus: (id: string, status: FeatureRequest["status"]) =>
+    request<FeatureRequest>(`/api/v1/feedback/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) }),
 
   sendMemoryFeedback: (data: {
     memory_id?: string;

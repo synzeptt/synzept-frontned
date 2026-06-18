@@ -9,6 +9,7 @@ import { BrandLogo } from "@/components/brand-logo";
 import { CopyrightLine } from "@/components/copyright-line";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { UsageTracker } from "@/components/analytics/usage-tracker";
+import { FeedbackButton } from "@/components/feedback/feedback-button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar } from "@/components/ui/avatar";
 import { UpgradeCta } from "@/components/pro/upgrade-cta";
@@ -178,6 +179,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
         }}
         onRead={(id) => void api.markNotificationRead(id).then(setDigest).catch(() => null)}
       />
+      <FeedbackButton />
       <UsageTracker />
       <MobileNav />
     </div>
