@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { Bell, Brain, CalendarDays, ChevronDown, ChevronUp, History, LayoutDashboard, ListChecks, Menu, Settings, Sparkles, Target, X } from "lucide-react";
+import { Bell, ChevronDown, ChevronUp, Home, Menu, MessageSquare, UserCircle, X } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { CopyrightLine } from "@/components/copyright-line";
 import { MobileNav } from "@/components/layout/mobile-nav";
@@ -17,25 +17,10 @@ import { api, type NotificationDigest } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { useWorkspaceUIStore } from "@frontend/store/workspace-ui";
 
-const navSections = [
-  {
-    label: "Synzept",
-    items: [
-      { href: "/dashboard", label: "Personal OS", icon: LayoutDashboard },
-      { href: "/autonomous-workspace", label: "Execution", icon: Target },
-      { href: "/agent", label: "Agent", icon: Sparkles },
-      { href: "/daily-brief", label: "Daily Brief", icon: CalendarDays },
-      { href: "/open-loops", label: "Open Loops", icon: ListChecks },
-      { href: "/weekly-reflection", label: "Weekly Reflection", icon: History },
-      { href: "/knows-you", label: "Knows You", icon: Brain },
-    ],
-  },
-  {
-    label: "System",
-    items: [
-      { href: "/settings", label: "Settings", icon: Settings },
-    ],
-  },
+const navItems = [
+  { href: "/dashboard", label: "Home", icon: Home },
+  { href: "/chat", label: "Chat", icon: MessageSquare },
+  { href: "/settings", label: "Profile", icon: UserCircle },
 ];
 
 export function WorkspaceShell({ children }: { children: React.ReactNode }) {
@@ -83,7 +68,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   const sidebar = (
     <aside className="flex h-full w-[264px] shrink-0 flex-col border-r border-border bg-white">
       <div className="flex h-16 items-center justify-between px-4">
-        <Link href="/dashboard" className="flex items-center" aria-label="Synzept Personal OS">
+        <Link href="/dashboard" className="flex items-center" aria-label="Synzept Home">
           <BrandLogo imageClassName="h-8" />
         </Link>
         <button
@@ -96,32 +81,27 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
         </button>
       </div>
 
-      <nav className="flex-1 space-y-5 overflow-y-auto px-3 pb-4">
-        {navSections.map((section) => (
-          <div key={section.label}>
-            <p className="px-3 pb-1.5 text-[10px] font-medium uppercase tracking-[0.14em] text-stone-400">{section.label}</p>
-            <div className="space-y-1">
-              {section.items.map((item) => {
-                const Icon = item.icon;
-                const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={() => setSidebarOpen(false)}
-                    className={cn(
-                      "flex h-10 items-center gap-3 rounded-md px-3 text-sm transition duration-150",
-                      active ? "bg-stone-100 text-stone-950 shadow-[inset_0_0_0_1px_rgba(32,31,28,0.04)]" : "text-stone-500 hover:bg-stone-50 hover:text-stone-900",
-                    )}
-                  >
-                    <Icon className="h-4 w-4" />
-                    {item.label}
-                  </Link>
-                );
-              })}
-            </div>
-          </div>
-        ))}
+      <nav className="flex-1 overflow-y-auto px-3 pb-4">
+        <div className="space-y-1">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => setSidebarOpen(false)}
+                className={cn(
+                  "flex h-11 items-center gap-3 rounded-md px-3 text-sm transition duration-150",
+                  active ? "bg-stone-100 text-stone-950 shadow-[inset_0_0_0_1px_rgba(32,31,28,0.04)]" : "text-stone-500 hover:bg-stone-50 hover:text-stone-900",
+                )}
+              >
+                <Icon className="h-4 w-4" />
+                {item.label}
+              </Link>
+            );
+          })}
+        </div>
       </nav>
 
       <div className="m-3 space-y-3">
