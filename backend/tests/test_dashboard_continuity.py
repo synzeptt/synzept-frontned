@@ -37,6 +37,22 @@ def test_recent_activity_merges_workspace_sources_by_recency():
     assert activity[1].type == "note"
 
 
+def test_recent_activity_converts_to_personal_os_progress_changes():
+    project_id = uuid4()
+    activity = DashboardAggregationService._recent_activity(
+        [SimpleNamespace(id=project_id, name="Launch", context_summary=None, description=None, updated_at=datetime(2026, 1, 2, tzinfo=timezone.utc))],
+        [],
+        [],
+        [],
+    )
+
+    changes = DashboardAggregationService._activity_changes(activity, {project_id: "Launch"})
+
+    assert changes[0].id == str(project_id)
+    assert changes[0].project_name == "Launch"
+    assert changes[0].href == f"/projects/{project_id}"
+
+
 def test_continuity_cards_include_unfinished_task_and_project_restore_points():
     now = datetime.now(timezone.utc)
     project_id = uuid4()

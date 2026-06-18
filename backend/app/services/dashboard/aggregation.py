@@ -214,6 +214,7 @@ class DashboardAggregationService:
             for loop in loop_rows
             if loop.priority == "high" or loop.type in {"blocked_work", "pending_decision"}
         ][:4]
+        project_names = {project.id: project.name for project in projects}
 
         return PersonalOSOut(
             greeting=f"Good morning, {user.display_name or 'there'}",
@@ -229,7 +230,7 @@ class DashboardAggregationService:
                 for task in priorities[:5]
             ],
             open_loops=loop_rows,
-            recent_progress=recent_activity[:6],
+            recent_progress=self._activity_changes(recent_activity[:6], project_names),
             active_projects=[
                 ReturnContextOut(
                     title=project.name,
@@ -628,6 +629,22 @@ class DashboardAggregationService:
         return items[:10]
 
     @staticmethod
+    def _activity_changes(recent_activity: list[RecentActivityOut], project_names: dict) -> list[ReturnChangeOut]:
+        return [
+            ReturnChangeOut(
+                id=str(item.id),
+                type=item.type,
+                title=item.title,
+                description=item.description,
+                project_id=item.project_id,
+                project_name=project_names.get(item.project_id, "Workspace"),
+                occurred_at=item.occurred_at,
+                href=DashboardAggregationService._activity_href(item),
+            )
+            for item in recent_activity
+        ]
+
+    @staticmethod
     def _return_changes(
         *,
         recent_activity: list[RecentActivityOut],
@@ -639,18 +656,7 @@ class DashboardAggregationService:
         for item in recent_activity:
             if not DashboardAggregationService._after(item.occurred_at, since):
                 continue
-            changes.append(
-                ReturnChangeOut(
-                    id=str(item.id),
-                    type=item.type,
-                    title=item.title,
-                    description=item.description,
-                    project_id=item.project_id,
-                    project_name=project_names.get(item.project_id, "Workspace"),
-                    occurred_at=item.occurred_at,
-                    href=DashboardAggregationService._activity_href(item),
-                )
-            )
+            changes.extend(DashboardAggregationService._activity_changes([item], project_names))
         for event in timeline_events:
             if event.event_date < since.date():
                 continue
