@@ -2,7 +2,7 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 from app.models.user import User
-from app.schemas.onboarding import OnboardingContextIn
+from app.schemas.onboarding import FirstRunIntelligenceIn, OnboardingContextIn
 from app.services.onboarding_service import OnboardingService
 
 
@@ -15,6 +15,25 @@ def test_onboarding_context_trims_lightweight_lists():
 
     assert body.goals == ["Ship launch", "Write memo"]
     assert body.current_priorities == ["First priority", "Second priority"]
+
+
+def test_first_run_payload_keeps_confirmed_understanding():
+    body = FirstRunIntelligenceIn(
+        building="Synzept home",
+        top_goals=[" Make users feel understood "],
+        current_focus="Onboarding",
+        important_projects=[" First 60 seconds "],
+        success_90_days="Activated users return daily.",
+        struggling_with="Too much setup",
+        help_continue="Continue onboarding",
+        generated_current_mission="Make Synzept feel like it already knows the user.",
+        generated_open_loops=[" Clarify first moment ", "", "Generate Daily Brief"],
+        generated_suggested_actions=[" Review onboarding flow ", "Ship Home V3 handoff"],
+    )
+
+    assert body.generated_current_mission == "Make Synzept feel like it already knows the user."
+    assert body.generated_open_loops == ["Clarify first moment", "Generate Daily Brief"]
+    assert body.generated_suggested_actions == ["Review onboarding flow", "Ship Home V3 handoff"]
 
 
 def test_onboarding_progress_tracks_resume_and_initialized_systems():

@@ -34,6 +34,7 @@ from app.schemas.onboarding import (
 from app.schemas.goal import GoalCreate
 from app.schemas.task import TaskCreate
 from app.services.autonomous_workspace_service import AutonomousWorkspaceService
+from app.services.daily_brief_phase8_service import DailyBriefPhase8Service
 from app.services.daily_summary_service import DailySummaryService
 from app.services.embedding_service import EmbeddingService
 from app.services.goal_progress_service import GoalProgressService
@@ -365,8 +366,17 @@ class OnboardingService:
         name = user.display_name or profile.display_name or user.email.split("@")[0]
         goals = data.top_goals or [data.building]
         project_names = data.important_projects or [data.building]
-        current_mission = f"Build {data.building}".strip()
+        current_mission = (data.generated_current_mission or f"Build {data.building}").strip()
         current_focus = data.current_focus.strip()
+        first_open_loop_titles = data.generated_open_loops or [
+            f"Turn {current_focus} into a concrete next action",
+            f"Resolve the blocker: {data.struggling_with}" if data.struggling_with else f"Define first milestone for {goals[0] if goals else data.building}",
+            f"Track progress toward: {data.success_90_days[:120]}",
+        ]
+        first_suggested_actions = data.generated_suggested_actions or [
+            f"Spend 25 minutes on: {current_focus}",
+            f"Write the next visible milestone for {goals[0] if goals else data.building}",
+        ]
 
         user.display_name = name
         user.profile_summary = truncate(
@@ -375,6 +385,8 @@ class OnboardingService:
                     f"Current mission: {current_mission}",
                     f"Current focus: {current_focus}",
                     "Top goals: " + "; ".join(goals[:5]),
+                    f"Current blocker: {data.struggling_with}" if data.struggling_with else "",
+                    f"Help continue: {data.help_continue}" if data.help_continue else "",
                     f"90-day success: {data.success_90_days}",
                 ]
             ),
@@ -383,12 +395,17 @@ class OnboardingService:
         profile.display_name = name
         profile.goals = goals[:5]
         profile.summary = user.profile_summary
-        profile.routines = {"priorities": [current_focus, *goals[:3]][:5]}
-        profile.work_preferences = {"primary_role": data.building, "work_type": "first_run_intelligence"}
+        profile.routines = {"priorities": [current_focus, *first_suggested_actions, *goals[:3]][:5]}
+        profile.work_preferences = {
+            "primary_role": data.building,
+            "work_type": "first_run_intelligence",
+            "current_blocker": data.struggling_with,
+            "help_continue": data.help_continue,
+        }
 
         projects = await self._seed_first_run_projects(user, project_names, current_focus, data.success_90_days)
         goals_created = await self._seed_first_run_goals(user.id, goals, projects, data.success_90_days)
-        open_loops = await self._seed_first_run_open_loops(projects, goals, current_focus, data.success_90_days)
+        open_loops = await self._seed_first_run_open_loops(projects, goals, current_focus, data.success_90_days, first_open_loop_titles)
         await self._seed_first_run_understanding(
             user.id,
             current_mission=current_mission,
@@ -397,6 +414,9 @@ class OnboardingService:
             projects=projects,
             open_loops=open_loops,
             success_90_days=data.success_90_days,
+            first_suggested_actions=first_suggested_actions,
+            struggling_with=data.struggling_with,
+            help_continue=data.help_continue,
         )
         await self.initialize_memories(user)
 
@@ -408,10 +428,23 @@ class OnboardingService:
                 logger.warning("First-run autonomous plan generation failed: %s", exc)
 
         weekly = await AutonomousWorkspaceService(self.session).weekly_plan(user.id)
-        first_actions = [item.title for item in weekly.this_week[:4]] or [
+        try:
+            await DailyBriefPhase8Service(self.session).refresh(user.id)
+        except Exception as exc:
+            logger.warning("First-run daily brief generation failed: %s", exc)
+        weekly_actions = [item.title for item in weekly.this_week[:4]]
+        first_actions = list(dict.fromkeys([*first_suggested_actions, *weekly_actions]))[:5] or [
             f"Clarify the first milestone for {goals[0]}",
             f"Spend 25 minutes moving {current_focus} forward",
         ]
+        first_daily_brief = {
+            "greeting": f"Good Morning, {name}",
+            "whatChanged": "Synzept created your first operating context from your answers.",
+            "whatMattersToday": current_focus,
+            "openLoopsRequiringAttention": [loop.title for loop in open_loops[:5]],
+            "recommendedNextAction": first_actions[0] if first_actions else current_focus,
+            "focusForToday": current_focus,
+        }
         welcome_brief = {
             "currentMission": current_mission,
             "currentFocus": current_focus,
@@ -419,6 +452,7 @@ class OnboardingService:
             "activeProjects": [project.name for project in projects[:5]],
             "openLoops": [loop.title for loop in open_loops[:5]],
             "suggestedFirstActions": first_actions,
+            "dailyBrief": first_daily_brief,
             "initialWeeklyPlan": {
                 "thisWeek": [item.title for item in weekly.this_week[:5]],
                 "nextWeek": [item.title for item in weekly.next_week[:5]],
@@ -446,6 +480,18 @@ class OnboardingService:
             event_type="first_run_intelligence_completed",
             step="complete",
             metadata={"goals": len(goals), "projects": len(projects), "open_loops": len(open_loops)},
+        )
+        await self.analytics.track(
+            user_id=user.id,
+            event_type="first_run_activation_completed",
+            step="activation",
+            metadata={
+                "generated": ["current_mission", "current_focus", "open_loops", "suggested_actions", "daily_brief", "active_projects", "weekly_plan"],
+                "goals": len(goals),
+                "projects": len(projects),
+                "open_loops": len(open_loops),
+                "first_actions": len(first_actions),
+            },
         )
 
         return OnboardingCompleteOut(
@@ -575,15 +621,16 @@ class OnboardingService:
         goals: list[str],
         current_focus: str,
         success_90_days: str,
+        loop_titles: list[str] | None = None,
     ) -> list[OpenLoop]:
         if not projects:
             return []
         project = projects[0]
-        titles = [
+        titles = (loop_titles or [
             f"Turn {current_focus} into a concrete next action",
             f"Define first milestone for {goals[0] if goals else project.name}",
             f"Track 90-day success: {success_90_days[:120]}",
-        ]
+        ])[:5]
         existing = await self.session.execute(
             select(OpenLoop).where(OpenLoop.project_id == project.id, OpenLoop.title.in_(titles))
         )
@@ -608,7 +655,11 @@ class OnboardingService:
         projects: list[Project],
         open_loops: list[OpenLoop],
         success_90_days: str,
+        first_suggested_actions: list[str] | None = None,
+        struggling_with: str | None = None,
+        help_continue: str | None = None,
     ) -> None:
+        suggested_actions = first_suggested_actions or [current_focus]
         entries = [
             ("current_mission", "Current Mission", current_mission, {"statement": current_mission}),
             ("current_focus", "Current Focus", current_focus, {"statement": current_focus}),
@@ -616,8 +667,12 @@ class OnboardingService:
             ("active_projects", "Active Projects", "; ".join(project.name for project in projects[:5]), {"items": [project.name for project in projects[:5]]}),
             ("open_loops", "Initial Open Loops", "; ".join(loop.title for loop in open_loops[:5]), {"items": [loop.title for loop in open_loops[:5]]}),
             ("success_metrics", "90-Day Success", success_90_days, {"statement": success_90_days}),
-            ("next_suggested_actions", "Suggested First Actions", f"Start with: {current_focus}", {"items": [current_focus]}),
+            ("next_suggested_actions", "Suggested First Actions", "; ".join(suggested_actions[:5]), {"items": suggested_actions[:5]}),
         ]
+        if struggling_with:
+            entries.append(("current_blockers", "Current Blockers", struggling_with, {"statement": struggling_with}))
+        if help_continue:
+            entries.append(("continuity_request", "What To Continue", help_continue, {"statement": help_continue}))
         for category, title, value, payload in entries:
             await self._upsert_understanding(user_id, category, title, value, payload)
 

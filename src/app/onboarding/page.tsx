@@ -53,6 +53,14 @@ type WelcomeBrief = {
   suggestedFirstActions?: string[];
   topGoals?: string[];
   activeProjects?: string[];
+  dailyBrief?: {
+    greeting?: string;
+    whatChanged?: string;
+    whatMattersToday?: string;
+    openLoopsRequiringAttention?: string[];
+    recommendedNextAction?: string;
+    focusForToday?: string;
+  };
   initialWeeklyPlan?: { thisWeek?: string[]; nextWeek?: string[]; priorityFocus?: string };
 };
 
@@ -166,8 +174,8 @@ export default function OnboardingPage() {
         <header className="flex items-center justify-between gap-4">
           <BrandLogo imageClassName="h-9" />
           <div className="hidden text-right sm:block">
-            <p className="text-xs font-medium uppercase tracking-[0.16em] text-stone-400">Onboarding 2.0</p>
-            <p className="text-sm text-stone-500">Activated in under 2 minutes</p>
+            <p className="text-xs font-medium uppercase tracking-[0.16em] text-stone-400">First 60 seconds</p>
+            <p className="text-sm text-stone-500">Synzept learns where you are headed</p>
           </div>
         </header>
 
@@ -183,8 +191,8 @@ export default function OnboardingPage() {
               <StepShell key="capture">
                 <StepHeading
                   eyebrow="Start with where you are"
-                  title="Tell Synzept the work you want to continue."
-                  text="Four answers are enough to create your first mission, focus, open loops, and next actions."
+                  title="Tell Synzept what you want to continue."
+                  text="Four answers are enough to create your first mission, focus, open loops, suggested actions, and Daily Brief."
                 />
                 <div className="grid gap-4 lg:grid-cols-2">
                   {QUESTIONS.map((question) => (
@@ -199,10 +207,10 @@ export default function OnboardingPage() {
                 </div>
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                   <Button onClick={generateUnderstanding} disabled={busy}>
-                    Generate understanding
+                    Create my first understanding
                     <Sparkles className="ml-2 h-4 w-4" />
                   </Button>
-                  <p className="text-sm leading-6 text-stone-500">No dashboards. No setup maze. Just enough context to begin.</p>
+                  <p className="text-sm leading-6 text-stone-500">No setup maze. Just enough context to begin.</p>
                 </div>
               </StepShell>
             )}
@@ -210,8 +218,8 @@ export default function OnboardingPage() {
             {step === "review" && understanding && (
               <StepShell key="review">
                 <StepHeading
-                  eyebrow="Here's what I understand about you"
-                  title="Synzept already has your first operating context."
+                  eyebrow="Here's what I understand about you."
+                  title="Synzept already knows the shape of your work."
                   text="Edit anything that feels off. Confirm when this matches where you are headed."
                 />
                 <UnderstandingEditor value={understanding} onChange={setUnderstanding} />
@@ -232,7 +240,7 @@ export default function OnboardingPage() {
               <StepShell key="brief">
                 <FirstBrief brief={welcomeBrief} fallback={understanding || buildUnderstanding(answers)} />
                 <Button onClick={() => router.replace("/dashboard")}>
-                  Open Synzept Home
+                  Continue to Home
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </StepShell>
@@ -362,19 +370,26 @@ function FirstBrief({ brief, fallback }: { brief: WelcomeBrief | null; fallback:
   const focus = brief?.currentFocus || fallback.currentFocus;
   const loops = brief?.openLoops?.length ? brief.openLoops : fallback.openLoops;
   const actions = brief?.suggestedFirstActions?.length ? brief.suggestedFirstActions : fallback.suggestedActions;
-  const daily = brief?.initialWeeklyPlan?.priorityFocus || focus;
+  const daily = brief?.dailyBrief;
+  const whatChanged = daily?.whatChanged || "Synzept created your first operating context from your answers.";
+  const whatMatters = daily?.whatMattersToday || focus;
+  const loopsRequiringAttention = daily?.openLoopsRequiringAttention?.length ? daily.openLoopsRequiringAttention : loops;
+  const recommendedAction = daily?.recommendedNextAction || actions[0] || focus;
+  const focusForToday = daily?.focusForToday || brief?.initialWeeklyPlan?.priorityFocus || focus;
 
   return (
     <section className="rounded-lg bg-stone-950 p-5 text-white shadow-[0_18px_60px_rgba(32,31,28,0.18)] sm:p-7">
-      <p className="text-xs font-medium uppercase tracking-[0.16em] text-stone-400">First Daily Brief generated</p>
+      <p className="text-xs font-medium uppercase tracking-[0.16em] text-stone-400">{daily?.greeting || "Good Morning"}</p>
       <h1 className="mt-3 max-w-3xl text-3xl font-semibold leading-tight tracking-normal sm:text-5xl">
-        Synzept knows where you are headed.
+        Your first Daily Brief is ready.
       </h1>
       <p className="mt-4 max-w-3xl text-lg leading-8 text-stone-100">{mission}</p>
       <div className="mt-7 grid gap-3 lg:grid-cols-2">
-        <BriefBlock title="Today's Focus" items={[daily]} />
-        <BriefBlock title="Current Focus" items={[focus]} />
-        <BriefBlock title="Open Loops" items={loops} />
+        <BriefBlock title="What Changed" items={[whatChanged]} />
+        <BriefBlock title="What Matters Today" items={[whatMatters]} />
+        <BriefBlock title="Open Loops Requiring Attention" items={loopsRequiringAttention} />
+        <BriefBlock title="Recommended Next Action" items={[recommendedAction]} />
+        <BriefBlock title="Focus For Today" items={[focusForToday]} />
         <BriefBlock title="Suggested Actions" items={actions} />
       </div>
     </section>

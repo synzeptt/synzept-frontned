@@ -40,8 +40,13 @@ class FirstRunIntelligenceIn(BaseModel):
     current_focus: str = Field(min_length=1, max_length=500)
     important_projects: list[str] = Field(default_factory=list)
     success_90_days: str = Field(min_length=1, max_length=1000)
+    struggling_with: str | None = Field(default=None, max_length=1000)
+    help_continue: str | None = Field(default=None, max_length=1000)
+    generated_current_mission: str | None = Field(default=None, max_length=1000)
+    generated_open_loops: list[str] = Field(default_factory=list)
+    generated_suggested_actions: list[str] = Field(default_factory=list)
 
-    @field_validator("top_goals", "important_projects")
+    @field_validator("top_goals", "important_projects", "generated_open_loops", "generated_suggested_actions")
     @classmethod
     def trim_first_run_lists(cls, value: list[str]) -> list[str]:
         return [v.strip() for v in value if v and v.strip()][:5]
@@ -65,6 +70,10 @@ class OnboardingAnalyticsSummary(BaseModel):
     first_ai_interaction_success: bool = False
     first_project_created: bool = False
     first_memory_initialized: bool = False
+    day_1_activation: bool = False
+    day_7_retention: bool = False
+    daily_brief_opens: int = 0
+    open_loop_completions: int = 0
     events_tracked: int = 0
 
 
