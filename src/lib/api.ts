@@ -1184,6 +1184,9 @@ export type ProductAnalyticsRetention = {
   signupCohort: number;
   returnedUsers: number;
   retentionRate: number;
+  day1: number;
+  day7: number;
+  day30: number;
 };
 
 export type ProductAnalyticsOnboarding = {
@@ -1192,6 +1195,28 @@ export type ProductAnalyticsOnboarding = {
   firstMemory: number;
   firstReturnVisit: number;
   onboardingCompleted: number;
+};
+
+export type FounderUsers = {
+  totalUsers: number;
+  newUsers: number;
+  activeUsers: number;
+};
+
+export type FounderActivation = {
+  completedOnboarding: number;
+  createdFirstMission: number;
+  returnedNextDay: number;
+  completedOnboardingRate: number;
+  createdFirstMissionRate: number;
+  returnedNextDayRate: number;
+};
+
+export type FounderAlert = {
+  title: string;
+  detail: string;
+  severity: "low" | "medium" | "high" | string;
+  metric: string;
 };
 
 export type ProductAnalyticsDropOff = {
@@ -1246,12 +1271,17 @@ export type FeatureRequest = {
 
 export type ProductAnalytics = {
   windowDays: number;
+  users: FounderUsers;
+  activation: FounderActivation;
   metrics: ProductAnalyticsMetric[];
   funnel: ProductAnalyticsFunnelStep[];
   dropOffs: ProductAnalyticsDropOff[];
   daily: ProductAnalyticsDailyPoint[];
   feedback: FeedbackIntelligence;
   mostUsedFeatures: ProductAnalyticsFeatureUsage[];
+  leastUsedFeatures: ProductAnalyticsFeatureUsage[];
+  confusingAreas: FeedbackSignal[];
+  founderAlerts: FounderAlert[];
   retention: ProductAnalyticsRetention;
   onboarding: ProductAnalyticsOnboarding;
 };

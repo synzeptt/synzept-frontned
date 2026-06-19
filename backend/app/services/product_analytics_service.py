@@ -51,6 +51,10 @@ class ProductAnalyticsService:
         previous_onboarding_completed = await self._distinct_event_users(previous_start, previous_end, *EVENTS["onboardingCompleted"])
         dau = await self._active_users(today, today)
         wau = await self._active_users(today - timedelta(days=6), today)
+        total_users = await self._total_users()
+        active_users = await self._active_users(start, today)
+        first_mission = await self._distinct_event_users(start, today, "first_run_intelligence_completed", "onboarding_2_confirmed")
+        returned_next_day = await self._returned_after_days(start, today, 1)
 
         metrics = [
             self._metric("signups", "Signups", current_counts["signups"], previous_counts["signups"]),
@@ -79,17 +83,50 @@ class ProductAnalyticsService:
             ("payment_successful", "Successful Payment", current_counts["successfulPayments"]),
         ]
         funnel = self._funnel(funnel_counts)
+        retention = await self._retention(start, today)
+        most_used = await self._feature_usage(start, today, most_used=True)
+        least_used = await self._feature_usage(start, today, most_used=False)
+        feedback = build_feedback_intelligence(await _feedback_since(self.session, start), await _vote_counts(self.session))
+        activation = {
+            "completedOnboarding": onboarding["onboardingCompleted"],
+            "createdFirstMission": first_mission,
+            "returnedNextDay": returned_next_day,
+            "completedOnboardingRate": self._rate(onboarding["onboardingCompleted"], current_counts["signups"]),
+            "createdFirstMissionRate": self._rate(first_mission, current_counts["signups"]),
+            "returnedNextDayRate": self._rate(returned_next_day, current_counts["signups"]),
+        }
         return {
             "windowDays": window_days,
+            "users": {
+                "totalUsers": total_users,
+                "newUsers": current_counts["signups"],
+                "activeUsers": active_users,
+            },
+            "activation": activation,
             "metrics": metrics,
             "funnel": funnel,
             "dropOffs": self._drop_offs(funnel),
             "daily": await self._daily_points(start, today),
-            "feedback": build_feedback_intelligence(await _feedback_since(self.session, start), await _vote_counts(self.session)),
-            "mostUsedFeatures": await self._most_used_features(start, today),
-            "retention": await self._retention(start, today),
+            "feedback": feedback,
+            "mostUsedFeatures": most_used,
+            "leastUsedFeatures": least_used,
+            "confusingAreas": self._confusing_areas(feedback),
+            "founderAlerts": self._founder_alerts(
+                signups=current_counts["signups"],
+                active_users=active_users,
+                activation=activation,
+                retention=retention,
+                most_used=most_used,
+                least_used=least_used,
+                feedback=feedback,
+            ),
+            "retention": retention,
             "onboarding": onboarding,
         }
+
+    async def _total_users(self) -> int:
+        result = await self.session.execute(select(func.count(User.id)).where(User.deleted_at.is_(None)))
+        return int(result.scalar() or 0)
 
     async def _window_counts(self, start: date, end: date) -> dict[str, int]:
         counts = defaultdict(int)
@@ -159,7 +196,7 @@ class ProductAnalyticsService:
             point["activeUsers"] = await self._active_users(day, day)
         return [points[key] for key in sorted(points)]
 
-    async def _most_used_features(self, start: date, end: date) -> list[dict]:
+    async def _feature_usage(self, start: date, end: date, *, most_used: bool) -> list[dict]:
         result = await self.session.execute(
             select(
                 UsageEvent.surface,
@@ -184,7 +221,7 @@ class ProductAnalyticsService:
             }
             for surface, events, users, seconds in result.all()
         ]
-        return sorted(rows, key=lambda item: (item["users"], item["events"], item["timeSpentSeconds"]), reverse=True)[:12]
+        return sorted(rows, key=lambda item: (item["users"], item["events"], item["timeSpentSeconds"]), reverse=most_used)[:12]
 
     async def _retention(self, start: date, end: date) -> dict:
         signup_users = await self.session.execute(
@@ -195,7 +232,7 @@ class ProductAnalyticsService:
         )
         cohort = {user_id for user_id in signup_users.scalars()}
         if not cohort:
-            return {"signupCohort": 0, "returnedUsers": 0, "retentionRate": 0}
+            return {"signupCohort": 0, "returnedUsers": 0, "retentionRate": 0, "day1": 0, "day7": 0, "day30": 0}
         returned = await self.session.execute(
             select(distinct(UsageEvent.user_id)).where(
                 UsageEvent.user_id.in_(cohort),
@@ -209,7 +246,126 @@ class ProductAnalyticsService:
             "signupCohort": len(cohort),
             "returnedUsers": len(returned_users),
             "retentionRate": round(len(returned_users) / len(cohort) * 100, 1),
+            "day1": await self._retention_after_days(cohort, 1),
+            "day7": await self._retention_after_days(cohort, 7),
+            "day30": await self._retention_after_days(cohort, 30),
         }
+
+    async def _returned_after_days(self, start: date, end: date, days_after_signup: int) -> int:
+        signup_rows = await self.session.execute(
+            select(User.id, func.date(User.created_at)).where(
+                func.date(User.created_at) >= start.isoformat(),
+                func.date(User.created_at) <= end.isoformat(),
+            )
+        )
+        users_by_target: dict[str, set] = defaultdict(set)
+        for user_id, signup_day in signup_rows.all():
+            target = date.fromisoformat(str(signup_day)) + timedelta(days=days_after_signup)
+            if target <= end:
+                users_by_target[target.isoformat()].add(user_id)
+        returned: set = set()
+        for target, users in users_by_target.items():
+            result = await self.session.execute(
+                select(distinct(UsageEvent.user_id)).where(
+                    UsageEvent.user_id.in_(users),
+                    UsageEvent.event_type.in_(("daily_active", "dashboard_loaded", "page_view", "return_session", "first_return_visit")),
+                    func.date(UsageEvent.created_at) == target.isoformat(),
+                )
+            )
+            returned.update(user_id for user_id in result.scalars() if user_id)
+        return len(returned)
+
+    async def _retention_after_days(self, cohort: set, days_after_signup: int) -> float:
+        if not cohort:
+            return 0
+        signup_rows = await self.session.execute(select(User.id, func.date(User.created_at)).where(User.id.in_(cohort)))
+        eligible = 0
+        returned: set = set()
+        today = date.today()
+        for user_id, signup_day in signup_rows.all():
+            target = date.fromisoformat(str(signup_day)) + timedelta(days=days_after_signup)
+            if target > today:
+                continue
+            eligible += 1
+            result = await self.session.execute(
+                select(UsageEvent.user_id).where(
+                    UsageEvent.user_id == user_id,
+                    UsageEvent.event_type.in_(("daily_active", "dashboard_loaded", "page_view", "return_session", "first_return_visit")),
+                    func.date(UsageEvent.created_at) == target.isoformat(),
+                ).limit(1)
+            )
+            if result.scalar_one_or_none():
+                returned.add(user_id)
+        return self._rate(len(returned), eligible)
+
+    @staticmethod
+    def _confusing_areas(feedback: dict) -> list[dict]:
+        rows = [
+            *feedback.get("most_common_frustrations", []),
+            *feedback.get("top_reported_issues", []),
+        ]
+        confusing = [
+            row for row in rows
+            if any(word in f"{row.get('title', '')} {row.get('detail', '')}".casefold() for word in ("confusing", "unclear", "hard", "lost", "where", "understand"))
+        ]
+        return confusing[:8] or rows[:8]
+
+    def _founder_alerts(
+        self,
+        *,
+        signups: int,
+        active_users: int,
+        activation: dict,
+        retention: dict,
+        most_used: list[dict],
+        least_used: list[dict],
+        feedback: dict,
+    ) -> list[dict]:
+        alerts: list[dict] = []
+        incomplete_rate = round(100 - activation["completedOnboardingRate"], 1) if signups else 0
+        if signups and incomplete_rate >= 50:
+            alerts.append({
+                "title": f"{incomplete_rate}% of users never finish onboarding",
+                "detail": f"{activation['completedOnboarding']} of {signups} new users completed onboarding in this window.",
+                "severity": "high" if incomplete_rate >= 80 else "medium",
+                "metric": "activation",
+            })
+        daily_brief = next((item for item in most_used if item["feature"] == "daily_brief"), None)
+        if active_users and daily_brief:
+            rate = self._rate(daily_brief["users"], active_users)
+            alerts.append({
+                "title": f"Daily Brief is used by {rate}% of active users",
+                "detail": f"{daily_brief['users']} active users opened Daily Brief.",
+                "severity": "low" if rate >= 50 else "medium",
+                "metric": "daily_brief",
+            })
+        open_loops = next((item for item in [*most_used, *least_used] if item["feature"] in {"open_loops", "open-loops"}), None)
+        if active_users and (not open_loops or self._rate(open_loops["users"], active_users) < 20):
+            alerts.append({
+                "title": "Open Loops page has low engagement",
+                "detail": "Users may not be discovering unfinished work as a daily habit.",
+                "severity": "medium",
+                "metric": "open_loops",
+            })
+        if retention.get("day7", 0) < 20 and signups:
+            alerts.append({
+                "title": f"Day 7 retention is {retention.get('day7', 0)}%",
+                "detail": "The product is not yet creating a strong weekly return loop.",
+                "severity": "high",
+                "metric": "retention",
+            })
+        for item in feedback.get("most_common_frustrations", [])[:2]:
+            alerts.append({
+                "title": item.get("title", "User confusion detected"),
+                "detail": item.get("detail", "Feedback suggests this area needs attention."),
+                "severity": "medium",
+                "metric": "feedback",
+            })
+        return alerts[:8]
+
+    @staticmethod
+    def _rate(value: int, total: int) -> float:
+        return round(value / total * 100, 1) if total else 0
 
     @staticmethod
     def _metric(key: str, label: str, value: int, previous: int) -> dict:
