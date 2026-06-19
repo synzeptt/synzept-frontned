@@ -803,6 +803,25 @@ export type ContinuityMode = {
   context_used: Record<string, number>;
 };
 
+export type ContinueContextCard = {
+  id: string;
+  kind: string;
+  title: string;
+  last_activity: string;
+  current_status: string;
+  continue_label: string;
+  href: string;
+  project_id: string | null;
+  prompt: string;
+};
+
+export type ContinueContext = {
+  headline: string;
+  summary: string;
+  cards: ContinueContextCard[];
+  context_used: Record<string, number>;
+};
+
 export type ProjectContext = {
   project: Project;
   conversations: Conversation[];
@@ -1498,6 +1517,7 @@ export const api = {
   generateAutonomousSuggestions: () =>
     request<AutonomousSuggestion[]>("/api/v2/autonomous-workspace/suggestions/generate", { method: "POST" }),
   getContinuityMode: () => request<ContinuityMode>("/api/v2/continuity-mode"),
+  getContinueContext: () => request<ContinueContext>("/api/v1/continue/context"),
   getContinuityAssistant: () => request<ContinuityAssistant>("/api/v2/continuity-assistant/overview"),
   listUserUnderstanding: () => request<UserUnderstandingItem[]>("/api/v2/user-understanding"),
   getUserUnderstandingProfile: () => request<UserUnderstandingProfile>("/api/v2/user-understanding/profile"),

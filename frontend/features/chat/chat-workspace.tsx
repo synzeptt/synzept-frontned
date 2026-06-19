@@ -11,6 +11,7 @@ import { useChatStore } from "@/stores/chat";
 import { useAutoScroll } from "@frontend/hooks/use-auto-scroll";
 
 const CHAT_DRAFT_KEY = "synzept_chat_draft";
+const CONTINUE_PROJECT_KEY = "synzept_continue_project_id";
 
 export function ChatWorkspace() {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -81,7 +82,12 @@ export function ChatWorkspace() {
   useEffect(() => {
     const saved = localStorage.getItem(CHAT_DRAFT_KEY);
     if (saved) setInput(saved);
-  }, []);
+    const projectId = localStorage.getItem(CONTINUE_PROJECT_KEY);
+    if (projectId) {
+      setActiveProject(projectId);
+      localStorage.removeItem(CONTINUE_PROJECT_KEY);
+    }
+  }, [setActiveProject]);
 
   useEffect(() => {
     if (input.trim()) {

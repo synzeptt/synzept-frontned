@@ -3,21 +3,23 @@
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowUp, Loader2, MessageSquare, MoveRight } from "lucide-react";
+import { ArrowRight, ArrowUp, Loader2, MessageSquare, MoveRight } from "lucide-react";
 import { RecoveryBanner } from "@/components/ui/recovery-banner";
 import { Skeleton } from "@/components/ui/skeleton";
-import { api, type Conversation, type Dashboard, type ReturnContext, type ReturnOpenLoop } from "@/lib/api";
+import { api, type ContinueContext, type ContinueContextCard, type Conversation, type Dashboard, type ReturnContext, type ReturnOpenLoop } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { useAuthStore } from "@/stores/auth";
 import { useWorkspaceStore } from "@/stores/workspace";
 import { PageFrame } from "@frontend/components/layout/page-frame";
 
 const CHAT_DRAFT_KEY = "synzept_chat_draft";
+const CONTINUE_PROJECT_KEY = "synzept_continue_project_id";
 
 export function DashboardPage() {
   const router = useRouter();
   const { dashboard, isLoading, hasFreshDashboard, setDashboard, setLoading } = useWorkspaceStore();
   const user = useAuthStore((state) => state.user);
+  const [continueContext, setContinueContext] = useState<ContinueContext | null>(null);
   const [prompt, setPrompt] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
@@ -38,6 +40,10 @@ export function DashboardPage() {
   }, [dashboard, hasFreshDashboard, load]);
 
   useEffect(() => {
+    api.getContinueContext().then(setContinueContext).catch(() => setContinueContext(null));
+  }, []);
+
+  useEffect(() => {
     if (!dashboard) return;
     void api.trackEvent("home_v3_loaded", "home", {
       open_loops: dashboard.personal_os?.open_loops?.length ?? 0,
@@ -47,6 +53,18 @@ export function DashboardPage() {
   }, [dashboard]);
 
   const home = useMemo(() => getHomeContext(dashboard, user?.display_name || null), [dashboard, user?.display_name]);
+
+  const continueCard = (card: ContinueContextCard) => {
+    localStorage.setItem(CHAT_DRAFT_KEY, card.prompt);
+    if (card.project_id) localStorage.setItem(CONTINUE_PROJECT_KEY, card.project_id);
+    void api.trackEvent("continue_card_opened", "home", {
+      card_id: card.id,
+      kind: card.kind,
+      project_id: card.project_id,
+      context_used: continueContext?.context_used ?? {},
+    });
+    router.push("/chat");
+  };
 
   const continueInChat = () => {
     const text = prompt.trim() || home.suggestedAction.title;
@@ -77,9 +95,11 @@ export function DashboardPage() {
               </div>
 
               <ContinueWorkspace
-                projects={home.recentProjects}
-                conversations={home.recentConversations}
-                decisions={home.recentDecisions}
+                context={continueContext}
+                fallbackProjects={home.recentProjects}
+                fallbackConversations={home.recentConversations}
+                fallbackDecisions={home.recentDecisions}
+                onContinue={continueCard}
               />
 
               <PrimaryChatInput prompt={prompt} setPrompt={setPrompt} onContinue={continueInChat} />
@@ -201,45 +221,57 @@ function SuggestedActionCard({ action, onContinue }: { action: HomeAction; onCon
 }
 
 function ContinueWorkspace({
-  projects,
-  conversations,
-  decisions,
+  context,
+  fallbackProjects,
+  fallbackConversations,
+  fallbackDecisions,
+  onContinue,
 }: {
-  projects: HomeItem[];
-  conversations: HomeItem[];
-  decisions: HomeItem[];
+  context: ContinueContext | null;
+  fallbackProjects: HomeItem[];
+  fallbackConversations: HomeItem[];
+  fallbackDecisions: HomeItem[];
+  onContinue: (card: ContinueContextCard) => void;
 }) {
+  const cards = context?.cards?.length ? context.cards : fallbackContinueCards(fallbackProjects, fallbackConversations, fallbackDecisions);
   return (
     <section>
       <div className="mb-3 flex items-end justify-between gap-3">
         <div>
-          <p className="text-xs font-medium uppercase tracking-[0.14em] text-stone-400">Continue Workspace</p>
-          <h2 className="mt-1 text-xl font-semibold text-stone-950">Recent context</h2>
+          <p className="text-xs font-medium uppercase tracking-[0.14em] text-stone-400">Continue System</p>
+          <h2 className="mt-1 text-xl font-semibold text-stone-950">{context?.headline || "Continue where you left off"}</h2>
         </div>
       </div>
-      <div className="grid gap-4 lg:grid-cols-3">
-        <WorkspaceList title="Recent projects" items={projects} />
-        <WorkspaceList title="Recent conversations" items={conversations} />
-        <WorkspaceList title="Recent decisions" items={decisions} />
+      {context?.summary ? <p className="mb-4 max-w-3xl text-sm leading-6 text-stone-500">{context.summary}</p> : null}
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {cards.map((card) => (
+          <ContinueCard key={card.id} card={card} onContinue={() => onContinue(card)} />
+        ))}
       </div>
     </section>
   );
 }
 
-function WorkspaceList({ title, items }: { title: string; items: HomeItem[] }) {
+function ContinueCard({ card, onContinue }: { card: ContinueContextCard; onContinue: () => void }) {
   return (
-    <HomeCard title={title} compact>
-      <div className="space-y-2">
-        {items.map((item, index) => (
-          <LinkedRow key={`${item.title}-${index}`} href={item.href} compact>
-            <span className="min-w-0">
-              <span className="block truncate text-sm font-medium text-stone-950">{item.title}</span>
-              {item.detail ? <span className="mt-1 line-clamp-2 block text-xs leading-5 text-stone-500">{item.detail}</span> : null}
-            </span>
-          </LinkedRow>
-        ))}
+    <article className="flex min-h-[230px] flex-col justify-between rounded-lg border border-stone-200 bg-white p-4 shadow-[0_10px_30px_rgba(32,31,28,0.05)]">
+      <div>
+        <p className="text-xs font-medium uppercase tracking-[0.14em] text-stone-400">{card.last_activity}</p>
+        <h3 className="mt-3 text-xl font-semibold leading-tight text-stone-950">{card.title}</h3>
+        <div className="mt-4 rounded-md bg-stone-50 px-3 py-3">
+          <p className="text-xs font-medium uppercase tracking-[0.12em] text-stone-400">Current status</p>
+          <p className="mt-2 line-clamp-4 text-sm leading-6 text-stone-600">{card.current_status}</p>
+        </div>
       </div>
-    </HomeCard>
+      <button
+        type="button"
+        onClick={onContinue}
+        className="mt-5 inline-flex h-11 items-center justify-center gap-2 rounded-md bg-stone-950 px-4 text-sm font-medium text-white transition hover:bg-stone-800"
+      >
+        {card.continue_label || "Continue"}
+        <ArrowRight className="h-4 w-4" />
+      </button>
+    </article>
   );
 }
 
@@ -538,6 +570,61 @@ function normalizeAction(action: HomeAction | undefined, fallback: HomeItem): Ho
     reason: fallback?.detail || "This is the highest value next move Synzept can see right now.",
     href: fallback?.href || "/chat",
   };
+}
+
+function fallbackContinueCards(projects: HomeItem[], conversations: HomeItem[], decisions: HomeItem[]): ContinueContextCard[] {
+  const project = projects[0];
+  const conversation = conversations[0];
+  const decision = decisions[0];
+  const prompt = (intent: string, status: string) =>
+    `${intent}\n\nLoaded continuity context:\n- Current status: ${status}\n- Recent project: ${project?.title || "No active project yet"}\n- Recent conversation: ${conversation?.title || "No recent conversation yet"}\n- Recent decision: ${decision?.title || "No recent decision yet"}\n\nDo not ask me to re-explain. Help me continue from here.`;
+
+  return [
+    {
+      id: "synzept",
+      kind: "synzept",
+      title: "Continue Building Synzept",
+      last_activity: "Ready now",
+      current_status: project?.detail || "Synzept is ready to continue from your current mission.",
+      continue_label: "Continue",
+      href: "/chat",
+      project_id: null,
+      prompt: prompt("Continue building Synzept.", project?.detail || "Ready to continue."),
+    },
+    {
+      id: "project",
+      kind: "project",
+      title: project ? `Continue ${project.title}` : "Continue Current Project",
+      last_activity: "Recent context",
+      current_status: project?.detail || "Create or choose the project Synzept should track.",
+      continue_label: "Continue",
+      href: "/chat",
+      project_id: null,
+      prompt: prompt("Continue the current project.", project?.detail || "No active project yet."),
+    },
+    {
+      id: "goal",
+      kind: "goal",
+      title: "Continue Personal Goal",
+      last_activity: "Current focus",
+      current_status: decision?.detail || "Use the clearest goal and next action Synzept can see.",
+      continue_label: "Continue",
+      href: "/chat",
+      project_id: null,
+      prompt: prompt("Continue the most important personal goal.", decision?.detail || "Goal context is still forming."),
+    },
+    {
+      id: "recent",
+      kind: "recent",
+      title: "Continue Recent Work",
+      last_activity: "Latest thread",
+      current_status: conversation?.detail || "Start from the most recent conversation and continue forward.",
+      continue_label: "Continue",
+      href: "/chat",
+      project_id: null,
+      prompt: prompt("Continue recent work.", conversation?.detail || "No recent thread yet."),
+    },
+  ];
 }
 
 function cleanText(value: string | null | undefined) {

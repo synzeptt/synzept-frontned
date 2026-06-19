@@ -1,12 +1,13 @@
 from fastapi import APIRouter
 
-from app.api.v1 import auth, briefing, chat, conversations, daily, dashboard, feedback, launch, memories, memory, notes, onboarding, projects, tasks
+from app.api.v1 import auth, briefing, chat, continue_context, conversations, daily, dashboard, feedback, launch, memories, memory, notes, onboarding, projects, tasks
 
 api_router = APIRouter(prefix="/api/v1")
 api_router.include_router(auth.router, tags=["auth"])
 api_router.include_router(launch.router, tags=["launch"])
 api_router.include_router(onboarding.router, tags=["onboarding"])
 api_router.include_router(chat.router, tags=["chat"])
+api_router.include_router(continue_context.router, tags=["continue"])
 api_router.include_router(conversations.router, tags=["conversations"])
 api_router.include_router(memories.router, tags=["memories"])
 api_router.include_router(memory.router, tags=["memory-intelligence"])
