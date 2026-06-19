@@ -6,7 +6,7 @@ type AuthState = {
   isLoading: boolean;
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<string>;
-  signup: (email: string, password: string) => Promise<string>;
+  signup: (email: string, password: string, inviteCode?: string) => Promise<string>;
   googleLogin: (idToken: string) => Promise<string>;
   logout: () => Promise<void>;
   deleteAccount: (password: string | undefined, confirmation: string) => Promise<void>;
@@ -30,8 +30,8 @@ export const useAuthStore = create<AuthState>((set) => ({
     return routeAfterAuth(user.onboarding_state);
   },
 
-  signup: async (email, password) => {
-    const tokens = await api.signup(email, password);
+  signup: async (email, password, inviteCode) => {
+    const tokens = inviteCode ? await api.signupWithInvite(email, password, undefined, inviteCode) : await api.signup(email, password);
     setTokens(tokens.access_token, tokens.refresh_token);
     const user = await api.me();
     set({ user, isAuthenticated: true, isLoading: false });

@@ -37,7 +37,36 @@ class InviteOut(ORMModel):
     created_at: datetime
 
 
+class FirstUserSessionOut(BaseModel):
+    user_id: UUID
+    email: str
+    display_name: str | None = None
+    onboarding_state: str
+    created_at: datetime
+    last_activity_at: datetime | None = None
+    session_events: int = 0
+    feedback_items: int = 0
+    interview_completed: bool = False
+    confusing_moments: list[str] = Field(default_factory=list)
+    exciting_moments: list[str] = Field(default_factory=list)
+    drop_off_points: list[str] = Field(default_factory=list)
+    tomorrow_answer: str | None = None
+
+
+class FirstUsersLaunchOut(BaseModel):
+    target_users: int = 10
+    invited_users: int = 0
+    accepted_invites: int = 0
+    signed_up_users: int = 0
+    active_users: int = 0
+    completed_onboarding: int = 0
+    interviews_completed: int = 0
+    sessions_watched: int = 0
+    invite_url_base: str
+    invites: list[InviteOut] = Field(default_factory=list)
+    first_users: list[FirstUserSessionOut] = Field(default_factory=list)
+
+
 class AccessStatus(BaseModel):
     early_access_enabled: bool
     invite_required: bool
-

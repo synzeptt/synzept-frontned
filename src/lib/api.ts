@@ -1286,6 +1286,46 @@ export type ProductAnalytics = {
   onboarding: ProductAnalyticsOnboarding;
 };
 
+export type LaunchInvite = {
+  id: string;
+  code: string;
+  email: string | null;
+  max_uses: number;
+  use_count: number;
+  is_active: boolean;
+  created_at: string;
+};
+
+export type FirstUserSession = {
+  user_id: string;
+  email: string;
+  display_name: string | null;
+  onboarding_state: string;
+  created_at: string;
+  last_activity_at: string | null;
+  session_events: number;
+  feedback_items: number;
+  interview_completed: boolean;
+  confusing_moments: string[];
+  exciting_moments: string[];
+  drop_off_points: string[];
+  tomorrow_answer: string | null;
+};
+
+export type FirstUsersLaunch = {
+  target_users: number;
+  invited_users: number;
+  accepted_invites: number;
+  signed_up_users: number;
+  active_users: number;
+  completed_onboarding: number;
+  interviews_completed: number;
+  sessions_watched: number;
+  invite_url_base: string;
+  invites: LaunchInvite[];
+  first_users: FirstUserSession[];
+};
+
 export type AuthTokens = {
   access_token: string;
   refresh_token: string;
@@ -1571,10 +1611,14 @@ export const api = {
     }),
 
   createInvite: (data: { email?: string; max_uses?: number; notes?: string }) =>
-    request<{ code: string; email: string | null; max_uses: number; use_count: number }>("/api/v1/launch/invites", {
+    request<LaunchInvite>("/api/v1/launch/invites", {
       method: "POST",
       body: JSON.stringify(data),
     }),
+
+  listInvites: () => request<LaunchInvite[]>("/api/v1/launch/invites"),
+
+  getFirstUsersLaunch: () => request<FirstUsersLaunch>("/api/v1/launch/first-users"),
 
   sendFeedback: (data: {
     feedback_type: "issue" | "suggestion" | "feature_request" | "improvement" | "general" | "response_rating" | "memory_issue" | "bug" | "support" | "user_interview";

@@ -18,6 +18,10 @@ export function AuthEntry({ initialMode = "login" }: { initialMode?: "login" | "
   const [mode, setMode] = useState<"login" | "signup">(initialMode);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [inviteCode, setInviteCode] = useState(() => {
+    if (typeof window === "undefined") return "";
+    return new URLSearchParams(window.location.search).get("invite") || "";
+  });
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -29,7 +33,7 @@ export function AuthEntry({ initialMode = "login" }: { initialMode?: "login" | "
       const path =
         mode === "login"
           ? await login(email, password)
-          : await signup(email, password);
+          : await signup(email, password, inviteCode.trim() || undefined);
       router.replace(path);
     } catch (err) {
       const message = err instanceof Error ? err.message : "";
@@ -85,6 +89,16 @@ export function AuthEntry({ initialMode = "login" }: { initialMode?: "login" | "
               </div>
             )}
           </div>
+          {mode === "signup" && (
+            <div>
+              <label className="mb-1.5 block text-xs text-muted">Invite code</label>
+              <Input
+                value={inviteCode}
+                onChange={(e) => setInviteCode(e.target.value)}
+                placeholder="Launch invite code"
+              />
+            </div>
+          )}
           {error && (
             <p className="rounded-md border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
               {error}
