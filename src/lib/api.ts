@@ -1277,6 +1277,11 @@ export type FirstRunIntelligenceInput = {
   current_focus: string;
   important_projects: string[];
   success_90_days: string;
+  struggling_with?: string;
+  help_continue?: string;
+  generated_current_mission?: string;
+  generated_open_loops?: string[];
+  generated_suggested_actions?: string[];
 };
 
 export const api = {
