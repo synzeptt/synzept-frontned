@@ -1,13 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRight, ArrowUp, Loader2, MessageSquare, MoveRight } from "lucide-react";
+import { ArrowRight, ArrowUp, Loader2 } from "lucide-react";
 import { RecoveryBanner } from "@/components/ui/recovery-banner";
-import { Skeleton } from "@/components/ui/skeleton";
 import { api, type ContinueContext, type ContinueContextCard, type Conversation, type Dashboard, type ReturnContext, type ReturnOpenLoop } from "@/lib/api";
-import { cn } from "@/lib/cn";
 import { useAuthStore } from "@/stores/auth";
 import { useWorkspaceStore } from "@/stores/workspace";
 import { PageFrame } from "@frontend/components/layout/page-frame";
@@ -66,8 +63,22 @@ export function DashboardPage() {
     router.push("/chat");
   };
 
+  const continueWorking = () => {
+    const leadCard = continueContext?.cards?.[0];
+    if (leadCard) {
+      continueCard(leadCard);
+      return;
+    }
+    localStorage.setItem(CHAT_DRAFT_KEY, buildMomentPrompt(home));
+    void api.trackEvent("synzept_moment_continue_clicked", "home", {
+      open_loops: home.openLoops.length,
+      recommended_action: home.suggestedAction.title,
+    });
+    router.push("/chat");
+  };
+
   const continueInChat = () => {
-    const text = prompt.trim() || home.suggestedAction.title;
+    const text = prompt.trim() || buildMomentPrompt(home);
     localStorage.setItem(CHAT_DRAFT_KEY, text);
     void api.trackEvent("home_v3_continue_to_chat", "home", { used_custom_prompt: Boolean(prompt.trim()) });
     router.push("/chat");
@@ -78,145 +89,91 @@ export function DashboardPage() {
       <div className="min-h-full bg-white text-stone-950">
         <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8 lg:py-10">
           <RecoveryBanner message={error} onRetry={load} className="mb-5" />
-          {isLoading && !dashboard ? (
-            <HomeSkeleton />
-          ) : (
-            <div className="space-y-6">
-              <WelcomeHeader greeting={home.greeting} missionLine={home.missionLine} />
+          <div className="space-y-6">
+            <SynzeptMoment home={home} loading={isLoading && !dashboard} onContinue={continueWorking} />
 
-              <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
-                <MissionCard mission={home.mission} whyItMatters={home.whyItMatters} progress={home.progress} />
-                <FocusCard priorities={home.priorities} />
-              </div>
+            <ContinueWorkspace
+              context={continueContext}
+              fallbackProjects={home.recentProjects}
+              fallbackConversations={home.recentConversations}
+              fallbackDecisions={home.recentDecisions}
+              onContinue={continueCard}
+            />
 
-              <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
-                <OpenLoopsCard loops={home.openLoops} />
-                <SuggestedActionCard action={home.suggestedAction} onContinue={continueInChat} />
-              </div>
-
-              <ContinueWorkspace
-                context={continueContext}
-                fallbackProjects={home.recentProjects}
-                fallbackConversations={home.recentConversations}
-                fallbackDecisions={home.recentDecisions}
-                onContinue={continueCard}
-              />
-
-              <PrimaryChatInput prompt={prompt} setPrompt={setPrompt} onContinue={continueInChat} />
-            </div>
-          )}
+            <PrimaryChatInput prompt={prompt} setPrompt={setPrompt} onContinue={continueInChat} />
+          </div>
         </div>
       </div>
     </PageFrame>
   );
 }
 
-function WelcomeHeader({ greeting, missionLine }: { greeting: string; missionLine: string }) {
+function SynzeptMoment({ home, loading, onContinue }: { home: HomeContext; loading: boolean; onContinue: () => void }) {
   return (
-    <section className="pt-2 sm:pt-5">
-      <p className="text-base font-medium text-stone-500">{greeting}</p>
-      <h1 className="mt-3 max-w-4xl text-4xl font-semibold leading-tight tracking-normal text-stone-950 sm:text-5xl">
-        {missionLine}
-      </h1>
+    <section className="rounded-lg border border-stone-200 bg-[#fbfbf8] p-5 shadow-[0_18px_54px_rgba(32,31,28,0.08)] sm:p-7">
+      <div className="grid gap-6 lg:grid-cols-[1fr_340px] lg:items-stretch">
+        <div className="space-y-6">
+          <div>
+            <div className="flex flex-wrap items-center gap-3">
+              <p className="text-base font-medium text-stone-500">{home.greeting}</p>
+              {loading ? (
+                <span className="inline-flex items-center gap-1.5 rounded-md bg-white px-2 py-1 text-xs text-stone-500">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Refreshing context
+                </span>
+              ) : null}
+            </div>
+            <h1 className="mt-3 max-w-3xl text-4xl font-semibold leading-tight tracking-normal text-stone-950 sm:text-5xl">
+              Synzept knows where you left off.
+            </h1>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2">
+            <MomentBlock label="Mission" value={home.mission} />
+            <MomentBlock label="Focus" value={home.focus} />
+          </div>
+
+          <div>
+            <p className="text-xs font-medium uppercase tracking-[0.14em] text-stone-400">Open Loops</p>
+            <div className="mt-3 grid gap-2 sm:grid-cols-3">
+              {home.openLoops.slice(0, 3).map((loop) => (
+                <div key={loop.id || loop.title} className="rounded-md bg-white px-3 py-3">
+                  <p className="line-clamp-2 text-sm font-medium text-stone-950">{loop.title}</p>
+                  <p className="mt-1 line-clamp-2 text-xs leading-5 text-stone-500">{loop.nextStep || loop.description || loop.projectName}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <aside className="flex flex-col justify-between rounded-lg bg-stone-950 p-5 text-white">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-[0.14em] text-stone-400">Recommended Next Action</p>
+            <h2 className="mt-3 text-2xl font-semibold leading-tight">{home.suggestedAction.title}</h2>
+            {home.suggestedAction.reason ? (
+              <p className="mt-3 text-sm leading-6 text-stone-300">{home.suggestedAction.reason}</p>
+            ) : null}
+          </div>
+          <button
+            type="button"
+            onClick={onContinue}
+            className="mt-6 inline-flex h-12 items-center justify-center gap-2 rounded-md bg-white px-5 text-sm font-semibold text-stone-950 transition hover:bg-stone-100"
+          >
+            Continue Working
+            <ArrowRight className="h-4 w-4" />
+          </button>
+        </aside>
+      </div>
     </section>
   );
 }
 
-function MissionCard({ mission, whyItMatters, progress }: { mission: string; whyItMatters: string; progress: HomeProgress }) {
+function MomentBlock({ label, value }: { label: string; value: string }) {
   return (
-    <HomeCard title="Current Mission" className="min-h-[260px]">
-      <p className="text-2xl font-semibold leading-snug text-stone-950">{mission}</p>
-      <div className="mt-6">
-        <p className="text-xs font-medium uppercase tracking-[0.14em] text-stone-400">Why it matters</p>
-        <p className="mt-2 text-base leading-7 text-stone-600">{whyItMatters}</p>
-      </div>
-      <div className="mt-7">
-        <div className="flex items-center justify-between gap-4">
-          <p className="text-xs font-medium uppercase tracking-[0.14em] text-stone-400">Progress</p>
-          <p className="text-sm font-medium text-stone-700">{progress.label}</p>
-        </div>
-        <div className="mt-3 h-2 rounded-full bg-stone-100">
-          <div className="h-2 rounded-full bg-[#3f5f4a]" style={{ width: `${progress.value}%` }} />
-        </div>
-        <div className="mt-4 grid gap-2 text-sm text-stone-600 sm:grid-cols-3">
-          <Metric value={progress.activeProjects} label="Projects" />
-          <Metric value={progress.openLoops} label="Open loops" />
-          <Metric value={progress.recentMoves} label="Recent moves" />
-        </div>
-      </div>
-    </HomeCard>
-  );
-}
-
-function FocusCard({ priorities }: { priorities: HomeItem[] }) {
-  return (
-    <HomeCard title="Current Focus" className="min-h-[260px]">
-      <div className="space-y-3">
-        {priorities.map((priority, index) => (
-          <LinkedRow key={`${priority.title}-${index}`} href={priority.href}>
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-stone-950 text-xs font-semibold text-white">
-              {index + 1}
-            </span>
-            <span className="min-w-0">
-              <span className="block text-base font-medium text-stone-950">{priority.title}</span>
-              {priority.detail ? <span className="mt-1 line-clamp-2 block text-sm leading-6 text-stone-500">{priority.detail}</span> : null}
-            </span>
-          </LinkedRow>
-        ))}
-      </div>
-    </HomeCard>
-  );
-}
-
-function OpenLoopsCard({ loops }: { loops: HomeOpenLoop[] }) {
-  return (
-    <HomeCard title="Open Loops" action={<span className="text-xs text-stone-400">Max 5</span>}>
-      <div className="space-y-2">
-        {loops.map((loop) => (
-          <LinkedRow key={loop.id || loop.title} href={loop.href}>
-            <span className={cn("mt-1 h-2.5 w-2.5 shrink-0 rounded-full", loop.priority === "high" ? "bg-[#9f3f3f]" : "bg-[#3f5f4a]")} />
-            <span className="min-w-0">
-              <span className="block text-sm font-medium text-stone-950">{loop.title}</span>
-              <span className="mt-1 line-clamp-2 block text-sm leading-6 text-stone-500">
-                {loop.nextStep || loop.description || loop.projectName}
-              </span>
-            </span>
-          </LinkedRow>
-        ))}
-      </div>
-    </HomeCard>
-  );
-}
-
-function SuggestedActionCard({ action, onContinue }: { action: HomeAction; onContinue: () => void }) {
-  return (
-    <HomeCard title="Suggested Next Action" className="bg-[#fbfbf8]">
-      <div className="flex h-full flex-col justify-between gap-6">
-        <div>
-          <p className="max-w-2xl text-3xl font-semibold leading-tight text-stone-950">{action.title}</p>
-          {action.reason ? <p className="mt-4 max-w-2xl text-base leading-7 text-stone-600">{action.reason}</p> : null}
-        </div>
-        <div className="flex flex-col gap-3 sm:flex-row">
-          {action.href ? (
-            <Link
-              href={action.href}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-stone-950 px-4 text-sm font-medium text-white transition hover:bg-stone-800"
-            >
-              Open
-              <MoveRight className="h-4 w-4" />
-            </Link>
-          ) : null}
-          <button
-            type="button"
-            onClick={onContinue}
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-stone-200 bg-white px-4 text-sm font-medium text-stone-900 transition hover:bg-stone-50"
-          >
-            Discuss in Chat
-            <MessageSquare className="h-4 w-4" />
-          </button>
-        </div>
-      </div>
-    </HomeCard>
+    <div className="rounded-md bg-white px-4 py-4">
+      <p className="text-xs font-medium uppercase tracking-[0.14em] text-stone-400">{label}</p>
+      <p className="mt-2 line-clamp-3 text-lg font-semibold leading-7 text-stone-950">{value}</p>
+    </div>
   );
 }
 
@@ -318,81 +275,6 @@ function PrimaryChatInput({
   );
 }
 
-function HomeCard({
-  title,
-  children,
-  action,
-  compact,
-  className,
-}: {
-  title: string;
-  children: React.ReactNode;
-  action?: React.ReactNode;
-  compact?: boolean;
-  className?: string;
-}) {
-  return (
-    <section className={cn("rounded-lg border border-stone-200 bg-white shadow-[0_10px_30px_rgba(32,31,28,0.05)]", compact ? "p-4" : "p-5 sm:p-6", className)}>
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <h2 className="text-xs font-medium uppercase tracking-[0.14em] text-stone-400">{title}</h2>
-        {action}
-      </div>
-      {children}
-    </section>
-  );
-}
-
-function LinkedRow({
-  href,
-  children,
-  compact,
-}: {
-  href?: string | null;
-  children: React.ReactNode;
-  compact?: boolean;
-}) {
-  const className = cn(
-    "flex min-w-0 gap-3 rounded-md border border-transparent transition",
-    compact ? "px-2 py-2.5" : "px-3 py-3",
-    href ? "hover:border-stone-200 hover:bg-stone-50" : "bg-white",
-  );
-  if (!href) return <div className={className}>{children}</div>;
-  return (
-    <Link href={href} className={className}>
-      {children}
-    </Link>
-  );
-}
-
-function Metric({ value, label }: { value: number; label: string }) {
-  return (
-    <div className="rounded-md bg-stone-50 px-3 py-2">
-      <p className="text-base font-semibold text-stone-950">{value}</p>
-      <p className="text-xs text-stone-500">{label}</p>
-    </div>
-  );
-}
-
-function HomeSkeleton() {
-  return (
-    <div className="space-y-5">
-      <div className="space-y-3">
-        <Skeleton className="h-5 w-48 rounded-md" />
-        <Skeleton className="h-24 max-w-3xl rounded-lg" />
-      </div>
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Skeleton className="h-64 rounded-lg" />
-        <Skeleton className="h-64 rounded-lg" />
-      </div>
-      <Skeleton className="h-44 rounded-lg" />
-      <div className="flex items-center gap-2 text-sm text-stone-500">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        Preparing your continuity context
-      </div>
-    </div>
-  );
-}
-
 type HomeItem = {
   title: string;
   detail: string;
@@ -423,7 +305,22 @@ type HomeProgress = {
   recentMoves: number;
 };
 
-function getHomeContext(dashboard: Dashboard | null, displayName: string | null) {
+type HomeContext = {
+  greeting: string;
+  mission: string;
+  missionLine: string;
+  whyItMatters: string;
+  focus: string;
+  priorities: HomeItem[];
+  openLoops: HomeOpenLoop[];
+  suggestedAction: HomeAction;
+  recentProjects: HomeItem[];
+  recentConversations: HomeItem[];
+  recentDecisions: HomeItem[];
+  progress: HomeProgress;
+};
+
+function getHomeContext(dashboard: Dashboard | null, displayName: string | null): HomeContext {
   const os = dashboard?.personal_os;
   const activeProject = dashboard?.projects?.find((project) => project.status === "active") || dashboard?.projects?.[0];
   const greeting = os?.greeting || `Good morning${displayName ? `, ${displayName}` : ""}`;
@@ -445,6 +342,12 @@ function getHomeContext(dashboard: Dashboard | null, displayName: string | null)
   const recentConversations = normalizeConversations(dashboard?.recent_conversations).slice(0, 4);
   const recentDecisions = normalizeDecisions(os?.recent_decisions).slice(0, 4);
   const suggestedAction = normalizeAction(os?.suggested_next_action, priorities[0]);
+  const focus =
+    cleanText(os?.current_focus) ||
+    cleanText(activeProject?.currentFocus) ||
+    priorities[0]?.title ||
+    cleanText(activeProject?.recommendedNextStep) ||
+    "Review the next meaningful action.";
   const recentMoves = Math.max(os?.recent_progress?.length ?? 0, dashboard?.recent_activity?.length ?? 0);
   const activeProjects = dashboard?.stats?.active_projects ?? recentProjects.length;
   const openLoopCount = dashboard?.personal_os?.open_loops?.length ?? openLoops.length;
@@ -455,6 +358,7 @@ function getHomeContext(dashboard: Dashboard | null, displayName: string | null)
     mission,
     missionLine,
     whyItMatters,
+    focus,
     priorities,
     openLoops,
     suggestedAction,
@@ -469,6 +373,27 @@ function getHomeContext(dashboard: Dashboard | null, displayName: string | null)
       recentMoves,
     },
   };
+}
+
+function buildMomentPrompt(home: HomeContext) {
+  const loops = home.openLoops
+    .slice(0, 5)
+    .map((loop) => loop.title)
+    .join("; ");
+
+  return [
+    "Continue working from my Synzept Moment.",
+    "",
+    `Mission: ${home.mission}`,
+    `Focus: ${home.focus}`,
+    `Open Loops: ${loops || "None visible"}`,
+    `Recommended Next Action: ${home.suggestedAction.title}`,
+    home.suggestedAction.reason ? `Why: ${home.suggestedAction.reason}` : "",
+    "",
+    "Do not ask me to re-explain. Help me continue from this context.",
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 function normalizePriorities(priorities: ReturnContext[] | undefined, dashboard: Dashboard | null): HomeItem[] {
