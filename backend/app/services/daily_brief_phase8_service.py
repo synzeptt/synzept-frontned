@@ -7,8 +7,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.daily_brief_phase8 import DailyBriefSnapshot
 from app.models.note import Note
 from app.models.project import Project
+from app.models.project_intelligence_phase2 import Decision
 from app.models.task import Task
 from app.models.timeline_event import TimelineEvent
+from app.models.user_understanding import UserUnderstanding
 from app.services.context_engine_phase6_service import ContextEnginePhase6Service
 from app.services.open_loops_engine_service import OpenLoopsEngineService
 
@@ -24,7 +26,7 @@ class DailyBriefPhase8Service:
         )
         brief = result.scalar_one_or_none()
         if brief:
-            return self._brief_out(brief)
+            return await self._brief_out(brief, user_id)
         return await self.refresh(user_id)
 
     async def refresh(self, user_id: UUID) -> dict:
@@ -44,7 +46,9 @@ class DailyBriefPhase8Service:
         recent_progress = self._recent_progress(context, projects, tasks, notes, timeline)
         projects_needing_attention = self._projects_needing_attention(projects, context["openLoops"])
         recommended_next_step = self._recommended_next_step(context, what_matters, open_loops, projects_needing_attention)
-        context_to_remember = self._context_to_remember(context, notes, timeline)
+        understanding = await self._understanding(user_id)
+        decisions = await self._decisions(user_id)
+        context_to_remember = self._context_to_remember(context, notes, timeline, decisions)
         values = {
             "context_snapshot_id": context["id"],
             "what_matters_today": what_matters[:6],
@@ -61,7 +65,14 @@ class DailyBriefPhase8Service:
             brief = DailyBriefSnapshot(user_id=user_id, brief_date=today, **values)
             self.session.add(brief)
         await self.session.flush()
-        return self._brief_out(brief)
+        return await self._brief_out(
+            brief,
+            user_id,
+            context=context,
+            tasks=tasks,
+            understanding=understanding,
+            decisions=decisions,
+        )
 
     async def _projects(self, user_id: UUID) -> list[Project]:
         result = await self.session.execute(
@@ -95,6 +106,25 @@ class DailyBriefPhase8Service:
             select(TimelineEvent)
             .where(TimelineEvent.user_id == user_id)
             .order_by(TimelineEvent.event_date.desc(), TimelineEvent.created_at.desc())
+            .limit(12)
+        )
+        return list(result.scalars())
+
+    async def _understanding(self, user_id: UUID) -> list[UserUnderstanding]:
+        result = await self.session.execute(
+            select(UserUnderstanding)
+            .where(UserUnderstanding.user_id == user_id)
+            .order_by(UserUnderstanding.updated_at.desc())
+            .limit(40)
+        )
+        return list(result.scalars())
+
+    async def _decisions(self, user_id: UUID) -> list[Decision]:
+        result = await self.session.execute(
+            select(Decision)
+            .join(Project, Project.id == Decision.project_id)
+            .where(Project.user_id == user_id, Project.deleted_at.is_(None))
+            .order_by(Decision.updated_at.desc())
             .limit(12)
         )
         return list(result.scalars())
@@ -259,13 +289,16 @@ class DailyBriefPhase8Service:
             return self._item("priority", item["title"], "Start with the highest visible priority.", href=item.get("href") or "/dashboard", priority="high", source="priorities")
         return self._item("empty_state", "Choose one meaningful priority for today.", "A clear next action gives Synzept a useful return point.", href="/projects", priority="medium", source="empty_state")
 
-    def _context_to_remember(self, context: dict, notes: list[Note], timeline: list[TimelineEvent]) -> list[dict]:
+    def _context_to_remember(self, context: dict, notes: list[Note], timeline: list[TimelineEvent], decisions: list[Decision]) -> list[dict]:
         items: list[dict] = []
         for item in context["importantContext"]:
             items.append(self._item(item.get("type", "context"), item.get("title", "Context"), item.get("detail", ""), source="memory"))
         for event in timeline:
             if event.event_type == "decision":
                 items.append(self._item("decision", event.title, event.description, href="/timeline", priority="high", source="timeline"))
+        for decision in decisions:
+            detail = decision.outcome or decision.reason or decision.description or "Decision recorded."
+            items.append(self._item("decision", decision.title, detail, href=self._project_href(decision.project_id), priority="high", source="decisions"))
         for note in notes[:4]:
             items.append(self._item("note", note.title or "Recent note", note.summary or note.content[:140], href="/notes", source="notes"))
         return self._unique_items(items)
@@ -324,23 +357,99 @@ class DailyBriefPhase8Service:
             result.append(item)
         return result
 
-    def _brief_out(self, brief: DailyBriefSnapshot) -> dict:
+    async def _brief_out(
+        self,
+        brief: DailyBriefSnapshot,
+        user_id: UUID,
+        *,
+        context: dict | None = None,
+        tasks: list[Task] | None = None,
+        understanding: list[UserUnderstanding] | None = None,
+        decisions: list[Decision] | None = None,
+    ) -> dict:
         now = datetime.now(timezone.utc)
+        if context is None:
+            context = await ContextEnginePhase6Service(self.session).refresh(user_id)
+        if tasks is None:
+            tasks = await self._tasks(user_id)
+        if understanding is None:
+            understanding = await self._understanding(user_id)
+        if decisions is None:
+            decisions = await self._decisions(user_id)
+
         context_to_remember = brief.context_to_remember or []
+        recent_progress = brief.recent_progress or []
+        recent_decisions = self._recent_decision_items(decisions)
+        what_changed = self._unique_items([*recent_progress[:4], *recent_decisions[:4]])
+        current_mission = self._current_mission_item(understanding, context)
+        current_focus = self._current_focus_item(understanding, context)
+        recommended_next_step = brief.recommended_next_step or {}
+        focus_for_today = recommended_next_step if recommended_next_step.get("title") else current_focus
+        upcoming_priorities = self._upcoming_priorities(tasks, brief.what_matters_today or [])
+
         return {
             "id": brief.id,
             "userId": brief.user_id,
             "contextSnapshotId": brief.context_snapshot_id,
             "briefDate": brief.brief_date,
             "whatMattersToday": brief.what_matters_today or [],
+            "whatChanged": what_changed[:6],
             "openLoops": brief.open_loops or [],
-            "recommendedNextStep": brief.recommended_next_step or {},
-            "recentProgress": brief.recent_progress or [],
+            "recommendedNextStep": recommended_next_step,
+            "focusForToday": focus_for_today,
+            "currentMission": current_mission,
+            "currentFocus": current_focus,
+            "recentProgress": recent_progress,
+            "recentDecisions": recent_decisions,
+            "upcomingPriorities": upcoming_priorities,
             "projectsNeedingAttention": self._extract_projects_needing_attention(context_to_remember),
             "contextToRemember": self._remove_projects_needing_attention(context_to_remember),
             "createdAt": brief.created_at or now,
             "updatedAt": brief.updated_at or brief.created_at or now,
         }
+
+    def _current_mission_item(self, understanding: list[UserUnderstanding], context: dict) -> dict:
+        value = self._understanding_value(understanding, "current_mission")
+        if value:
+            return self._item("current_mission", value, "This is the larger direction Synzept is preserving.", href="/knows-you", priority="high", source="user_understanding")
+        current = context.get("currentFocus") or {}
+        title = current.get("title") or "Build one clear continuity anchor for today's work."
+        return self._item("current_mission", title, "Inferred from current workspace focus.", href=self._project_href(current.get("projectId")), priority="high", source="context")
+
+    def _current_focus_item(self, understanding: list[UserUnderstanding], context: dict) -> dict:
+        value = self._understanding_value(understanding, "current_focus")
+        if value:
+            return self._item("current_focus", value, "This is where your attention is already aimed.", href="/knows-you", priority="high", source="user_understanding")
+        current = context.get("currentFocus") or {}
+        return self._item(
+            "current_focus",
+            current.get("title") or "Choose one meaningful priority for today.",
+            current.get("detail") or "Most visible workspace focus.",
+            href=self._project_href(current.get("projectId")),
+            priority="high",
+            source="context",
+        )
+
+    @staticmethod
+    def _understanding_value(items: list[UserUnderstanding], category: str) -> str:
+        item = next((row for row in items if row.category == category), None)
+        return str(item.value).strip() if item and item.value else ""
+
+    def _recent_decision_items(self, decisions: list[Decision]) -> list[dict]:
+        items: list[dict] = []
+        for decision in decisions:
+            if decision.status != "decided":
+                continue
+            detail = decision.outcome or decision.reason or decision.description or "Decision recorded."
+            items.append(self._item("decision", decision.title, detail, href=self._project_href(decision.project_id), priority="high", source="decisions"))
+        return self._unique_items(items)[:5]
+
+    def _upcoming_priorities(self, tasks: list[Task], what_matters: list[dict]) -> list[dict]:
+        items: list[dict] = []
+        for task in self._priority_tasks(tasks):
+            items.append(self._item("upcoming_task", task.title, self._task_detail(task), href="/tasks", priority=task.priority, source="tasks"))
+        items.extend(what_matters[:4])
+        return self._unique_items(items)[:6]
 
     @staticmethod
     def _extract_projects_needing_attention(context_to_remember: list) -> list[dict]:

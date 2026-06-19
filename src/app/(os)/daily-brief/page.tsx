@@ -1,25 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
-import Link from "next/link";
-import {
-  ArrowRight,
-  Brain,
-  CalendarDays,
-  CheckCircle2,
-  Clock3,
-  FolderKanban,
-  ListChecks,
-  RefreshCw,
-  Sparkles,
-  Target,
-} from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ArrowRight, CalendarDays, Loader2, RefreshCw, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ProGate } from "@/components/pro/pro-gate";
 import { RecoveryBanner } from "@/components/ui/recovery-banner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api, type DailyBriefSnapshot } from "@/lib/api";
 import { PageFrame } from "@frontend/components/layout/page-frame";
+
+const CHAT_DRAFT_KEY = "synzept_chat_draft";
 
 type BriefItem = {
   type?: string;
@@ -30,57 +20,23 @@ type BriefItem = {
   source?: string;
 };
 
-type BriefContent = {
+type DailyContent = {
   briefDate: string;
-  updatedAt?: string | null;
-  createdAt?: string | null;
-  recommendedNextStep: Record<string, unknown>;
+  currentMission: Record<string, unknown>;
+  currentFocus: Record<string, unknown>;
+  whatChanged: Array<Record<string, unknown>>;
   whatMattersToday: Array<Record<string, unknown>>;
   openLoops: Array<Record<string, unknown>>;
-  recentProgress: Array<Record<string, unknown>>;
-  projectsNeedingAttention: Array<Record<string, unknown>>;
-  contextToRemember: Array<Record<string, unknown>>;
+  recommendedNextStep: Record<string, unknown>;
+  focusForToday: Record<string, unknown>;
+  recentDecisions: Array<Record<string, unknown>>;
+  upcomingPriorities: Array<Record<string, unknown>>;
+  updatedAt?: string | null;
+  createdAt?: string | null;
 };
 
-const sections = [
-  {
-    key: "whatMattersToday" as const,
-    title: "What Matters Today",
-    question: "What is most important today?",
-    empty: "Add projects, tasks, or notes and Synzept will identify today's priorities.",
-    icon: Target,
-  },
-  {
-    key: "openLoops" as const,
-    title: "Open Loops",
-    question: "What am I forgetting?",
-    empty: "No unfinished loops need attention right now.",
-    icon: ListChecks,
-  },
-  {
-    key: "recentProgress" as const,
-    title: "Recent Progress",
-    question: "What progress have I made recently?",
-    empty: "Progress will appear as tasks, notes, projects, and timeline events change.",
-    icon: CheckCircle2,
-  },
-  {
-    key: "projectsNeedingAttention" as const,
-    title: "Projects Needing Attention",
-    question: "What needs my attention?",
-    empty: "Active projects have enough focus for now.",
-    icon: FolderKanban,
-  },
-  {
-    key: "contextToRemember" as const,
-    title: "Context To Remember",
-    question: "What should I keep in mind today?",
-    empty: "Important reminders and decisions will appear here.",
-    icon: Brain,
-  },
-];
-
 export default function DailyBriefPage() {
+  const router = useRouter();
   const [brief, setBrief] = useState<DailyBriefSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, startRefresh] = useTransition();
@@ -104,9 +60,11 @@ export default function DailyBriefPage() {
     void api.trackEvent("daily_brief_viewed", "daily_brief");
   }, []);
 
-  const displayBrief = useMemo(() => toBriefContent(brief), [brief]);
-  const nextStep = useMemo(() => toItem(displayBrief.recommendedNextStep, "Choose one meaningful priority for today."), [displayBrief]);
-  const generatedAt = displayBrief.updatedAt || displayBrief.createdAt;
+  const daily = useMemo(() => toDailyContent(brief), [brief]);
+  const mission = useMemo(() => toItem(daily.currentMission, "Build one clear continuity anchor for today's work."), [daily]);
+  const focus = useMemo(() => toItem(daily.currentFocus, "Choose one meaningful priority for today."), [daily]);
+  const nextAction = useMemo(() => toItem(daily.recommendedNextStep, "Continue today's most important work."), [daily]);
+  const focusForToday = useMemo(() => toItem(daily.focusForToday, focus.title), [daily, focus.title]);
 
   const refresh = () => {
     startRefresh(() => {
@@ -114,10 +72,30 @@ export default function DailyBriefPage() {
     });
   };
 
+  const continueToday = () => {
+    const prompt = [
+      "Continue today's work from my Daily Brief.",
+      "",
+      `Current Mission: ${mission.title}`,
+      `Current Focus: ${focus.title}`,
+      `Focus For Today: ${focusForToday.title}`,
+      `Recommended Next Action: ${nextAction.title}`,
+      `Open Loops: ${toItems(daily.openLoops).map((item) => item.title).join("; ") || "None visible"}`,
+      "",
+      "Do not ask me to re-explain. Help me continue from this brief.",
+    ].join("\n");
+    localStorage.setItem(CHAT_DRAFT_KEY, prompt);
+    void api.trackEvent("daily_continue_today_clicked", "daily_brief", {
+      recommended_next_action: nextAction.title,
+      open_loops: daily.openLoops.length,
+    });
+    router.push("/chat");
+  };
+
   return (
     <PageFrame
-      eyebrow="Synzept Pro"
-      title="Daily Brief"
+      eyebrow="Daily"
+      title="Brief"
       action={
         <Button size="sm" variant="outline" onClick={refresh} disabled={refreshing || loading}>
           <RefreshCw className={`mr-1.5 h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
@@ -125,194 +103,126 @@ export default function DailyBriefPage() {
         </Button>
       }
     >
-      <ProGate feature="Advanced Daily Brief" description="Daily Brief is a Synzept Pro continuity system that summarizes what matters, open loops, recent progress, and your recommended next step.">
-      <div className="mx-auto max-w-5xl space-y-4 p-4 pb-24 md:p-7">
-        <RecoveryBanner message={error} onRetry={() => load()} />
-        {loading ? (
-          <BriefSkeleton />
-        ) : (
-          <>
-            <header className="rounded-lg border border-stone-900 bg-stone-950 p-5 text-white shadow-soft md:p-6">
-              <div className="flex flex-wrap items-center gap-2 text-xs font-medium uppercase text-stone-400">
-                <CalendarDays className="h-3.5 w-3.5" />
-                <span>{formatBriefDate(displayBrief.briefDate)}</span>
-                <span className="text-stone-600">/</span>
-                <span>{brief ? "Generated daily" : "Starter example"}</span>
-              </div>
-              <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
-                <div>
-                  <p className="flex items-center gap-2 text-sm font-medium text-stone-300">
-                    <Sparkles className="h-4 w-4" />
-                    Recommended Next Step
-                  </p>
-                  <h2 className="mt-2 text-2xl font-semibold leading-8 md:text-3xl">{nextStep.title}</h2>
-                  <p className="mt-2 max-w-2xl text-sm leading-6 text-stone-300">{nextStep.detail || "This is the clearest continuation point in your workspace."}</p>
+      <div className="min-h-full bg-white text-stone-950">
+        <div className="mx-auto max-w-5xl space-y-5 px-4 py-6 pb-24 sm:px-6 lg:px-8 lg:py-10">
+          <RecoveryBanner message={error} onRetry={() => load()} />
+          {loading ? (
+            <DailySkeleton />
+          ) : (
+            <>
+              <header className="space-y-5">
+                <div className="flex flex-wrap items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-stone-400">
+                  <CalendarDays className="h-3.5 w-3.5" />
+                  <span>{formatBriefDate(daily.briefDate)}</span>
+                  <span>/</span>
+                  <span>Good Morning</span>
                 </div>
-                <Link
-                  href={nextStep.href || "/agent"}
-                  className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-white px-4 text-sm font-medium text-stone-950 transition hover:bg-stone-100"
-                >
-                  Continue
-                  <ArrowRight className="h-4 w-4" />
-                </Link>
-              </div>
-            </header>
+                <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-end">
+                  <div>
+                    <h1 className="max-w-3xl text-4xl font-semibold leading-tight tracking-normal sm:text-5xl">
+                      Good Morning
+                    </h1>
+                    <p className="mt-4 max-w-3xl text-lg leading-8 text-stone-600">{mission.title}</p>
+                  </div>
+                  <Button onClick={continueToday} className="h-12 px-5">
+                    Continue Today&apos;s Work
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                </div>
+              </header>
 
-            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-              <div className="space-y-4">
-                {sections.slice(0, 4).map((section) => (
-                  <BriefSection
-                    key={section.key}
-                    title={section.title}
-                    question={section.question}
-                    empty={section.empty}
-                    icon={section.icon}
-                    items={toItems(displayBrief[section.key])}
-                  />
-                ))}
+              <section className="rounded-lg border border-stone-200 bg-[#fbfbf8] p-5 shadow-[0_14px_42px_rgba(32,31,28,0.07)] sm:p-6">
+                <p className="flex items-center gap-2 text-sm font-medium text-stone-500">
+                  <Sparkles className="h-4 w-4" />
+                  Recommended Next Action
+                </p>
+                <h2 className="mt-3 text-3xl font-semibold leading-tight text-stone-950">{nextAction.title}</h2>
+                <p className="mt-3 max-w-3xl text-base leading-7 text-stone-600">
+                  {nextAction.detail || "This is the clearest continuation point in your workspace."}
+                </p>
+              </section>
+
+              <div className="grid gap-4 lg:grid-cols-2">
+                <DailySection index={1} title="What Changed" items={toItems(daily.whatChanged)} empty="No meaningful changes since the last brief yet." />
+                <DailySection index={2} title="What Matters Today" items={toItems(daily.whatMattersToday)} empty="Add projects, tasks, or notes and Synzept will identify today's priorities." />
+                <DailySection index={3} title="Open Loops Requiring Attention" items={toItems(daily.openLoops)} empty="No open loops need attention right now." />
+                <DailySection index={4} title="Recommended Next Action" items={[nextAction]} empty="Choose one meaningful priority for today." />
+                <DailySection index={5} title="Focus For Today" items={[focusForToday]} empty="Set one focus to make today easier to resume." />
+                <DailySection title="Upcoming Priorities" items={toItems(daily.upcomingPriorities)} empty="No upcoming priority is pulling focus yet." />
               </div>
-              <aside className="space-y-4">
-                <TenSecondRead brief={displayBrief} />
-                <BriefSection
-                  title={sections[4].title}
-                  question={sections[4].question}
-                  empty={sections[4].empty}
-                  icon={sections[4].icon}
-                  items={toItems(displayBrief.contextToRemember)}
-                  compact
-                />
-                <section className="rounded-lg border border-border bg-white p-4 shadow-soft">
-                  <p className="flex items-center gap-2 text-sm font-semibold text-stone-950">
-                    <Clock3 className="h-4 w-4 text-muted" />
-                    Brief Status
-                  </p>
-                  <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                    {generatedAt ? `Last refreshed ${formatTime(generatedAt)}.` : "Generated for today."}
-                  </p>
-                </section>
-              </aside>
-            </div>
-          </>
-        )}
+
+              <footer className="rounded-lg border border-stone-200 bg-white p-4 text-sm leading-6 text-stone-500">
+                Daily Brief is generated from your current mission, current focus, open loops, recent progress, recent decisions, and upcoming priorities.
+                {daily.updatedAt || daily.createdAt ? ` Last refreshed ${formatTime(daily.updatedAt || daily.createdAt || "")}.` : ""}
+              </footer>
+            </>
+          )}
+        </div>
       </div>
-      </ProGate>
     </PageFrame>
   );
 }
 
-function TenSecondRead({ brief }: { brief: BriefContent }) {
-  const matters = brief.whatMattersToday.length;
-  const loops = brief.openLoops.length;
-  const projects = brief.projectsNeedingAttention.length;
+function DailySection({ index, title, items, empty }: { index?: number; title: string; items: BriefItem[]; empty: string }) {
   return (
-    <section className="rounded-lg border border-border bg-white p-4 shadow-soft">
-      <p className="text-sm font-semibold text-stone-950">10 Second Read</p>
-      <div className="mt-3 grid grid-cols-3 gap-2">
-        <BriefStat label="Priorities" value={matters} />
-        <BriefStat label="Loops" value={loops} />
-        <BriefStat label="Projects" value={projects} />
-      </div>
-      <p className="mt-3 text-sm leading-6 text-muted-foreground">
-        Start with the recommended next step, then scan open loops before opening new work.
-      </p>
-    </section>
-  );
-}
-
-function BriefStat({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-md bg-stone-50 px-2 py-3 text-center">
-      <p className="text-xl font-semibold text-stone-950">{value}</p>
-      <p className="mt-1 text-[11px] text-muted-foreground">{label}</p>
-    </div>
-  );
-}
-
-function BriefSection({
-  title,
-  question,
-  items,
-  empty,
-  icon: Icon,
-  compact = false,
-}: {
-  title: string;
-  question: string;
-  items: BriefItem[];
-  empty: string;
-  icon: React.ComponentType<{ className?: string }>;
-  compact?: boolean;
-}) {
-  return (
-    <section className="rounded-lg border border-border bg-white p-4 shadow-soft md:p-5">
-      <div className="flex items-start gap-3">
-        <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-stone-100">
-          <Icon className="h-4 w-4 text-stone-700" />
-        </div>
-        <div className="min-w-0">
-          <h3 className="text-sm font-semibold text-stone-950">{title}</h3>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">{question}</p>
-        </div>
+    <section className="rounded-lg border border-stone-200 bg-white p-4 shadow-[0_10px_30px_rgba(32,31,28,0.05)] sm:p-5">
+      <div className="flex items-center gap-3">
+        {index ? (
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-stone-950 text-xs font-semibold text-white">
+            {index}
+          </span>
+        ) : null}
+        <h2 className="text-base font-semibold text-stone-950">{title}</h2>
       </div>
       <div className="mt-4 space-y-2">
-        {items.slice(0, compact ? 4 : 6).map((item) => (
+        {items.filter((item) => item.title).slice(0, 5).map((item) => (
           <BriefRow key={`${title}-${item.title}`} item={item} />
         ))}
-        {!items.length && <p className="rounded-md bg-stone-50 px-3 py-3 text-sm leading-6 text-muted-foreground">{empty}</p>}
+        {!items.filter((item) => item.title).length ? (
+          <p className="rounded-md bg-stone-50 px-3 py-3 text-sm leading-6 text-stone-500">{empty}</p>
+        ) : null}
       </div>
     </section>
   );
 }
 
 function BriefRow({ item }: { item: BriefItem }) {
-  const content = (
-    <>
-      <div className="min-w-0">
-        <p className="line-clamp-2 text-sm font-medium leading-5 text-stone-900">{item.title}</p>
-        {item.detail ? <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{item.detail}</p> : null}
-      </div>
-      <PriorityPill priority={item.priority} />
-    </>
-  );
-
-  if (item.href) {
-    return (
-      <Link href={item.href} className="flex items-start justify-between gap-3 rounded-md bg-stone-50 px-3 py-3 transition hover:bg-stone-100">
-        {content}
-      </Link>
-    );
-  }
-  return <div className="flex items-start justify-between gap-3 rounded-md bg-stone-50 px-3 py-3">{content}</div>;
-}
-
-function PriorityPill({ priority }: { priority?: string }) {
-  if (!priority || priority === "medium") return null;
   return (
-    <span className={`mt-0.5 shrink-0 rounded-md px-2 py-1 text-[11px] capitalize ${priority === "high" ? "bg-amber-50 text-amber-800" : "bg-stone-100 text-stone-600"}`}>
-      {priority}
-    </span>
-  );
-}
-
-function BriefSkeleton() {
-  return (
-    <div className="space-y-4">
-      <Skeleton className="h-52 rounded-lg" />
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="space-y-4">
-          <Skeleton className="h-52 rounded-lg" />
-          <Skeleton className="h-52 rounded-lg" />
+    <div className="rounded-md bg-stone-50 px-3 py-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="line-clamp-2 text-sm font-medium leading-5 text-stone-950">{item.title}</p>
+          {item.detail ? <p className="mt-1 line-clamp-2 text-sm leading-6 text-stone-600">{item.detail}</p> : null}
         </div>
-        <Skeleton className="h-64 rounded-lg" />
+        {item.priority && item.priority !== "medium" ? (
+          <span className="shrink-0 rounded-md bg-white px-2 py-1 text-[11px] capitalize text-stone-600">{item.priority}</span>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function DailySkeleton() {
+  return (
+    <div className="space-y-5">
+      <Skeleton className="h-36 rounded-lg" />
+      <Skeleton className="h-48 rounded-lg" />
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Skeleton className="h-48 rounded-lg" />
+        <Skeleton className="h-48 rounded-lg" />
+        <Skeleton className="h-48 rounded-lg" />
+        <Skeleton className="h-48 rounded-lg" />
+      </div>
+      <div className="flex items-center gap-2 text-sm text-stone-500">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        Generating today&apos;s brief
       </div>
     </div>
   );
 }
 
 function toItems(values: Array<Record<string, unknown>> | undefined): BriefItem[] {
-  return (values || [])
-    .map((value) => toItem(value))
-    .filter((item): item is BriefItem => Boolean(item.title));
+  return (values || []).map((value) => toItem(value)).filter((item): item is BriefItem => Boolean(item.title));
 }
 
 function toItem(value: Record<string, unknown> | undefined, fallbackTitle = ""): BriefItem {
@@ -327,30 +237,21 @@ function toItem(value: Record<string, unknown> | undefined, fallbackTitle = ""):
   };
 }
 
-function toBriefContent(brief: DailyBriefSnapshot | null): BriefContent {
-  if (brief && hasBriefContent(brief)) return brief;
+function toDailyContent(brief: DailyBriefSnapshot | null): DailyContent {
   return {
-    briefDate: new Date().toISOString(),
-    updatedAt: null,
-    createdAt: null,
-    recommendedNextStep: {},
-    whatMattersToday: [],
-    openLoops: [],
-    recentProgress: [],
-    projectsNeedingAttention: [],
-    contextToRemember: [],
+    briefDate: brief?.briefDate || new Date().toISOString(),
+    currentMission: brief?.currentMission || {},
+    currentFocus: brief?.currentFocus || {},
+    whatChanged: brief?.whatChanged || brief?.recentProgress || [],
+    whatMattersToday: brief?.whatMattersToday || [],
+    openLoops: brief?.openLoops || [],
+    recommendedNextStep: brief?.recommendedNextStep || {},
+    focusForToday: brief?.focusForToday || brief?.recommendedNextStep || {},
+    recentDecisions: brief?.recentDecisions || [],
+    upcomingPriorities: brief?.upcomingPriorities || brief?.whatMattersToday || [],
+    updatedAt: brief?.updatedAt,
+    createdAt: brief?.createdAt,
   };
-}
-
-function hasBriefContent(brief: DailyBriefSnapshot) {
-  return Boolean(
-    brief.whatMattersToday.length ||
-      brief.openLoops.length ||
-      brief.recentProgress.length ||
-      brief.projectsNeedingAttention.length ||
-      brief.contextToRemember.length ||
-      Object.keys(brief.recommendedNextStep || {}).length,
-  );
 }
 
 function asString(value: unknown) {
@@ -360,7 +261,7 @@ function asString(value: unknown) {
 function formatBriefDate(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "Today";
-  return date.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
+  return date.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
 }
 
 function formatTime(value: string) {

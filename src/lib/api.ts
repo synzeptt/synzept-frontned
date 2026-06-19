@@ -413,9 +413,15 @@ export type DailyBriefSnapshot = {
   contextSnapshotId: string | null;
   briefDate: string;
   whatMattersToday: Array<Record<string, unknown>>;
+  whatChanged: Array<Record<string, unknown>>;
   openLoops: Array<Record<string, unknown>>;
   recommendedNextStep: Record<string, unknown>;
+  focusForToday: Record<string, unknown>;
+  currentMission: Record<string, unknown>;
+  currentFocus: Record<string, unknown>;
   recentProgress: Array<Record<string, unknown>>;
+  recentDecisions: Array<Record<string, unknown>>;
+  upcomingPriorities: Array<Record<string, unknown>>;
   projectsNeedingAttention: Array<Record<string, unknown>>;
   contextToRemember: Array<Record<string, unknown>>;
   createdAt: string | null;
