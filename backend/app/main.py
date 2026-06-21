@@ -25,6 +25,7 @@ from app.api import (
     project_intelligence_phase2,
     relationship_graph_phase5,
     timeline_phase3,
+    daily_engine,
 )
 from app.api.middleware import BodySizeLimitMiddleware, RateLimitMiddleware, SecurityHeadersMiddleware
 from app.api.v1.router import api_router
@@ -122,6 +123,7 @@ app.include_router(timeline_phase3.router)
 app.include_router(learning_engine_phase4.router)
 app.include_router(relationship_graph_phase5.router)
 app.include_router(context_engine_phase6.router)
+app.include_router(daily_engine.router)
 app.include_router(continuity_assistant_phase7.router)
 app.include_router(daily_brief_phase8.router)
 app.include_router(open_loops_engine.router)
