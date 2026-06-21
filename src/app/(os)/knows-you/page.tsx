@@ -5,17 +5,17 @@ import { Brain, Check, Edit3, Loader2, Plus, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { RecoveryBanner } from "@/components/ui/recovery-banner";
 import { Skeleton } from "@/components/ui/skeleton";
-import { api, type AgentMemoryTimeline, type Project, type UserUnderstandingItem, type UserUnderstandingProfile } from "@/lib/api";
+import { api, type AgentMemoryTimeline, type Project, type UserUnderstandingCoverage, type UserUnderstandingItem, type UserUnderstandingProfile } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { PageFrame } from "@frontend/components/layout/page-frame";
 
 const sections = [
   { id: "about_me", title: "Personal · About me", empty: "Add the context you never want to explain twice." },
-  { id: "interests", title: "Interests", empty: "Add recurring topics, industries, or themes." },
+  { id: "interests", title: "Personal · Interests", empty: "Add recurring topics, industries, or themes." },
   { id: "habits", title: "Personal · Habits", empty: "Add routines and patterns that shape your days." },
   { id: "preferences", title: "Personal · Preferences", empty: "Add how you prefer to think, plan, decide, or communicate." },
   { id: "job", title: "Professional · Job", empty: "Add your role, team, and work context." },
-  { id: "startup", title: "Professional · Startup", empty: "Add the company or venture you are building." },
+  { id: "company", title: "Professional · Company", empty: "Add the company, startup, or organization you are building with." },
   { id: "projects", title: "Professional · Projects", empty: "Project knowledge appears from your workspace and manual notes." },
   { id: "responsibilities", title: "Professional · Responsibilities", empty: "Add the responsibilities Synzept should keep in view." },
   { id: "short_term_goals", title: "Goals · Short-term", empty: "Add outcomes for the coming days or weeks." },
@@ -23,7 +23,8 @@ const sections = [
   { id: "missions", title: "Goals · Missions", empty: "Add the larger mission behind your work and life." },
   { id: "important_people", title: "Relationships · Important people", empty: "Add the people and relationships that matter." },
   { id: "commitments", title: "Relationships · Commitments", empty: "Add promises and commitments Synzept should remember." },
-  { id: "learning", title: "Learning · What I want to learn", empty: "Add skills, subjects, or questions you want to explore." },
+  { id: "learning_topics", title: "Learning · Topics", empty: "Add subjects or questions you want to explore." },
+  { id: "skills", title: "Learning · Skills", empty: "Add capabilities you are developing or want to develop." },
   { id: "current_focus", title: "Current situation · Focus", empty: "Add what matters this week or today." },
   { id: "current_struggles", title: "Current situation · Struggles", empty: "Add what is blocking or slowing you down." },
   { id: "open_loops", title: "Current situation · Open loops", empty: "Add unresolved work, decisions, or follow-ups." },
@@ -59,7 +60,8 @@ const categoryAliases: Record<string, SectionId> = {
   work_style: "preferences",
   preferences: "preferences",
   job: "job",
-  startup: "startup",
+  company: "company",
+  startup: "company",
   responsibilities: "responsibilities",
   important_people: "important_people",
   relationships: "important_people",
@@ -71,7 +73,10 @@ const categoryAliases: Record<string, SectionId> = {
   decisions: "decision_memory",
   decision: "decision_memory",
   recent_priorities: "recent_priorities",
-  learning: "learning",
+  learning: "learning_topics",
+  learning_topics: "learning_topics",
+  topics: "learning_topics",
+  skills: "skills",
   accepted_learnings: "accepted_learnings",
 };
 
@@ -80,6 +85,8 @@ export default function KnowsYouPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [memoryTimeline, setMemoryTimeline] = useState<AgentMemoryTimeline | null>(null);
   const [profile, setProfile] = useState<UserUnderstandingProfile | null>(null);
+  const [coverage, setCoverage] = useState<UserUnderstandingCoverage | null>(null);
+  const [syncing, setSyncing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState({ category: "about_me" as SectionId, title: "", value: "" });
@@ -90,12 +97,14 @@ export default function KnowsYouPage() {
     return Promise.all([
       api.listUserUnderstanding(),
       api.getUserUnderstandingProfile().catch(() => null),
+      api.getUserUnderstandingCoverage().catch(() => null),
       api.listProjects().catch(() => []),
       api.getAgentMemoryTimeline().catch(() => null),
     ])
-      .then(([understanding, profileData, projectRows, timeline]) => {
+      .then(([understanding, profileData, coverageData, projectRows, timeline]) => {
         setItems(understanding);
         setProfile(profileData);
+        setCoverage(coverageData);
         setProjects(projectRows);
         setMemoryTimeline(timeline);
       })
@@ -118,6 +127,20 @@ export default function KnowsYouPage() {
     });
     setItems((current) => [created, ...current]);
     setDraft({ category: draft.category, title: "", value: "" });
+  };
+
+  const syncUnderstanding = async () => {
+    setSyncing(true);
+    setError(null);
+    try {
+      const result = await api.syncUserUnderstanding();
+      setCoverage(result.coverage);
+      await load();
+    } catch {
+      setError("Synzept could not refresh learned context right now. Existing understanding is unchanged.");
+    } finally {
+      setSyncing(false);
+    }
   };
 
   return (
@@ -159,6 +182,15 @@ export default function KnowsYouPage() {
               <p className="mt-3 text-sm leading-6 text-muted-foreground">
                 Add, edit, or remove the facts and preferences that shape Agent recommendations. Learned items stay separate from user-entered items.
               </p>
+              <div className="mt-4 flex flex-wrap items-center gap-3">
+                <div className="rounded-md bg-stone-100 px-3 py-2 text-sm text-stone-700">
+                  {coverage ? `${coverage.completion_percent}% understood · ${coverage.learned_items} learned automatically` : "Understanding coverage is loading"}
+                </div>
+                <Button variant="outline" size="sm" onClick={syncUnderstanding} disabled={syncing}>
+                  {syncing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Brain className="mr-2 h-4 w-4" />}
+                  Refresh learned context
+                </Button>
+              </div>
             </div>
             <div className="grid gap-3 rounded-lg border border-border bg-stone-50 p-4">
               <div className="grid gap-2 sm:grid-cols-[160px_1fr]">

@@ -7,8 +7,10 @@ from app.core.dependencies import get_current_user, get_db
 from app.models.user import User
 from app.schemas.user_understanding import (
     UserUnderstandingCreate,
+    UserUnderstandingCoverageOut,
     UserUnderstandingProfileOut,
     UserUnderstandingOut,
+    UserUnderstandingSyncOut,
     UserUnderstandingUpdate,
 )
 from app.services.user_understanding_service import UserUnderstandingService
@@ -24,6 +26,17 @@ async def list_understanding(user: User = Depends(get_current_user), session: As
 @router.get("/profile", response_model=UserUnderstandingProfileOut)
 async def understanding_profile(user: User = Depends(get_current_user), session: AsyncSession = Depends(get_db)):
     return await UserUnderstandingService(session).profile_for_user(user)
+
+
+@router.get("/coverage", response_model=UserUnderstandingCoverageOut)
+async def understanding_coverage(user: User = Depends(get_current_user), session: AsyncSession = Depends(get_db)):
+    return await UserUnderstandingService(session).coverage_for_user(user)
+
+
+@router.post("/sync", response_model=UserUnderstandingSyncOut)
+async def sync_understanding(user: User = Depends(get_current_user), session: AsyncSession = Depends(get_db)):
+    created, coverage = await UserUnderstandingService(session).sync_from_memories(user.id)
+    return UserUnderstandingSyncOut(created=created, coverage=coverage)
 
 
 @router.post("", response_model=UserUnderstandingOut)

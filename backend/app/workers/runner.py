@@ -34,7 +34,7 @@ async def _memory_post_response(payload: dict) -> None:
                 embeddings = None
 
             service = MemoryService(session, embeddings=embeddings)
-            await service.process_conversation(
+            memories = await service.process_conversation(
                 user_id=UUID(payload["user_id"]),
                 turns=[
                     ConversationTurn(role="user", content=payload["user_message"]),
@@ -43,6 +43,9 @@ async def _memory_post_response(payload: dict) -> None:
                 conversation_id=UUID(payload["conversation_id"]),
                 project_id=UUID(payload["project_id"]) if payload.get("project_id") else None,
             )
+            from app.services.user_understanding_service import UserUnderstandingService
+
+            await UserUnderstandingService(session).learn_from_memories(UUID(payload["user_id"]), memories)
             await session.commit()
         except Exception:
             await session.rollback()

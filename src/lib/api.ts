@@ -343,6 +343,16 @@ export type UserUnderstandingProfile = {
   updated_at: string | null;
 };
 
+export type UserUnderstandingCoverage = {
+  completed_categories: string[];
+  missing_categories: string[];
+  total_categories: number;
+  completion_percent: number;
+  user_items: number;
+  learned_items: number;
+  last_learned_at: string | null;
+};
+
 export type RelationshipEdge = {
   id: string;
   userId: string;
@@ -1643,6 +1653,8 @@ export const api = {
   getContinuityAssistant: () => request<ContinuityAssistant>("/api/v2/continuity-assistant/overview"),
   listUserUnderstanding: () => request<UserUnderstandingItem[]>("/api/v2/user-understanding"),
   getUserUnderstandingProfile: () => request<UserUnderstandingProfile>("/api/v2/user-understanding/profile"),
+  getUserUnderstandingCoverage: () => request<UserUnderstandingCoverage>("/api/v2/user-understanding/coverage"),
+  syncUserUnderstanding: () => request<{ created: number; coverage: UserUnderstandingCoverage }>("/api/v2/user-understanding/sync", { method: "POST" }),
   createUserUnderstanding: (data: { category: string; title: string; value: string }) =>
     request<UserUnderstandingItem>("/api/v2/user-understanding", { method: "POST", body: JSON.stringify({ ...data, source: "user" }) }),
   updateUserUnderstanding: (id: string, data: Partial<Pick<UserUnderstandingItem, "title" | "value">>) =>

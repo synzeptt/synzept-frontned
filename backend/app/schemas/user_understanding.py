@@ -45,3 +45,18 @@ class UserUnderstandingProfileOut(ORMModel):
     recent_decisions: list[str] = Field(default_factory=list)
     next_suggested_actions: list[str] = Field(default_factory=list)
     updated_at: datetime | None = None
+
+
+class UserUnderstandingCoverageOut(BaseModel):
+    completed_categories: list[str] = Field(default_factory=list)
+    missing_categories: list[str] = Field(default_factory=list)
+    total_categories: int
+    completion_percent: int
+    user_items: int = 0
+    learned_items: int = 0
+    last_learned_at: datetime | None = None
+
+
+class UserUnderstandingSyncOut(BaseModel):
+    created: int = 0
+    coverage: UserUnderstandingCoverageOut

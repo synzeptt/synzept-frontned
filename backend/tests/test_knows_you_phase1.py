@@ -8,8 +8,11 @@ import app.models  # noqa: F401
 from app.database.base import Base
 from app.database.session import _ensure_local_knows_you_schema
 from app.models.user import User
+from app.models.memory import Memory
 from app.schemas.knows_you import LearningSuggestionCreate, LearningSuggestionEdit, UserUnderstandingBody
+from app.schemas.user_understanding import UserUnderstandingUpdate
 from app.services.knows_you_service import KnowsYouService
+from app.services.user_understanding_service import UserUnderstandingService
 
 
 @pytest_asyncio.fixture
@@ -115,3 +118,35 @@ async def test_existing_sqlite_tables_get_knows_you_columns(tmp_path):
         assert {"personal", "professional", "goals", "preferences", "learning", "current_focus"} <= understanding_columns
         assert "updated_at" in suggestion_columns
     await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_memories_automatically_improve_s1_understanding_without_duplicates(session_factory):
+    user_id = uuid4()
+    async with session_factory() as session:
+        user = User(id=user_id, email="automatic-learning@example.com")
+        session.add(user)
+        memories = [
+            Memory(user_id=user_id, memory_type="identity", content="I am a product founder.", summary="Product founder", confidence=0.9),
+            Memory(user_id=user_id, memory_type="skills", content="I am learning distributed systems.", summary="Distributed systems", confidence=0.8),
+            Memory(user_id=user_id, memory_type="projects", content="I am building Synzept S1.", summary="Building Synzept S1", confidence=0.95),
+        ]
+        session.add_all(memories)
+        await session.flush()
+
+        service = UserUnderstandingService(session)
+        assert await service.learn_from_memories(user_id, memories) == 3
+        assert await service.learn_from_memories(user_id, memories) == 0
+
+        items = await service.list_for_user(user)
+        assert {item.category for item in items} == {"about_me", "skills", "projects"}
+        assert all(item.source == "learned" for item in items)
+        coverage = await service.coverage_for_user(user)
+        assert coverage.learned_items == 3
+        assert coverage.completion_percent > 0
+
+        skill = next(item for item in items if item.category == "skills")
+        corrected = await service.update(user_id, skill.id, UserUnderstandingUpdate(value="Systems design"))
+        assert corrected.source == "user"
+        assert corrected.confidence == 1.0
+        assert await service.learn_from_memories(user_id, [memories[1]]) == 0
