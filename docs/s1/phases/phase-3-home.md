@@ -2,27 +2,21 @@
 
 ## Files changed
 
-- `frontend/app/dashboard-page.tsx`: single S1 operating-system surface and legacy fallback
+- `backend/app/services/s1_home_service.py`: fast Home read model
+- `backend/app/api/v1/s1.py`, `backend/app/schemas/s1.py`: Home API contract
+- `frontend/app/dashboard-page.tsx`, `src/lib/api.ts`: responsive Home client and Continue handoff
+- `backend/tests/test_s1_home.py`: Knows You and new-user empty-state coverage
 
-## APIs
+## API added
 
-Home now treats `GET /api/v1/s1/context` as its primary contract. The existing dashboard and continue APIs remain fallback paths for backward compatibility.
+- `GET /api/v1/s1/home`
 
-## UI
+## Behavior
 
-Home contains only mission, current focus, last activity, open loops, suggested next action, and one Continue Working action. Duplicate continuation-card grids and the second chat composer were removed from Home without removing their underlying APIs or routes.
+Home reads mission and current focus directly from Synzept Knows You, joins only open tasks and project loops, and returns a ready-to-use continuation prompt. It deliberately does not generate a Daily Brief or load the larger S1 bundle, keeping first paint fast.
 
-## Tests
-
-- Targeted ESLint and TypeScript/production build
-- Existing dashboard continuity and S1 context backend tests
-- Responsive route smoke check at mobile and desktop widths during final verification
+The screen contains only Mission, Current Focus, Open Loops, Suggested Next Action, and Continue Working. It is responsive by default through the existing mobile shell and safe-area navigation.
 
 ## Deployment
 
-Deploy the already-compatible S1 backend contract before this web client. No migration is required. Older clients continue using the existing dashboard endpoint.
-
-## Remaining tasks
-
-- Measure Home-to-Continue time and empty mission/focus rates in production.
-- Tune copy and density from first-user observation without adding primary-surface clutter.
+Deploy backend before the web client. No migration is needed. Existing dashboard and full S1 context routes remain available as fallback infrastructure.

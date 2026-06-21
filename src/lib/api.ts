@@ -886,6 +886,13 @@ export type S1Context = {
   capabilities: Record<string, unknown>;
 };
 
+export type S1Home = {
+  generated_at: string;
+  home: S1Context["home"];
+  continue_prompt: string;
+  context_sources: Record<string, number>;
+};
+
 export type ProjectContext = {
   project: Project;
   conversations: Conversation[];
@@ -1619,6 +1626,7 @@ export const api = {
 
   getDashboard: () => request<Dashboard>("/api/v1/dashboard"),
   getS1Context: () => request<S1Context>("/api/v1/s1/context"),
+  getS1Home: () => request<S1Home>("/api/v1/s1/home"),
   getGoalDashboard: () => request<GoalDashboard>("/api/v2/goals/dashboard"),
   listGoals: (status?: string) => request<Goal[]>(`/api/v2/goals${status ? `?status=${encodeURIComponent(status)}` : ""}`),
   createGoal: (data: { title: string; description?: string; project_id?: string | null }) =>

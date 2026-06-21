@@ -43,3 +43,10 @@ class S1ContextOut(BaseModel):
     knows_you: UserUnderstandingProfileOut
     context_sources: dict[str, int] = Field(default_factory=dict)
     capabilities: dict[str, Any] = Field(default_factory=dict)
+
+
+class S1HomeOut(BaseModel):
+    generated_at: datetime
+    home: S1HomeContext
+    continue_prompt: str
+    context_sources: dict[str, int] = Field(default_factory=dict)

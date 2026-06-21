@@ -4,37 +4,29 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Loader2 } from "lucide-react";
 import { RecoveryBanner } from "@/components/ui/recovery-banner";
-import { api, type ContinueContext, type ContinueContextCard, type Dashboard, type S1Context } from "@/lib/api";
+import { api, type Dashboard, type S1Home } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth";
 import { useWorkspaceStore } from "@/stores/workspace";
 import { PageFrame } from "@frontend/components/layout/page-frame";
 
 const CHAT_DRAFT_KEY = "synzept_chat_draft";
-const CONTINUE_PROJECT_KEY = "synzept_continue_project_id";
 
 export function DashboardPage() {
   const router = useRouter();
   const { dashboard, isLoading, hasFreshDashboard, setDashboard, setLoading } = useWorkspaceStore();
   const user = useAuthStore((state) => state.user);
-  const [continueContext, setContinueContext] = useState<ContinueContext | null>(null);
-  const [s1Context, setS1Context] = useState<S1Context | null>(null);
+  const [s1Home, setS1Home] = useState<S1Home | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const context = await api.getS1Context();
-      setS1Context(context);
-      setContinueContext(context.continue_context);
+      setS1Home(await api.getS1Home());
     } catch {
       try {
-        const [legacyDashboard, legacyContinue] = await Promise.all([
-          api.getDashboard(),
-          api.getContinueContext().catch(() => null),
-        ]);
+        const legacyDashboard = await api.getDashboard();
         setDashboard(legacyDashboard);
-        setContinueContext(legacyContinue);
       } catch {
         setError("Home could not refresh. You can still continue in Chat.");
       }
@@ -44,39 +36,26 @@ export function DashboardPage() {
   }, [setDashboard, setLoading]);
 
   useEffect(() => {
-    if (s1Context || (dashboard && hasFreshDashboard())) return;
+    if (s1Home || (dashboard && hasFreshDashboard())) return;
     void load();
-  }, [dashboard, hasFreshDashboard, load, s1Context]);
+  }, [dashboard, hasFreshDashboard, load, s1Home]);
 
   const home = useMemo(
-    () => getHomeContext(dashboard, user?.display_name || null, s1Context),
-    [dashboard, user?.display_name, s1Context],
+    () => getHomeContext(dashboard, user?.display_name || null, s1Home),
+    [dashboard, user?.display_name, s1Home],
   );
 
   useEffect(() => {
-    if (!s1Context && !dashboard) return;
+    if (!s1Home && !dashboard) return;
     void api.trackEvent("s1_home_loaded", "home", {
       open_loops: home.openLoops.length,
-      last_activity: home.lastTime.length,
-      used_s1_context: Boolean(s1Context),
+      used_s1_context: Boolean(s1Home),
     });
-  }, [dashboard, home.lastTime.length, home.openLoops.length, s1Context]);
-
-  const continueCard = (card: ContinueContextCard) => {
-    localStorage.setItem(CHAT_DRAFT_KEY, card.prompt);
-    if (card.project_id) localStorage.setItem(CONTINUE_PROJECT_KEY, card.project_id);
-    void api.trackEvent("s1_continue_clicked", "home", { card_id: card.id, kind: card.kind });
-    router.push("/chat");
-  };
+  }, [dashboard, home.openLoops.length, s1Home]);
 
   const continueWorking = () => {
-    const leadCard = continueContext?.cards?.[0];
-    if (leadCard) {
-      continueCard(leadCard);
-      return;
-    }
-    localStorage.setItem(CHAT_DRAFT_KEY, buildMomentPrompt(home));
-    void api.trackEvent("s1_continue_clicked", "home", { kind: "fallback" });
+    localStorage.setItem(CHAT_DRAFT_KEY, s1Home?.continue_prompt || buildMomentPrompt(home));
+    void api.trackEvent("s1_continue_clicked", "home", { kind: s1Home ? "s1_home" : "fallback" });
     router.push("/chat");
   };
 
@@ -85,7 +64,7 @@ export function DashboardPage() {
       <div className="min-h-full bg-white text-stone-950">
         <div className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6 lg:px-8 lg:py-10">
           <RecoveryBanner message={error} onRetry={load} className="mb-5" />
-          <SynzeptMoment home={home} loading={isLoading && !s1Context && !dashboard} onContinue={continueWorking} />
+          <SynzeptMoment home={home} loading={isLoading && !s1Home && !dashboard} onContinue={continueWorking} />
         </div>
       </div>
     </PageFrame>
@@ -111,9 +90,6 @@ function SynzeptMoment({ home, loading, onContinue }: { home: HomeContext; loadi
         <MomentBlock label="Current Focus" value={home.focus} />
       </div>
 
-      {home.lastTime.length ? (
-        <ContextList label="Last activity" items={home.lastTime} />
-      ) : null}
       <ContextList label="Open Loops" items={home.openLoops} empty="No open loops need attention right now." />
 
       <aside className="mt-6 rounded-xl bg-stone-950 p-5 text-white sm:p-6">
@@ -166,19 +142,15 @@ type HomeContext = {
   welcome: string;
   mission: string;
   focus: string;
-  lastTime: HomeItem[];
   openLoops: HomeItem[];
   suggestedAction: HomeAction;
 };
 
-function getHomeContext(dashboard: Dashboard | null, displayName: string | null, s1: S1Context | null): HomeContext {
+function getHomeContext(dashboard: Dashboard | null, displayName: string | null, s1: S1Home | null): HomeContext {
   const os = dashboard?.personal_os;
   const activeProject = dashboard?.projects?.find((project) => project.status === "active") || dashboard?.projects?.[0];
   const mission = s1?.home.mission || cleanText(os?.current_mission) || cleanText(activeProject?.description) || "Choose a mission Synzept can keep visible.";
   const focus = s1?.home.focus || cleanText(os?.current_focus) || cleanText(activeProject?.currentFocus) || "Choose the next meaningful action.";
-  const lastTime = s1?.home.last_time.length
-    ? s1.home.last_time.map((item) => ({ id: item.id, title: item.title, detail: item.detail }))
-    : (dashboard?.returning_user?.what_changed || dashboard?.recent_activity || []).slice(0, 3).map((item) => ({ id: String(item.id), title: item.title, detail: item.description || "" }));
   const openLoops = s1?.home.open_loops.length
     ? s1.home.open_loops.map((item) => ({ id: item.id, title: item.title, detail: item.detail }))
     : (os?.open_loops || []).slice(0, 3).map((item) => ({ id: item.id, title: item.title, detail: item.next_step || item.description || "" }));
@@ -194,7 +166,6 @@ function getHomeContext(dashboard: Dashboard | null, displayName: string | null,
     welcome: `Welcome back${displayName ? `, ${displayName}` : ""}.`,
     mission,
     focus,
-    lastTime,
     openLoops,
     suggestedAction,
   };
