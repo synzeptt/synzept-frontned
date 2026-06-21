@@ -5,7 +5,7 @@
 | Layer | Technology |
 |---|---|
 | Frontend | Next.js on Vercel |
-| Backend | FastAPI on Railway |
+| Backend | FastAPI on Azure VM |
 | Database | Supabase PostgreSQL + pgvector |
 | Background jobs | asyncio by default, Dramatiq + Redis when durability is required |
 | Storage | Supabase Storage, optional |
@@ -97,17 +97,19 @@ psql "$DATABASE_URL" -f backend/migrations/013_core_architecture_foundation_rls.
 | `GET /health/retrieval` | memory/retrieval schema health |
 | `GET /health/metrics` | in-process V1 performance metrics |
 
-## Railway Backend Validation
+## Azure VM Backend Validation
 
-1. Set `ENVIRONMENT=production`, `LOG_JSON=true`, `DATABASE_URL`, `JWT_SECRET_KEY`, CORS origins, and at least one AI provider key.
+Automatic backend deployment is configured through GitHub Actions. See `docs/deployment/azure_auto_deploy.md`.
+
+1. Set `ENVIRONMENT=production`, `LOG_JSON=true`, `DATABASE_URL`, `JWT_SECRET_KEY`, CORS origins, and at least one AI provider key on the Azure VM.
 2. Set `INVITE_REQUIRED=true` for controlled public launch.
-3. Configure Railway health check to `/health/ready`.
+3. Configure systemd to run the backend service and restart it through the deploy user.
 4. Confirm `/health/diagnostics` reports database connected, then validate the V2 core tables and RLS policies after applying `013_core_architecture_foundation_rls.sql`.
 5. Confirm logs do not include secrets or raw provider keys.
 
 ## Vercel Frontend Validation
 
-1. Set `NEXT_PUBLIC_API_URL` to the Railway backend URL.
+1. Set `NEXT_PUBLIC_API_URL` to the Azure VM backend URL.
 2. Set `NEXT_PUBLIC_GOOGLE_CLIENT_ID` only if Google sign-in is enabled.
 3. Deploy and verify `/early-access`, `/login`, `/onboarding`, `/dashboard`, `/chat`, `/settings`, and `/help`.
 4. Confirm invite-required copy appears on signup when backend requires invites.

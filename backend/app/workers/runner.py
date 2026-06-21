@@ -43,9 +43,12 @@ async def _memory_post_response(payload: dict) -> None:
                 conversation_id=UUID(payload["conversation_id"]),
                 project_id=UUID(payload["project_id"]) if payload.get("project_id") else None,
             )
-            from app.services.user_understanding_service import UserUnderstandingService
+            from app.models.user import User
+            from app.services.understanding_engine_service import UnderstandingEngineService
 
-            await UserUnderstandingService(session).learn_from_memories(UUID(payload["user_id"]), memories)
+            user = await session.get(User, UUID(payload["user_id"]))
+            if user:
+                await UnderstandingEngineService(session).refresh_from_memories(user, memories)
             await session.commit()
         except Exception:
             await session.rollback()

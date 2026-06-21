@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas.base import ORMModel
 
@@ -60,3 +60,62 @@ class UserUnderstandingCoverageOut(BaseModel):
 class UserUnderstandingSyncOut(BaseModel):
     created: int = 0
     coverage: UserUnderstandingCoverageOut
+
+
+class UnderstandingFactOut(BaseModel):
+    category: str
+    section: str
+    field: str
+    title: str
+    value: str
+    confidence: float = Field(default=0.65, ge=0, le=1)
+    source: str = "learned"
+    evidence: list[str] = Field(default_factory=list)
+
+
+class UnderstandingInsightOut(BaseModel):
+    type: str
+    title: str
+    description: str
+    confidence: float = Field(default=0.65, ge=0, le=1)
+    evidence: list[str] = Field(default_factory=list)
+    action: str | None = None
+
+
+class UnderstandingModelOut(BaseModel):
+    identity: dict = Field(default_factory=dict)
+    personalLife: dict = Field(default_factory=dict)
+    professionalLife: dict = Field(default_factory=dict)
+    goals: dict = Field(default_factory=dict)
+    relationships: dict = Field(default_factory=dict)
+    currentState: dict = Field(default_factory=dict)
+    intelligence: dict = Field(default_factory=dict)
+
+
+class UserUnderstandingEngineOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    userId: UUID
+    personal: dict = Field(default_factory=dict)
+    professional: dict = Field(default_factory=dict)
+    goals: dict = Field(default_factory=dict)
+    preferences: dict = Field(default_factory=dict)
+    learning: dict = Field(default_factory=dict)
+    currentFocus: dict = Field(default_factory=dict)
+    understandingModel: UnderstandingModelOut = Field(default_factory=UnderstandingModelOut)
+    summary: dict = Field(default_factory=dict)
+    coverage: UserUnderstandingCoverageOut
+    insights: list[UnderstandingInsightOut] = Field(default_factory=list)
+    createdAt: datetime
+    updatedAt: datetime
+
+
+class UserUnderstandingRefreshOut(BaseModel):
+    created: int = 0
+    updated: int = 0
+    unchanged: int = 0
+    extracted: int = 0
+    coverage: UserUnderstandingCoverageOut
+    insights: list[UnderstandingInsightOut] = Field(default_factory=list)
+    understanding: UserUnderstandingEngineOut

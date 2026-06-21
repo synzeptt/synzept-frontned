@@ -12,14 +12,26 @@ from app.schemas.knows_you import (
     UserUnderstandingBody,
     UserUnderstandingProfileOut,
 )
+from app.schemas.user_understanding import UserUnderstandingEngineOut, UserUnderstandingRefreshOut, UnderstandingInsightOut
 from app.services.knows_you_service import KnowsYouService
+from app.services.understanding_engine_service import UnderstandingEngineService
 
 router = APIRouter(prefix="/api")
 
 
-@router.get("/user-understanding", response_model=UserUnderstandingProfileOut)
+@router.get("/user-understanding", response_model=UserUnderstandingEngineOut)
 async def get_user_understanding(user: User = Depends(get_current_user), session: AsyncSession = Depends(get_db)):
-    return await KnowsYouService(session).get_understanding(user.id)
+    return await UnderstandingEngineService(session).get_understanding(user)
+
+
+@router.post("/user-understanding/refresh", response_model=UserUnderstandingRefreshOut)
+async def refresh_user_understanding(user: User = Depends(get_current_user), session: AsyncSession = Depends(get_db)):
+    return await UnderstandingEngineService(session).refresh(user)
+
+
+@router.get("/user-understanding/insights", response_model=list[UnderstandingInsightOut])
+async def get_user_understanding_insights(user: User = Depends(get_current_user), session: AsyncSession = Depends(get_db)):
+    return await UnderstandingEngineService(session).insights_for_user(user)
 
 
 @router.post("/user-understanding", response_model=UserUnderstandingProfileOut)

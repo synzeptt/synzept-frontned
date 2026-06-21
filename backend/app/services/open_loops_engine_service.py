@@ -14,6 +14,7 @@ from app.models.project import Project
 from app.models.project_intelligence_phase2 import Decision, OpenLoop
 from app.models.task import Task
 from app.schemas.open_loops_engine import OpenLoopEngineItem, OpenLoopEngineOut, OpenLoopEngineSummary
+from app.services.usage_event_service import UsageEventService
 
 
 OPEN_TASK_STATUSES = {"todo", "pending", "in_progress"}
@@ -70,6 +71,12 @@ class OpenLoopsEngineService:
                 tags.append("open-loop-completed")
             item.tags = tags
         await self._set_action(user_id, source, source_id, "completed")
+        await UsageEventService(self.session).track(
+            user_id=user_id,
+            event_type="open_loop_completed",
+            surface="open_loops",
+            metadata={"source": source, "source_id": str(source_id)},
+        )
         await self.session.flush()
         return await self._single(user_id, source, source_id, "completed")
 

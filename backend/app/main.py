@@ -11,9 +11,12 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app.api import (
     billing,
+    chat,
+    continue_engine,
     context_engine_phase6,
     continuity_assistant_phase7,
     daily_brief_phase8,
+    home,
     knows_you,
     learning_engine_phase4,
     notifications,
@@ -108,8 +111,11 @@ app.add_exception_handler(Exception, unhandled_exception_handler)
 
 app.include_router(api_router)
 app.include_router(api_v2_router)
+app.include_router(chat.router)
+app.include_router(continue_engine.router)
 app.include_router(billing.router)
 app.include_router(billing.payments_router)
+app.include_router(home.router)
 app.include_router(knows_you.router)
 app.include_router(project_intelligence_phase2.router)
 app.include_router(timeline_phase3.router)
