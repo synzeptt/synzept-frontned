@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { Bell, Brain, Check, CreditCard, LogOut, Mail, ShieldCheck, Sparkles, Smartphone, Trash2, X } from "lucide-react";
+import { Bell, Brain, Check, CreditCard, Download, LogOut, Mail, Save, ShieldCheck, Sparkles, Smartphone, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PageHeader } from "@/components/layout/page-header";
@@ -15,7 +15,7 @@ import { useSettingsStore } from "@/stores/settings";
 
 export default function SettingsPage() {
   const router = useRouter();
-  const { user, logout, deleteAccount } = useAuthStore();
+  const { user, logout, deleteAccount, refreshUser } = useAuthStore();
   const {
     memoryEnabled,
     personalizationEnabled,
@@ -35,6 +35,10 @@ export default function SettingsPage() {
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [displayName, setDisplayName] = useState(user?.display_name || "");
+  const [profileSummary, setProfileSummary] = useState(user?.profile_summary || "");
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     const prefs = user?.preferences || {};
@@ -42,6 +46,11 @@ export default function SettingsPage() {
     if (typeof prefs.personalization_enabled === "boolean") setPersonalizationEnabled(prefs.personalization_enabled);
     if (typeof prefs.analytics_enabled === "boolean") setAnalyticsEnabled(prefs.analytics_enabled);
   }, [setAnalyticsEnabled, setMemoryEnabled, setPersonalizationEnabled, user]);
+
+  useEffect(() => {
+    setDisplayName(user?.display_name || "");
+    setProfileSummary(user?.profile_summary || "");
+  }, [user?.display_name, user?.profile_summary]);
 
   useEffect(() => {
     api.getNotifications().then((data) => setNotificationSettings(data.settings)).catch(() => null);
@@ -122,6 +131,38 @@ export default function SettingsPage() {
     }
   };
 
+  const saveProfile = async () => {
+    setSavingProfile(true);
+    setSettingsError(null);
+    try {
+      await api.updateProfile({ display_name: displayName.trim() || null, profile_summary: profileSummary.trim() || null });
+      await refreshUser();
+    } catch {
+      setSettingsError("Profile changes could not be saved.");
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
+  const exportData = async () => {
+    setExporting(true);
+    setSettingsError(null);
+    try {
+      const data = await api.exportAccountData();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `synzept-data-${new Date().toISOString().slice(0, 10)}.json`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      setSettingsError("Your data export could not be prepared.");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <div className="h-full overflow-y-auto">
       <PageHeader label="Account" title="Settings" />
@@ -139,6 +180,20 @@ export default function SettingsPage() {
               <p className="truncate text-sm font-medium text-stone-950">{user?.display_name || "Workspace"}</p>
               <p className="mt-0.5 truncate text-xs text-muted">{user?.email}</p>
             </div>
+          </div>
+          <div className="mt-5 grid gap-3">
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-medium text-muted">Display name</span>
+              <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} maxLength={120} className="h-10 w-full rounded-lg border border-border bg-white px-3 text-sm outline-none focus:border-accent/40 focus:ring-2 focus:ring-accent/10" />
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-medium text-muted">Profile summary</span>
+              <Textarea value={profileSummary} onChange={(event) => setProfileSummary(event.target.value)} maxLength={1000} placeholder="A short description Synzept can use as stable context." className="min-h-20" />
+            </label>
+            <Button size="sm" onClick={saveProfile} disabled={savingProfile} className="w-fit">
+              <Save className="mr-1.5 h-4 w-4" />
+              {savingProfile ? "Saving..." : "Save profile"}
+            </Button>
           </div>
         </section>
 
@@ -300,8 +355,16 @@ export default function SettingsPage() {
         </section>
 
         <section className="rounded-lg border border-border bg-white p-5 shadow-soft">
-          <SectionTitle title="Account Actions" />
+          <SectionTitle title="Data Management" description="Review, export, or permanently remove the data Synzept keeps for you." />
+          <div className="mt-4 grid gap-2 sm:grid-cols-2">
+            <Link href="/knows-you" className="rounded-lg border border-border px-3 py-3 text-sm font-medium text-stone-700 hover:bg-stone-50">Review understanding</Link>
+            <Link href="/memory" className="rounded-lg border border-border px-3 py-3 text-sm font-medium text-stone-700 hover:bg-stone-50">Manage memories</Link>
+          </div>
           <div className="mt-4 flex flex-wrap gap-2">
+            <Button variant="outline" onClick={exportData} disabled={exporting}>
+              <Download className="mr-1.5 h-4 w-4" />
+              {exporting ? "Preparing..." : "Export my data"}
+            </Button>
             <Button variant="outline" onClick={handleLogout}>
               <LogOut className="mr-1.5 h-4 w-4" />
               Sign out

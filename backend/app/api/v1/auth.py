@@ -11,6 +11,7 @@ from app.schemas.auth import (
     LogoutRequest,
     MessageResponse,
     ProfileOut,
+    ProfileUpdate,
     RefreshRequest,
     ResetPasswordRequest,
     SignupRequest,
@@ -24,6 +25,7 @@ from app.services.billing_service import BillingService
 from app.services.google_auth_service import GoogleAuthService
 from app.services.usage_event_service import UsageEventService
 from app.services.user_profile_service import UserProfileService
+from app.services.account_data_export_service import AccountDataExportService
 
 router = APIRouter(prefix="/auth")
 
@@ -143,6 +145,21 @@ async def update_preferences(
 @router.get("/profile", response_model=ProfileOut)
 async def profile(user: User = Depends(get_current_user), session: AsyncSession = Depends(get_db)):
     return await UserProfileService(session).get_or_create(user.id)
+
+
+@router.patch("/profile", response_model=UserOut)
+async def update_profile(
+    body: ProfileUpdate,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+):
+    await UserProfileService(session).update_profile(user, body)
+    return await _user_out(user, session)
+
+
+@router.get("/export")
+async def export_account_data(user: User = Depends(get_current_user), session: AsyncSession = Depends(get_db)):
+    return await AccountDataExportService(session).export(user)
 
 
 @router.patch("/profile/avatar", response_model=UserOut)

@@ -85,3 +85,9 @@ class UserPreferencesUpdate(BaseModel):
 
 class AvatarUpdate(BaseModel):
     avatar_url: str | None = Field(default=None, max_length=2_100_000)
+
+
+class ProfileUpdate(BaseModel):
+    display_name: str | None = Field(default=None, max_length=120)
+    profile_summary: str | None = Field(default=None, max_length=1000)
+    timezone: str | None = Field(default=None, max_length=64)

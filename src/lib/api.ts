@@ -1498,6 +1498,11 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  updateProfile: (data: { display_name?: string | null; profile_summary?: string | null; timezone?: string | null }) =>
+    request<AuthUser>("/api/v1/auth/profile", { method: "PATCH", body: JSON.stringify(data) }),
+
+  exportAccountData: () => request<Record<string, unknown>>("/api/v1/auth/export"),
+
   updateAvatar: (avatarUrl: string | null) =>
     request<AuthUser>("/api/v1/auth/profile/avatar", {
       method: "PATCH",

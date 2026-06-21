@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
 from app.models.user_profile import UserProfile
+from app.schemas.auth import ProfileUpdate
 
 
 class UserProfileService:
@@ -40,6 +41,22 @@ class UserProfileService:
         user.avatar_url = cleaned
         profile = await self.get_or_create(user.id)
         profile.avatar_url = cleaned
+        return profile
+
+    async def update_profile(self, user: User, data: ProfileUpdate) -> UserProfile:
+        profile = await self.get_or_create(user.id)
+        changes = data.model_dump(exclude_unset=True)
+        if "display_name" in changes:
+            cleaned_name = changes["display_name"].strip() if changes["display_name"] else None
+            user.display_name = cleaned_name
+            profile.display_name = cleaned_name
+        if "profile_summary" in changes:
+            user.profile_summary = changes["profile_summary"].strip() if changes["profile_summary"] else None
+        if "timezone" in changes and changes["timezone"]:
+            timezone = changes["timezone"].strip()
+            user.timezone = timezone
+            profile.timezone = timezone
+        await self.session.flush()
         return profile
 
     def format_for_context(self, profile: UserProfile | None, user: User | None) -> str:
