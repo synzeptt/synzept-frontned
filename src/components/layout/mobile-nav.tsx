@@ -2,20 +2,21 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, MessageSquare, UserCircle } from "lucide-react";
+import { CalendarDays, Home, MessageSquare, Settings } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 const links = [
   { href: "/dashboard", label: "Home", icon: Home },
   { href: "/chat", label: "Chat", icon: MessageSquare },
-  { href: "/settings", label: "Profile", icon: UserCircle },
+  { href: "/daily-brief", label: "Brief", icon: CalendarDays },
+  { href: "/settings", label: "Settings", icon: Settings },
 ];
 
 export function MobileNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 grid grid-cols-3 border-t border-border bg-surface-raised/95 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-md md:hidden">
+    <nav className="fixed bottom-0 left-0 right-0 z-40 grid grid-cols-4 border-t border-border bg-surface-raised/95 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-md md:hidden">
       {links.map(({ href, label, icon: Icon }) => {
         const active = pathname === href || pathname.startsWith(`${href}/`);
         return (

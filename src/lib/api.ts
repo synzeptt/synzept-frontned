@@ -828,6 +828,35 @@ export type ContinueContext = {
   context_used: Record<string, number>;
 };
 
+export type S1ContextItem = {
+  id: string | null;
+  title: string;
+  detail: string;
+  href: string | null;
+  priority: string;
+  source: string;
+};
+
+export type S1Context = {
+  version: "s1";
+  generated_at: string;
+  home: {
+    greeting: string;
+    mission: string;
+    focus: string;
+    last_time: S1ContextItem[];
+    open_loops: S1ContextItem[];
+    suggested_next_action: { title: string; reason: string; href: string };
+    is_returning: boolean;
+    days_since_last_seen: number | null;
+  };
+  continue_context: ContinueContext;
+  daily_brief: DailyBriefSnapshot;
+  knows_you: UserUnderstandingProfile;
+  context_sources: Record<string, number>;
+  capabilities: Record<string, unknown>;
+};
+
 export type ProjectContext = {
   project: Project;
   conversations: Conversation[];
@@ -1555,6 +1584,7 @@ export const api = {
     request<{ welcome_message: string }>("/api/v1/onboarding/skip", { method: "POST" }),
 
   getDashboard: () => request<Dashboard>("/api/v1/dashboard"),
+  getS1Context: () => request<S1Context>("/api/v1/s1/context"),
   getGoalDashboard: () => request<GoalDashboard>("/api/v2/goals/dashboard"),
   listGoals: (status?: string) => request<Goal[]>(`/api/v2/goals${status ? `?status=${encodeURIComponent(status)}` : ""}`),
   createGoal: (data: { title: string; description?: string; project_id?: string | null }) =>

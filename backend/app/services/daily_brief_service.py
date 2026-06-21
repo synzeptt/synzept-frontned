@@ -160,8 +160,10 @@ class DailyBriefService:
 
     def _what_matters(self, understanding: list[UserUnderstanding], projects: list[Project]) -> list[str]:
         items: list[str] = []
-        for title in ("Current Priorities", "Short-Term Goals", "Active Projects", "Long-Term Goals"):
+        for title in ("Current Priorities", "Short-Term Goals", "Short-term", "Active Projects", "Long-Term Goals", "Long-term", "Mission"):
             items.extend(self._split_value(self._understanding_value(understanding, title)))
+        for category in ("short_term_goals", "long_term_goals", "missions", "current_focus"):
+            items.extend(item.value for item in understanding if item.category == category)
         items.extend(project.name for project in projects)
         return self._unique(items)[:6]
 

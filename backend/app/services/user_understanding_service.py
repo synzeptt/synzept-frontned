@@ -42,10 +42,10 @@ class UserUnderstandingService:
         items = await self.list_for_user(user)
         return UserUnderstandingProfileOut(
             user_id=user.id,
-            current_mission=self._values_for(items, titles=("Current Mission", "Mission", "North Star"), categories=("current_mission", "goals")),
+            current_mission=self._values_for(items, titles=("Current Mission", "Mission", "North Star"), categories=("current_mission", "missions", "long_term_goals", "goals")),
             current_focus=self._values_for(items, titles=("Current Focus", "Current Priorities", "Active Projects"), categories=("current_focus", "recent_priorities")),
             active_projects=self._values_for(items, titles=("Active Projects", "Projects"), categories=("projects",)),
-            open_loops=self._values_for(items, titles=("Open Loops", "Open Loop", "Unfinished Work"), categories=("open_loops",)),
+            open_loops=self._values_for(items, titles=("Open Loops", "Open Loop", "Unfinished Work"), categories=("open_loops", "commitments")),
             recent_progress=self._values_for(items, titles=("Recent Progress", "Progress", "Wins"), categories=("recent_progress",)),
             recent_decisions=self._values_for(items, titles=("Recent Decisions", "Decision Memory", "Decisions"), categories=("decision_memory",)),
             next_suggested_actions=self._values_for(items, titles=("Next Suggested Actions", "Suggested Next Actions", "Next Actions"), categories=("next_suggested_actions",)),

@@ -1,6 +1,8 @@
-# Synzept V1
+# Synzept S1
 
-Synzept is a personal AI operating system, not a chatbot. It provides persistent memory, context-aware assistance, and continuity across conversations, projects, notes, and tasks.
+Synzept is a personal AI operating system that knows you, remembers your life and work, and helps you move forward. S1 evolves the existing V1/V2 platform in place and preserves its authentication, memory, billing, projects, tasks, Daily Brief, open loops, APIs, and mobile infrastructure.
+
+See the [S1 architecture and product plan](docs/s1/architecture-and-product-plan.md), [incremental roadmap](docs/s1/incremental-roadmap.md), and [deployment guide](docs/s1/deployment.md).
 
 ## Development Order
 

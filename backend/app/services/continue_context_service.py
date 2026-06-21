@@ -29,7 +29,7 @@ class ContinueContextService:
         memories = await MemoryEngine(self.session).store.list_for_user(user.id, limit=8)
         open_loop_engine = await OpenLoopsEngineService(self.session).list(user.id)
 
-        mission = self._understanding_value(understanding, "current_mission") or self._project_value(projects, "description") or "Build a clear continuity system for the work that matters."
+        mission = self._understanding_value(understanding, "current_mission") or self._understanding_value(understanding, "missions") or self._project_value(projects, "description") or "Build a clear continuity system for the work that matters."
         focus = self._understanding_value(understanding, "current_focus") or self._project_value(projects, "current_focus") or self._task_value(tasks) or "Choose the next meaningful action."
         suggested_action = self._understanding_value(understanding, "next_suggested_actions") or self._project_value(projects, "recommended_next_step") or focus
         memory_context = [truncate(item.summary or item.content, 160) for item in memories[:5]]

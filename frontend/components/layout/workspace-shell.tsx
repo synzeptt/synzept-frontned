@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { Bell, ChevronDown, ChevronUp, Home, Menu, MessageSquare, UserCircle, X } from "lucide-react";
+import { Bell, CalendarDays, ChevronDown, ChevronUp, Home, Menu, MessageSquare, Settings, X } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { CopyrightLine } from "@/components/copyright-line";
 import { MobileNav } from "@/components/layout/mobile-nav";
@@ -21,7 +21,8 @@ import { useWorkspaceUIStore } from "@frontend/store/workspace-ui";
 const navItems = [
   { href: "/dashboard", label: "Home", icon: Home },
   { href: "/chat", label: "Chat", icon: MessageSquare },
-  { href: "/settings", label: "Profile", icon: UserCircle },
+  { href: "/daily-brief", label: "Daily Brief", icon: CalendarDays },
+  { href: "/settings", label: "Settings", icon: Settings },
 ];
 
 export function WorkspaceShell({ children }: { children: React.ReactNode }) {

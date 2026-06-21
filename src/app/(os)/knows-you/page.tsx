@@ -10,13 +10,23 @@ import { cn } from "@/lib/cn";
 import { PageFrame } from "@frontend/components/layout/page-frame";
 
 const sections = [
-  { id: "goals", title: "Goals", empty: "Add the outcomes Synzept should help you move toward." },
-  { id: "projects", title: "Projects", empty: "Project knowledge appears from your workspace and manual notes." },
-  { id: "current_focus", title: "Current Focus", empty: "Add what matters this week or today." },
-  { id: "current_challenges", title: "Current Challenges", empty: "Add what is blocking or slowing you down." },
-  { id: "success_metrics", title: "Success Metrics", empty: "Add what success should look like in the next 30 days." },
+  { id: "about_me", title: "Personal · About me", empty: "Add the context you never want to explain twice." },
   { id: "interests", title: "Interests", empty: "Add recurring topics, industries, or themes." },
-  { id: "work_style", title: "Work Style", empty: "Add how you prefer to think, plan, decide, or communicate." },
+  { id: "habits", title: "Personal · Habits", empty: "Add routines and patterns that shape your days." },
+  { id: "preferences", title: "Personal · Preferences", empty: "Add how you prefer to think, plan, decide, or communicate." },
+  { id: "job", title: "Professional · Job", empty: "Add your role, team, and work context." },
+  { id: "startup", title: "Professional · Startup", empty: "Add the company or venture you are building." },
+  { id: "projects", title: "Professional · Projects", empty: "Project knowledge appears from your workspace and manual notes." },
+  { id: "responsibilities", title: "Professional · Responsibilities", empty: "Add the responsibilities Synzept should keep in view." },
+  { id: "short_term_goals", title: "Goals · Short-term", empty: "Add outcomes for the coming days or weeks." },
+  { id: "long_term_goals", title: "Goals · Long-term", empty: "Add outcomes that need sustained attention." },
+  { id: "missions", title: "Goals · Missions", empty: "Add the larger mission behind your work and life." },
+  { id: "important_people", title: "Relationships · Important people", empty: "Add the people and relationships that matter." },
+  { id: "commitments", title: "Relationships · Commitments", empty: "Add promises and commitments Synzept should remember." },
+  { id: "learning", title: "Learning · What I want to learn", empty: "Add skills, subjects, or questions you want to explore." },
+  { id: "current_focus", title: "Current situation · Focus", empty: "Add what matters this week or today." },
+  { id: "current_struggles", title: "Current situation · Struggles", empty: "Add what is blocking or slowing you down." },
+  { id: "open_loops", title: "Current situation · Open loops", empty: "Add unresolved work, decisions, or follow-ups." },
   { id: "learned_understanding", title: "Learned Understanding", empty: "Agent recall from goals, projects, decisions, conversations, and milestones appears here." },
   { id: "decision_memory", title: "Decision Memory", empty: "Important decisions, reasons, and outcomes appear here as Synzept learns them." },
   { id: "recent_priorities", title: "Recent Priorities", empty: "Recent priorities appear as Synzept sees what changed and what remains unfinished." },
@@ -26,28 +36,42 @@ const sections = [
 type SectionId = (typeof sections)[number]["id"];
 
 const categoryAliases: Record<string, SectionId> = {
-  goals: "goals",
-  goal: "goals",
+  about_me: "about_me",
+  personal: "about_me",
+  goals: "short_term_goals",
+  goal: "short_term_goals",
+  short_term_goals: "short_term_goals",
+  long_term_goals: "long_term_goals",
+  missions: "missions",
+  current_mission: "missions",
+  mission: "missions",
   current_focus: "current_focus",
   focus: "current_focus",
-  current_challenges: "current_challenges",
-  challenges: "current_challenges",
-  blockers: "current_challenges",
-  success_metrics: "success_metrics",
-  success: "success_metrics",
+  current_challenges: "current_struggles",
+  current_struggles: "current_struggles",
+  challenges: "current_struggles",
+  blockers: "current_struggles",
   interests: "interests",
   interest: "interests",
+  habits: "habits",
   projects: "projects",
   project: "projects",
-  work_style: "work_style",
-  preferences: "work_style",
+  work_style: "preferences",
+  preferences: "preferences",
+  job: "job",
+  startup: "startup",
+  responsibilities: "responsibilities",
+  important_people: "important_people",
+  relationships: "important_people",
+  commitments: "commitments",
+  open_loops: "open_loops",
   learned_insights: "accepted_learnings",
   learned_understanding: "learned_understanding",
   decision_memory: "decision_memory",
   decisions: "decision_memory",
   decision: "decision_memory",
   recent_priorities: "recent_priorities",
-  learning: "accepted_learnings",
+  learning: "learning",
   accepted_learnings: "accepted_learnings",
 };
 
@@ -58,7 +82,7 @@ export default function KnowsYouPage() {
   const [profile, setProfile] = useState<UserUnderstandingProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [draft, setDraft] = useState({ category: "goals" as SectionId, title: "", value: "" });
+  const [draft, setDraft] = useState({ category: "about_me" as SectionId, title: "", value: "" });
 
   const load = useCallback(() => {
     setLoading(true);
@@ -326,21 +350,10 @@ function KnowledgeItem({ item, onUpdate, onDelete }: { item: UserUnderstandingIt
 }
 
 function groupItems(items: UserUnderstandingItem[]) {
-  const grouped: Record<SectionId, UserUnderstandingItem[]> = {
-    goals: [],
-    current_focus: [],
-    current_challenges: [],
-    success_metrics: [],
-    interests: [],
-    projects: [],
-    work_style: [],
-    learned_understanding: [],
-    decision_memory: [],
-    recent_priorities: [],
-    accepted_learnings: [],
-  };
+  const grouped = {} as Record<SectionId, UserUnderstandingItem[]>;
+  for (const section of sections) grouped[section.id] = [];
   for (const item of items) {
-    const key = item.source === "learned" ? "accepted_learnings" : categoryAliases[item.category] || "interests";
+    const key = categoryAliases[item.category] || (item.source === "learned" ? "accepted_learnings" : "about_me");
     grouped[key].push(item);
   }
   return grouped;

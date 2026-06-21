@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { Bell, Check, CreditCard, LogOut, Mail, ShieldCheck, Sparkles, Smartphone, Trash2, X } from "lucide-react";
+import { Bell, Brain, Check, CreditCard, LogOut, Mail, ShieldCheck, Sparkles, Smartphone, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PageHeader } from "@/components/layout/page-header";
@@ -141,6 +141,14 @@ export default function SettingsPage() {
             </div>
           </div>
         </section>
+
+        <Link href="/knows-you" className="flex items-center gap-4 rounded-lg border border-border bg-white p-5 shadow-soft transition hover:border-stone-300 hover:bg-stone-50">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-stone-100 text-stone-700"><Brain className="h-5 w-5" /></span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold text-stone-950">Synzept Knows You</span>
+            <span className="mt-1 block text-sm leading-6 text-muted">Review and correct the personal, professional, goal, relationship, learning, and current-situation context Synzept uses.</span>
+          </span>
+        </Link>
 
         <section className="rounded-lg border border-border bg-white p-5 shadow-soft">
           <SectionTitle title="Plan" description="Manage Synzept Pro access, billing status, and renewal." />

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState, useTransition } from "react"
 import { useRouter } from "next/navigation";
 import { ArrowRight, ArrowUp, Loader2 } from "lucide-react";
 import { RecoveryBanner } from "@/components/ui/recovery-banner";
-import { api, type ContinueContext, type ContinueContextCard, type Conversation, type Dashboard, type ReturnContext, type ReturnOpenLoop } from "@/lib/api";
+import { api, type ContinueContext, type ContinueContextCard, type Conversation, type Dashboard, type ReturnContext, type ReturnOpenLoop, type S1Context } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth";
 import { useWorkspaceStore } from "@/stores/workspace";
 import { PageFrame } from "@frontend/components/layout/page-frame";
@@ -17,6 +17,7 @@ export function DashboardPage() {
   const { dashboard, isLoading, hasFreshDashboard, setDashboard, setLoading } = useWorkspaceStore();
   const user = useAuthStore((state) => state.user);
   const [continueContext, setContinueContext] = useState<ContinueContext | null>(null);
+  const [s1Context, setS1Context] = useState<S1Context | null>(null);
   const [prompt, setPrompt] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
@@ -37,7 +38,12 @@ export function DashboardPage() {
   }, [dashboard, hasFreshDashboard, load]);
 
   useEffect(() => {
-    api.getContinueContext().then(setContinueContext).catch(() => setContinueContext(null));
+    api.getS1Context()
+      .then((context) => {
+        setS1Context(context);
+        setContinueContext(context.continue_context);
+      })
+      .catch(() => api.getContinueContext().then(setContinueContext).catch(() => setContinueContext(null)));
   }, []);
 
   useEffect(() => {
@@ -49,7 +55,7 @@ export function DashboardPage() {
     });
   }, [dashboard]);
 
-  const home = useMemo(() => getHomeContext(dashboard, user?.display_name || null), [dashboard, user?.display_name]);
+  const home = useMemo(() => getHomeContext(dashboard, user?.display_name || null, s1Context), [dashboard, user?.display_name, s1Context]);
 
   const continueCard = (card: ContinueContextCard) => {
     localStorage.setItem(CHAT_DRAFT_KEY, card.prompt);
@@ -124,13 +130,25 @@ function SynzeptMoment({ home, loading, onContinue }: { home: HomeContext; loadi
               ) : null}
             </div>
             <h1 className="mt-3 max-w-3xl text-4xl font-semibold leading-tight tracking-normal text-stone-950 sm:text-5xl">
-              Synzept knows where you left off.
+              {home.welcome}
             </h1>
           </div>
 
           <div className="grid gap-3 md:grid-cols-2">
             <MomentBlock label="Mission" value={home.mission} />
             <MomentBlock label="Focus" value={home.focus} />
+          </div>
+
+          <div>
+            <p className="text-xs font-medium uppercase tracking-[0.14em] text-stone-400">Last time</p>
+            <div className="mt-3 space-y-2">
+              {home.lastTime.slice(0, 3).map((item) => (
+                <div key={`${item.title}-${item.detail}`} className="rounded-md bg-white px-3 py-3">
+                  <p className="text-sm font-medium text-stone-950">{item.title}</p>
+                  {item.detail ? <p className="mt-1 line-clamp-2 text-xs leading-5 text-stone-500">{item.detail}</p> : null}
+                </div>
+              ))}
+            </div>
           </div>
 
           <div>
@@ -307,6 +325,7 @@ type HomeProgress = {
 
 type HomeContext = {
   greeting: string;
+  welcome: string;
   mission: string;
   missionLine: string;
   whyItMatters: string;
@@ -317,10 +336,11 @@ type HomeContext = {
   recentProjects: HomeItem[];
   recentConversations: HomeItem[];
   recentDecisions: HomeItem[];
+  lastTime: HomeItem[];
   progress: HomeProgress;
 };
 
-function getHomeContext(dashboard: Dashboard | null, displayName: string | null): HomeContext {
+function getHomeContext(dashboard: Dashboard | null, displayName: string | null, s1: S1Context | null): HomeContext {
   const os = dashboard?.personal_os;
   const activeProject = dashboard?.projects?.find((project) => project.status === "active") || dashboard?.projects?.[0];
   const greeting = os?.greeting || `Good morning${displayName ? `, ${displayName}` : ""}`;
@@ -341,6 +361,9 @@ function getHomeContext(dashboard: Dashboard | null, displayName: string | null)
   const recentProjects = normalizeProjects(os?.active_projects, dashboard).slice(0, 4);
   const recentConversations = normalizeConversations(dashboard?.recent_conversations).slice(0, 4);
   const recentDecisions = normalizeDecisions(os?.recent_decisions).slice(0, 4);
+  const lastTime = s1?.home.last_time.length
+    ? s1.home.last_time.map((item) => ({ title: item.title, detail: item.detail, href: item.href }))
+    : normalizeContexts(dashboard?.returning_user?.context_to_remember).slice(0, 3);
   const suggestedAction = normalizeAction(os?.suggested_next_action, priorities[0]);
   const focus =
     cleanText(os?.current_focus) ||
@@ -354,17 +377,21 @@ function getHomeContext(dashboard: Dashboard | null, displayName: string | null)
   const progressValue = Math.min(92, Math.max(18, activeProjects * 16 + Math.min(recentMoves, 5) * 8 - openLoopCount * 3));
 
   return {
-    greeting,
-    mission,
+    greeting: s1?.home.greeting || greeting,
+    welcome: `Welcome back${displayName ? `, ${displayName}` : ""}.`,
+    mission: s1?.home.mission || mission,
     missionLine,
     whyItMatters,
-    focus,
+    focus: s1?.home.focus || focus,
     priorities,
-    openLoops,
-    suggestedAction,
+    openLoops: s1?.home.open_loops.length
+      ? s1.home.open_loops.map((item) => ({ id: item.id || item.title, title: item.title, description: item.detail, projectName: "Workspace", priority: item.priority, href: item.href, nextStep: item.detail }))
+      : openLoops,
+    suggestedAction: s1?.home.suggested_next_action || suggestedAction,
     recentProjects,
     recentConversations,
     recentDecisions,
+    lastTime: lastTime.length ? lastTime : recentConversations.slice(0, 1),
     progress: {
       value: progressValue,
       label: progressValue >= 70 ? "Strong continuity" : progressValue >= 45 ? "Moving steadily" : "Needs attention",

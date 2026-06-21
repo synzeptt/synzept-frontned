@@ -269,7 +269,7 @@ class ProductAnalyticsService:
                 select(distinct(UsageEvent.user_id)).where(
                     UsageEvent.user_id.in_(users),
                     UsageEvent.event_type.in_(("daily_active", "dashboard_loaded", "page_view", "return_session", "first_return_visit")),
-                    func.date(UsageEvent.created_at) == target.isoformat(),
+                    func.date(UsageEvent.created_at) == target,
                 )
             )
             returned.update(user_id for user_id in result.scalars() if user_id)
