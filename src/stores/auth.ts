@@ -23,33 +23,54 @@ export const useAuthStore = create<AuthState>((set) => ({
   isAuthenticated: false,
 
   login: async (email, password) => {
-    const tokens = await api.login(email, password);
-    setTokens(tokens.access_token, tokens.refresh_token);
-    const user = await api.me();
-    set({ user, isAuthenticated: true, isLoading: false });
-    return routeAfterAuth(user.onboarding_state);
+    try {
+      const tokens = await api.login(email, password);
+      setTokens(tokens.access_token, tokens.refresh_token);
+      const user = await api.me();
+      set({ user, isAuthenticated: true, isLoading: false });
+      return routeAfterAuth(user.onboarding_state);
+    } catch (error) {
+      api.clearTokens();
+      set({ user: null, isAuthenticated: false, isLoading: false });
+      throw error;
+    }
   },
 
   signup: async (email, password, inviteCode) => {
-    const tokens = inviteCode ? await api.signupWithInvite(email, password, undefined, inviteCode) : await api.signup(email, password);
-    setTokens(tokens.access_token, tokens.refresh_token);
-    const user = await api.me();
-    set({ user, isAuthenticated: true, isLoading: false });
-    return routeAfterAuth(user.onboarding_state);
+    try {
+      const tokens = inviteCode ? await api.signupWithInvite(email, password, undefined, inviteCode) : await api.signup(email, password);
+      setTokens(tokens.access_token, tokens.refresh_token);
+      const user = await api.me();
+      set({ user, isAuthenticated: true, isLoading: false });
+      return routeAfterAuth(user.onboarding_state);
+    } catch (error) {
+      api.clearTokens();
+      set({ user: null, isAuthenticated: false, isLoading: false });
+      throw error;
+    }
   },
 
   googleLogin: async (idToken) => {
-    const tokens = await api.googleLogin(idToken);
-    setTokens(tokens.access_token, tokens.refresh_token);
-    const user = await api.me();
-    set({ user, isAuthenticated: true, isLoading: false });
-    return routeAfterAuth(user.onboarding_state);
+    try {
+      const tokens = await api.googleLogin(idToken);
+      setTokens(tokens.access_token, tokens.refresh_token);
+      const user = await api.me();
+      set({ user, isAuthenticated: true, isLoading: false });
+      return routeAfterAuth(user.onboarding_state);
+    } catch (error) {
+      api.clearTokens();
+      set({ user: null, isAuthenticated: false, isLoading: false });
+      throw error;
+    }
   },
 
   logout: async () => {
-    await api.logout();
-    api.clearTokens();
-    set({ user: null, isAuthenticated: false });
+    try {
+      await api.logout();
+    } finally {
+      api.clearTokens();
+      set({ user: null, isAuthenticated: false, isLoading: false });
+    }
   },
 
   deleteAccount: async (password, confirmation) => {

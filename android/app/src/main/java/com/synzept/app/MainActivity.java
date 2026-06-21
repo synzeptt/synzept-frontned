@@ -7,6 +7,8 @@ import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
 
+import androidx.browser.customtabs.CustomTabsIntent;
+
 public class MainActivity extends Activity {
     private static final String CHROME_PACKAGE = "com.android.chrome";
 
@@ -21,6 +23,18 @@ public class MainActivity extends Activity {
 
     private void openSynzeptInSupportedBrowser() {
         Uri appUri = Uri.parse(BuildConfig.SYNZEPT_URL);
+        try {
+            CustomTabsIntent customTab = new CustomTabsIntent.Builder()
+                .setShowTitle(true)
+                .setToolbarColor(Color.WHITE)
+                .build();
+            customTab.intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            customTab.launchUrl(this, appUri);
+            return;
+        } catch (ActivityNotFoundException customTabsMissing) {
+            // Continue to a normal browser so authentication is never blocked.
+        }
+
         Intent chromeIntent = new Intent(Intent.ACTION_VIEW, appUri);
         chromeIntent.setPackage(CHROME_PACKAGE);
         chromeIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);

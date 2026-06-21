@@ -260,6 +260,10 @@ class AuthService:
         if expires_at < now:
             raise UnauthorizedError("Refresh token invalid or expired")
 
+        user = await self.session.get(User, user_id)
+        if not user or user.deleted_at or not user.is_active:
+            raise UnauthorizedError("Refresh token invalid or expired")
+
         stored.revoked_at = now
         return await self._issue_tokens(user_id)
 

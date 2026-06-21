@@ -102,23 +102,34 @@ function authHeaders(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+let refreshPromise: Promise<boolean> | null = null;
+
 export async function refreshAccessToken(): Promise<boolean> {
-  const refresh = getRefreshToken();
-  if (!refresh) return false;
-  try {
-    const response = await fetch(backendUrl("/api/v1/auth/refresh"), {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refresh_token: refresh }),
-    });
+  if (refreshPromise) return refreshPromise;
+
+  refreshPromise = (async () => {
+    const refresh = getRefreshToken();
+    if (!refresh) return false;
+    let response: Response;
+    try {
+      response = await fetch(backendUrl("/api/v1/auth/refresh"), {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refresh_token: refresh }),
+      });
+    } catch {
+      throw new Error("Synzept could not refresh the session because the server is unavailable.");
+    }
     if (!response.ok) return false;
     const data = await response.json();
     setTokens(data.access_token, data.refresh_token);
     return true;
-  } catch {
-    return false;
-  }
+  })().finally(() => {
+    refreshPromise = null;
+  });
+
+  return refreshPromise;
 }
 
 export async function request<T>(path: string, options?: RequestInit, retry = true): Promise<T> {
@@ -143,10 +154,15 @@ export async function request<T>(path: string, options?: RequestInit, retry = tr
     throw new Error("Synzept could not reach the backend. Your workspace is safe; please try again in a moment.");
   }
   if (response.status === 401 && retry) {
-    const refreshed = await refreshAccessToken();
-    if (refreshed) return request<T>(path, options, false);
-    clearTokens();
-    throw new Error("Please sign in again to continue.");
+    try {
+      const refreshed = await refreshAccessToken();
+      if (refreshed) return request<T>(path, options, false);
+      clearTokens();
+      throw new Error("Please sign in again to continue.");
+    } catch (err) {
+      if (err instanceof Error && /sign in again/i.test(err.message)) throw err;
+      throw new Error("Synzept could not verify your session. Your sign-in is still saved; reconnect and try again.");
+    }
   }
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));

@@ -131,7 +131,7 @@ async def test_refresh_revokes_existing_token_and_issues_new_pair():
         token_hash=__import__("hashlib").sha256(refresh.encode()).hexdigest(),
         expires_at=datetime.now(timezone.utc) + timedelta(days=1),
     )
-    session = _Session(results=[stored])
+    session = _Session(results=[stored, User(id=user_id, email="user@example.com", is_active=True)])
 
     tokens = await AuthService(session).refresh(refresh)
 
@@ -150,7 +150,7 @@ async def test_refresh_accepts_naive_utc_expiry_from_database():
         token_hash=__import__("hashlib").sha256(refresh.encode()).hexdigest(),
         expires_at=(datetime.now(timezone.utc) + timedelta(days=1)).replace(tzinfo=None),
     )
-    session = _Session(results=[stored])
+    session = _Session(results=[stored, User(id=user_id, email="user@example.com", is_active=True)])
 
     tokens = await AuthService(session).refresh(refresh)
 
@@ -158,6 +158,25 @@ async def test_refresh_accepts_naive_utc_expiry_from_database():
     assert stored.revoked_at.tzinfo is not None
     assert tokens.access_token
     assert tokens.refresh_token
+
+
+@pytest.mark.asyncio
+async def test_refresh_rejects_deleted_or_inactive_user():
+    user_id = uuid4()
+    refresh = create_refresh_token(user_id, "test-jti")
+    stored = RefreshToken(
+        user_id=user_id,
+        token_hash=__import__("hashlib").sha256(refresh.encode()).hexdigest(),
+        expires_at=datetime.now(timezone.utc) + timedelta(days=1),
+    )
+    inactive = User(id=user_id, email="inactive@example.com", is_active=False)
+    session = _Session(results=[stored, inactive])
+
+    with pytest.raises(AppError) as exc_info:
+        await AuthService(session).refresh(refresh)
+
+    assert exc_info.value.status_code == 401
+    assert stored.revoked_at is None
 
 
 @pytest.mark.asyncio

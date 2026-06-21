@@ -19,3 +19,7 @@ android {
         buildConfigField "String", "SYNZEPT_URL", "\"https://app.synzept.com/mobile\""
     }
 }
+
+dependencies {
+    implementation "androidx.browser:browser:1.8.0"
+}
