@@ -17,6 +17,7 @@ from app.models.user import User
 from app.models.user_understanding import UserUnderstanding
 from app.models.workspace_activity import WorkspaceActivity
 from app.services.continuity_mode_service import ContinuityModeService
+from app.services.continue_context_service import ContinueContextService
 
 
 @pytest_asyncio.fixture
@@ -76,7 +77,7 @@ async def test_continuity_mode_restores_where_user_left_off(session_factory):
         assert "Simplify product UX" in snapshot.open_loops
         assert snapshot.recommended_next_action
         assert {action.label for action in snapshot.actions} == {
-            "Continue Startup",
+            "Continue Current Work",
             "Continue Personal Goals",
             "Continue Learning",
             "Continue Recent Project",
@@ -85,3 +86,26 @@ async def test_continuity_mode_restores_where_user_left_off(session_factory):
         assert snapshot.context_used["memories"] == 1
         assert snapshot.context_used["projects"] == 1
         assert snapshot.context_used["understanding"] == 1
+
+
+@pytest.mark.asyncio
+async def test_continue_context_is_personal_and_contains_return_contract(session_factory):
+    user_id = uuid4()
+    async with session_factory() as session:
+        user = User(id=user_id, email="personal-return@example.com", display_name="Ari")
+        session.add_all(
+            [
+                user,
+                UserUnderstanding(user_id=user_id, category="missions", title="Mission", value="Write a first novel", source="user"),
+                UserUnderstanding(user_id=user_id, category="current_focus", title="Current Focus", value="Finish chapter three", source="user"),
+            ]
+        )
+        await session.flush()
+
+        context = await ContinueContextService(session).get_context(user)
+
+        assert context.headline == "Welcome back, Ari."
+        assert context.last_activity
+        assert context.suggested_next_action == "Finish chapter three"
+        assert context.cards[0].title == "Continue Current Focus"
+        assert "Synzept" not in context.cards[0].prompt

@@ -83,9 +83,9 @@ class ContinuityModeService:
         learning = learning_context or "what I have been learning"
         return [
             ContinuityActionOut(
-                label="Continue Startup",
-                mode="startup",
-                prompt="Help me continue my startup work. Use my current mission, recent progress, open loops, projects, and memory before recommending the next step.",
+                label="Continue Current Work",
+                mode="current_work",
+                prompt="Help me continue my current work. Use my current mission, recent progress, open loops, projects, and memory before recommending the next step.",
             ),
             ContinuityActionOut(
                 label="Continue Personal Goals",

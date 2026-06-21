@@ -850,6 +850,9 @@ export type ContinueContextCard = {
 export type ContinueContext = {
   headline: string;
   summary: string;
+  last_activity: string[];
+  open_loops: string[];
+  suggested_next_action: string;
   cards: ContinueContextCard[];
   context_used: Record<string, number>;
 };

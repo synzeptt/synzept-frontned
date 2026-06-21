@@ -53,11 +53,11 @@ class ContinueContextService:
         cards = [
             self._card(
                 kind="synzept",
-                title="Continue Building Synzept",
+                title="Continue Current Focus",
                 last_activity=self._last_activity([*projects[:1], *conversations[:1], *tasks[:1]]),
                 status=focus,
                 context=shared_context,
-                intent="Continue building Synzept. Start by restoring the full continuity context, then recommend the next concrete move.",
+                intent="Continue my current focus. Start by restoring the full continuity context, then recommend the next concrete move.",
                 project=active_project,
             ),
             self._card(
@@ -90,8 +90,11 @@ class ContinueContextService:
         ]
 
         return ContinueContextOut(
-            headline="Continue where you left off",
-            summary="Synzept has loaded memory, open loops, user understanding, recent conversations, current focus, and the next action.",
+            headline=f"Welcome back{', ' + user.display_name if user.display_name else ''}.",
+            summary="Last activity, unfinished work, and the clearest next move are ready.",
+            last_activity=recent_threads[:5] or [self._project_value(projects, "name") or focus],
+            open_loops=open_loops,
+            suggested_next_action=suggested_action,
             cards=cards,
             context_used={
                 "memories": len(memory_context),
