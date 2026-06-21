@@ -27,7 +27,7 @@ No migration is required. The existing owned `user_understanding` rows and flexi
 - Exact signals are de-duplicated.
 - Editing an automatically learned item turns it into a user-owned correction with full confidence.
 - User corrections take precedence over future automatic signals with the same category label.
-- Coverage reports which of the 18 core S1 categories are populated.
+- Coverage reports which of the 19 core S1 categories are populated, including distinct Company and Startup context.
 
 ## Deployment
 

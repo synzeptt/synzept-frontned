@@ -10,6 +10,7 @@ import { cn } from "@/lib/cn";
 import { PageFrame } from "@frontend/components/layout/page-frame";
 
 const sections = [
+  { id: "startup", title: "Professional: Startup", empty: "Add the venture, product, or startup context Synzept should keep in view." },
   { id: "about_me", title: "Personal · About me", empty: "Add the context you never want to explain twice." },
   { id: "interests", title: "Personal · Interests", empty: "Add recurring topics, industries, or themes." },
   { id: "habits", title: "Personal · Habits", empty: "Add routines and patterns that shape your days." },
@@ -61,7 +62,7 @@ const categoryAliases: Record<string, SectionId> = {
   preferences: "preferences",
   job: "job",
   company: "company",
-  startup: "company",
+  startup: "startup",
   responsibilities: "responsibilities",
   important_people: "important_people",
   relationships: "important_people",

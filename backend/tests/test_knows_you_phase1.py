@@ -130,19 +130,20 @@ async def test_memories_automatically_improve_s1_understanding_without_duplicate
             Memory(user_id=user_id, memory_type="identity", content="I am a product founder.", summary="Product founder", confidence=0.9),
             Memory(user_id=user_id, memory_type="skills", content="I am learning distributed systems.", summary="Distributed systems", confidence=0.8),
             Memory(user_id=user_id, memory_type="projects", content="I am building Synzept S1.", summary="Building Synzept S1", confidence=0.95),
+            Memory(user_id=user_id, memory_type="projects", content="My startup is building a calmer planning tool.", summary="Startup planning tool", confidence=0.88),
         ]
         session.add_all(memories)
         await session.flush()
 
         service = UserUnderstandingService(session)
-        assert await service.learn_from_memories(user_id, memories) == 3
+        assert await service.learn_from_memories(user_id, memories) == 4
         assert await service.learn_from_memories(user_id, memories) == 0
 
         items = await service.list_for_user(user)
-        assert {item.category for item in items} == {"about_me", "skills", "projects"}
+        assert {item.category for item in items} == {"about_me", "skills", "projects", "startup"}
         assert all(item.source == "learned" for item in items)
         coverage = await service.coverage_for_user(user)
-        assert coverage.learned_items == 3
+        assert coverage.learned_items == 4
         assert coverage.completion_percent > 0
 
         skill = next(item for item in items if item.category == "skills")

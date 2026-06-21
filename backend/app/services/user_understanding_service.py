@@ -18,6 +18,7 @@ S1_UNDERSTANDING_CATEGORIES: dict[str, str] = {
     "preferences": "Preferences",
     "company": "Company",
     "job": "Job",
+    "startup": "Startup",
     "projects": "Projects",
     "responsibilities": "Responsibilities",
     "short_term_goals": "Short-term goals",
@@ -120,6 +121,8 @@ class UserUnderstandingService:
         now = datetime.now(timezone.utc)
         for memory in memories:
             category = MEMORY_TO_UNDERSTANDING_CATEGORY.get(memory.memory_type or memory.category)
+            if category == "projects" and "startup" in (memory.summary or memory.content).casefold():
+                category = "startup"
             if not category:
                 continue
             value = (memory.summary or memory.content).strip()
