@@ -12,6 +12,10 @@ from app.services.user_understanding_service import UserUnderstandingService
 from app.tasks.service import OPEN_STATUSES
 
 
+EMPTY_MISSION = "Add a mission in Synzept Knows You so Home can hold your north star."
+EMPTY_FOCUS = "Choose the one thing that matters most right now."
+
+
 class S1HomeService:
     """Fast Home read model: Knows You plus the smallest useful work context."""
 
@@ -20,6 +24,13 @@ class S1HomeService:
 
     async def get_home(self, user: User) -> S1HomeOut:
         profile = await UserUnderstandingService(self.session).profile_for_user(user)
+        projects_result = await self.session.execute(
+            select(Project)
+            .where(Project.user_id == user.id, Project.deleted_at.is_(None), Project.status == "active")
+            .order_by(Project.updated_at.desc())
+            .limit(3)
+        )
+        projects = list(projects_result.scalars())
         tasks_result = await self.session.execute(
             select(Task).where(Task.user_id == user.id, Task.deleted_at.is_(None), Task.status.in_(OPEN_STATUSES)).order_by(Task.updated_at.desc()).limit(4)
         )
@@ -31,27 +42,58 @@ class S1HomeService:
             .order_by(ProjectOpenLoop.created_at.desc()).limit(4)
         )
         loops = list(loops_result.all())
-        mission = self._first(profile.current_mission) or "Add a mission in Synzept Knows You."
-        focus = self._first(profile.current_focus) or (tasks[0].title if tasks else "Choose the one thing that matters most right now.")
+        active_project = projects[0] if projects else None
+        mission = self._first(profile.current_mission) or (active_project.description if active_project else "")
+        mission = mission or EMPTY_MISSION
+        focus = (
+            self._first(profile.current_focus)
+            or (active_project.current_focus if active_project else "")
+            or (active_project.recommended_next_step if active_project else "")
+            or (tasks[0].title if tasks else "")
+            or EMPTY_FOCUS
+        )
         open_loops = [
+            S1ContextItem(id=f"knows-you-{index}", title=item, detail="Saved in Synzept Knows You", href="/knows-you", priority="high", source="knows_you")
+            for index, item in enumerate(profile.open_loops[:3])
+        ]
+        open_loops.extend(
             S1ContextItem(id=str(task.id), title=task.title, detail=task.description or "Unfinished task", href="/tasks", priority=task.priority or "medium", source="task")
             for task in tasks
-        ]
+        )
         open_loops.extend(
             S1ContextItem(id=str(loop.id), title=loop.loop, detail=f"Open loop in {project_name}", href=f"/projects/{loop.project_id}", priority="high", source="project_open_loop")
             for loop, project_name in loops
         )
         open_loops = self._unique(open_loops)[:5]
+        last_time = [
+            S1ContextItem(
+                id=str(project.id),
+                title=project.name,
+                detail=project.current_focus or project.recommended_next_step or project.description or "Active project",
+                href=f"/projects/{project.id}",
+                priority="medium",
+                source="project",
+            )
+            for project in projects
+        ]
         lead = open_loops[0] if open_loops else None
+        learned_action = self._first(profile.next_suggested_actions)
         action = S1RecommendedAction(
-            title=lead.title if lead else focus,
-            reason=lead.detail if lead else "Start with one clear focus so Synzept can preserve continuity.",
-            href=lead.href or "/chat" if lead else "/chat",
+            title=learned_action or (lead.title if lead else focus),
+            reason=(
+                "Suggested from Synzept Knows You."
+                if learned_action
+                else lead.detail
+                if lead
+                else "Start with one clear focus so Synzept can preserve continuity."
+            ),
+            href="/knows-you" if learned_action else ((lead.href or "/chat") if lead else "/chat"),
         )
         home = S1HomeContext(
             greeting=f"Welcome back{', ' + user.display_name if user.display_name else ''}.",
             mission=mission,
             focus=focus,
+            last_time=last_time,
             open_loops=open_loops,
             suggested_next_action=action,
         )
@@ -60,7 +102,17 @@ class S1HomeService:
             "Open Loops: " + ("; ".join(item.title for item in open_loops) or "None visible"),
             f"Suggested Next Action: {action.title}", "", "Do not ask me to re-explain. Help me continue from this context.",
         ])
-        return S1HomeOut(generated_at=datetime.now(timezone.utc), home=home, continue_prompt=prompt, context_sources={"understanding": len(profile.current_mission) + len(profile.current_focus), "tasks": len(tasks), "open_loops": len(loops)})
+        return S1HomeOut(
+            generated_at=datetime.now(timezone.utc),
+            home=home,
+            continue_prompt=prompt,
+            context_sources={
+                "understanding": len(profile.current_mission) + len(profile.current_focus) + len(profile.open_loops) + len(profile.next_suggested_actions),
+                "projects": len(projects),
+                "tasks": len(tasks),
+                "open_loops": len(loops),
+            },
+        )
 
     @staticmethod
     def _first(values: list[str]) -> str:

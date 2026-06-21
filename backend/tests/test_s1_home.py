@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 import app.models  # noqa: F401
 from app.database.base import Base
+from app.models.project import Project
 from app.models.task import Task
 from app.models.user import User
 from app.models.user_understanding import UserUnderstanding
@@ -41,6 +42,31 @@ async def test_s1_home_uses_knows_you_and_active_work(session_factory):
         assert home.home.open_loops[0].title == "Outline chapter four"
         assert home.home.suggested_next_action.title == "Outline chapter four"
         assert "Do not ask me to re-explain" in home.continue_prompt
+
+
+@pytest.mark.asyncio
+async def test_s1_home_prioritizes_knows_you_operating_context(session_factory):
+    user_id = uuid4()
+    async with session_factory() as session:
+        user = User(id=user_id, email="context@example.com")
+        project = Project(user_id=user_id, name="Launch workspace", description="Ship the operating screen", current_focus="Review home UI")
+        session.add_all([
+            user,
+            project,
+            UserUnderstanding(user_id=user_id, category="open_loops", title="Open Loops", value="Confirm launch copy", source="user"),
+            UserUnderstanding(user_id=user_id, category="next_suggested_actions", title="Next Suggested Actions", value="Review the first screen", source="user"),
+            Task(user_id=user_id, title="Backfill analytics", priority="medium", status="todo"),
+        ])
+        await session.flush()
+
+        home = await S1HomeService(session).get_home(user)
+
+        assert home.home.mission == "Ship the operating screen"
+        assert home.home.focus == "Review home UI"
+        assert home.home.open_loops[0].source == "knows_you"
+        assert home.home.open_loops[0].title == "Confirm launch copy"
+        assert home.home.suggested_next_action.title == "Review the first screen"
+        assert home.home.last_time[0].title == "Launch workspace"
 
 
 @pytest.mark.asyncio
