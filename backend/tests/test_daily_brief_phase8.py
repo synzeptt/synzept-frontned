@@ -78,8 +78,23 @@ def test_daily_brief_is_powered_by_context_engine(client):
     assert body["whatMattersToday"][0]["title"] == "Daily Brief"
     assert body["openLoops"][0]["title"] == "Finish Phase 8 validation"
     assert body["recentProgress"][0]["title"] == "Continuity Assistant shipped"
+    assert body["whatChanged"][0]["title"] == "Continuity Assistant shipped"
+    assert body["whatMattersToday"]
+    assert body["openLoops"]
+    assert body["recommendedNextStep"]["title"]
+    assert body["focusForToday"]["title"]
     assert body["contextSnapshotId"]
 
     fetched = client.get("/api/daily-brief")
     assert fetched.status_code == 200
     assert fetched.json()["id"] == body["id"]
+
+    history = client.get("/api/daily-brief/history?limit=7")
+    assert history.status_code == 200
+    assert history.json()[0]["id"] == body["id"]
+
+
+def test_daily_brief_history_requires_valid_limit(client):
+    response = client.get("/api/daily-brief/history?limit=100")
+
+    assert response.status_code == 422

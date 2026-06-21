@@ -1963,6 +1963,8 @@ export const api = {
 
   getDailyBriefV2: () => request<DailyBriefSnapshot>("/api/daily-brief"),
 
+  getDailyBriefHistory: (limit = 14) => request<DailyBriefSnapshot[]>(`/api/daily-brief/history?limit=${limit}`),
+
   refreshDailyBriefV2: () =>
     request<DailyBriefSnapshot>("/api/daily-brief/refresh", { method: "POST" }),
 

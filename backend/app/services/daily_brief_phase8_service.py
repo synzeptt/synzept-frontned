@@ -74,6 +74,32 @@ class DailyBriefPhase8Service:
             decisions=decisions,
         )
 
+    async def history(self, user_id: UUID, *, limit: int = 14) -> list[dict]:
+        result = await self.session.execute(
+            select(DailyBriefSnapshot)
+            .where(DailyBriefSnapshot.user_id == user_id)
+            .order_by(DailyBriefSnapshot.brief_date.desc(), DailyBriefSnapshot.updated_at.desc())
+            .limit(limit)
+        )
+        briefs = list(result.scalars())
+        if not briefs:
+            return []
+        context = await ContextEnginePhase6Service(self.session).refresh(user_id)
+        tasks = await self._tasks(user_id)
+        understanding = await self._understanding(user_id)
+        decisions = await self._decisions(user_id)
+        return [
+            await self._brief_out(
+                brief,
+                user_id,
+                context=context,
+                tasks=tasks,
+                understanding=understanding,
+                decisions=decisions,
+            )
+            for brief in briefs
+        ]
+
     async def _projects(self, user_id: UUID) -> list[Project]:
         result = await self.session.execute(
             select(Project)
@@ -409,7 +435,7 @@ class DailyBriefPhase8Service:
         }
 
     def _current_mission_item(self, understanding: list[UserUnderstanding], context: dict) -> dict:
-        value = self._understanding_value(understanding, "current_mission")
+        value = self._first_understanding_value(understanding, "current_mission", "missions", "long_term_goals")
         if value:
             return self._item("current_mission", value, "This is the larger direction Synzept is preserving.", href="/knows-you", priority="high", source="user_understanding")
         current = context.get("currentFocus") or {}
@@ -434,6 +460,10 @@ class DailyBriefPhase8Service:
     def _understanding_value(items: list[UserUnderstanding], category: str) -> str:
         item = next((row for row in items if row.category == category), None)
         return str(item.value).strip() if item and item.value else ""
+
+    @classmethod
+    def _first_understanding_value(cls, items: list[UserUnderstanding], *categories: str) -> str:
+        return next((value for category in categories if (value := cls._understanding_value(items, category))), "")
 
     def _recent_decision_items(self, decisions: list[Decision]) -> list[dict]:
         items: list[dict] = []
