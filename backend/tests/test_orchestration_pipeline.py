@@ -4,7 +4,7 @@ from uuid import uuid4
 
 import pytest
 
-from app.orchestrator.context_builder import ContextBundle
+from app.orchestrator.context_builder import ContextBuilder, ContextBundle
 from app.orchestrator.conversation_intelligence import ConversationIntelligenceService
 from app.orchestrator.intent_service import IntentService, OrchestrationIntentCategory
 from app.orchestrator.orchestrator_service import OrchestratorService
@@ -34,6 +34,9 @@ def test_prompt_builder_includes_ranked_context_without_overloading_budget():
             "Related discussion: Roadmap - Preserve unresolved planning threads.",
         ],
         personalization=["Prefers direct, structured answers."],
+        continuation_context=["Open loop: Validate the S1 launch flow."],
+        progress_context=["Active goal: Ship S1 (70% complete)"],
+        personal_intelligence=["Current mission: Make continuity effortless."],
         project=ProjectContextBundle(
             project_id=uuid4(),
             name="Synzept",
@@ -55,7 +58,34 @@ def test_prompt_builder_includes_ranked_context_without_overloading_budget():
     assert "Conversation continuity intelligence" in system
     assert "Light personalization cues" in system
     assert "Active project: Synzept" in system
+    assert "Goal progress and next actions" in system
+    assert "Personal operating context" in system
+    assert "Continuity restoration context" in system
     assert messages[-1].content == "Plan the next implementation step"
+
+
+def test_chat_context_diagnostics_cover_every_required_s1_source():
+    bundle = ContextBundle(
+        user_profile="About me: Product founder",
+        conversation_summary="Previous launch discussion",
+        recent_messages=[{"role": "user", "content": "Continue"}],
+        memories=["[preferences] Concise answers"],
+        continuation_context=["Open loop: Validate mobile auth"],
+        progress_context=["Active goal: Ship S1"],
+        personal_intelligence=["Active projects: Synzept"],
+        project=ProjectContextBundle(project_id=uuid4(), name="Synzept"),
+    )
+
+    sources = ContextBuilder._source_diagnostics(bundle)
+
+    assert sources == {
+        "memory": True,
+        "user_understanding": True,
+        "goals": True,
+        "projects": True,
+        "previous_conversations": True,
+        "open_loops": True,
+    }
 
 
 def test_conversation_intelligence_extracts_decisions_and_open_loops():

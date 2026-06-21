@@ -45,7 +45,7 @@ class PromptBuilder:
         ]
 
         if context.user_profile:
-            sections.append(f"User profile:\n{truncate(context.user_profile, 700)}")
+            sections.append(f"User understanding:\n{truncate(context.user_profile, 1400)}")
         if context.project.project_id:
             project = context.project
             block = f"Active project: {project.name}\n{truncate(project.summary, 900)}"

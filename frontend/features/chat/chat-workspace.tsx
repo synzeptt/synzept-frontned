@@ -340,13 +340,20 @@ function ContinuityModeStart({
   return (
     <div className="space-y-5">
       <section className="rounded-xl border border-border bg-white p-5 shadow-soft md:p-6">
-        <p className="text-sm text-stone-500">{snapshot.headline}</p>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm text-stone-500">{snapshot.headline}</p>
+          <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">Context ready</span>
+        </div>
         <h2 className="mt-2 text-2xl font-semibold leading-tight text-stone-950">You were working on {snapshot.last_focus}</h2>
 
         <div className="mt-5 grid gap-4 md:grid-cols-2">
           <ContinuityList title="Since then" items={snapshot.what_changed} />
           <ContinuityList title="Open loops" items={snapshot.open_loops} />
         </div>
+
+        <p className="mt-4 text-xs leading-5 text-stone-500">
+          Using memory, your understanding, goals, projects, previous conversations, and open loops automatically.
+        </p>
 
         <div className="mt-5 rounded-lg border border-stone-200 bg-stone-50 p-4">
           <p className="text-xs font-medium uppercase tracking-[0.14em] text-stone-400">Suggested next action</p>

@@ -97,7 +97,7 @@ class ContextBuilder:
                 )
                 with monitor.timed("retrieval.lexical_fallback", project_id=str(project_id) if project_id else None):
                     ranked = await self.retrieval.lexical_fallback(user_id=user_id, query=message, filters=filters)
-        return ContextBundle(
+        bundle = ContextBundle(
             user_profile=await self._user_profile(user_id),
             conversation_summary=conversation.summary or "",
             recent_messages=await self._recent_messages(conversation.id, limit=intent.strategy.recent_message_limit),
@@ -130,6 +130,8 @@ class ContextBuilder:
             ),
             project=project_context,
         )
+        bundle.trust_context["sources"] = self._source_diagnostics(bundle)
+        return bundle
 
     async def _user_profile(self, user_id: UUID) -> str:
         user = await self.session.get(User, user_id)
@@ -139,6 +141,19 @@ class ContextBuilder:
         if preferences.get("personalization_enabled", True) is False:
             return ""
         profile_lines = [user.profile_summary] if user.profile_summary else []
+        understanding_result = await self.session.execute(
+            select(UserUnderstanding)
+            .where(UserUnderstanding.user_id == user_id, UserUnderstanding.value != "")
+            .order_by(UserUnderstanding.updated_at.desc())
+            .limit(30)
+        )
+        understanding_by_category: dict[str, list[str]] = {}
+        for item in understanding_result.scalars():
+            if item.category == "profile" or not item.value.strip():
+                continue
+            understanding_by_category.setdefault(item.category, []).append(item.value.strip())
+        for category, values in understanding_by_category.items():
+            profile_lines.append(f"{category.replace('_', ' ').title()}: " + "; ".join(values[:3]))
         memories = await MemoryService(self.session).search_memory(user_id=user_id, limit=30)
         grouped: dict[str, list[str]] = {}
         for memory in memories:
@@ -147,7 +162,7 @@ class ContextBuilder:
             grouped.setdefault(memory.category, []).append(memory.summary or memory.content)
         for category, values in grouped.items():
             profile_lines.append(f"{category.replace('_', ' ').title()}: " + "; ".join(values[:4]))
-        return truncate("\n".join(profile_lines), 700)
+        return truncate("\n".join(profile_lines), 1400)
 
     async def _recent_messages(self, conversation_id: UUID, *, limit: int) -> list[dict[str, str]]:
         result = await self.session.execute(
@@ -282,7 +297,7 @@ class ContextBuilder:
         mission = self._first_understanding(
             understanding,
             titles=("Current Mission", "Mission", "North Star", "Long-Term Goals", "Short-Term Goals"),
-            categories=("current_mission", "goals"),
+            categories=("current_mission", "missions", "long_term_goals", "short_term_goals", "goals"),
         )
         focus = self._first_understanding(
             understanding,
@@ -399,6 +414,19 @@ class ContextBuilder:
             open_loops = [str(item) for item in loops.scalars()]
             decisions = [str(item) for item in decision_rows.scalars()]
         return {"memories": memories, "projects": projects, "open_loops": open_loops, "decisions": decisions}
+
+    @staticmethod
+    def _source_diagnostics(bundle: ContextBundle) -> dict[str, bool]:
+        operating_lines = [*bundle.personal_intelligence, *bundle.continuation_context]
+        lowered = " ".join(operating_lines).casefold()
+        return {
+            "memory": bool(bundle.memories),
+            "user_understanding": bool(bundle.user_profile or bundle.personal_intelligence),
+            "goals": bool(bundle.progress_context or "goal" in lowered or "mission" in lowered),
+            "projects": bool(bundle.project.project_id or "active projects" in lowered),
+            "previous_conversations": bool(bundle.recent_messages or bundle.conversation_summary or bundle.conversation_intelligence),
+            "open_loops": "open loop" in lowered or "unfinished" in lowered,
+        }
 
     @staticmethod
     def _first_understanding(
