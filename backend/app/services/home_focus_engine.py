@@ -11,8 +11,8 @@ class FocusEngine:
         return (
             self._first(context.profile.current_focus)
             or self._understanding(context, ("current_focus", "priorities"))
-            or daily_focus
             or (truncate(active_project.current_focus, 240) if active_project else "")
+            or daily_focus
             or self._task_focus(context)
             or self._conversation_focus(context)
             or self.EMPTY

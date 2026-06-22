@@ -95,7 +95,10 @@ class UnderstandingExtractionService:
             Memory(memory_type=item.memory_type, content=item.content, summary=item.summary, confidence=item.importance_score, importance_score=item.importance_score)
             for item in extracted
         ]
-        return [fact for memory in pseudo_memories for fact in self.extract_from_memory(memory)]
+        facts = [fact for memory in pseudo_memories for fact in self.extract_from_memory(memory)]
+        for turn in turns:
+            facts.extend(self._explicit_recent_message_facts(turn.content))
+        return self._dedupe(facts)
 
     async def _recent_memories(self, user_id: UUID, limit: int) -> list[Memory]:
         result = await self.session.execute(
@@ -109,6 +112,19 @@ class UnderstandingExtractionService:
     @staticmethod
     def _fact(category: str, section: str, field: str, title: str, value: str, confidence: float, evidence: list[str]) -> UnderstandingFact:
         return UnderstandingFact(category=category, section=section, field=field, title=title, value=value.strip(), confidence=confidence, evidence=evidence)
+
+    def _explicit_recent_message_facts(self, text: str) -> list[UnderstandingFact]:
+        cleaned = " ".join((text or "").strip().split())
+        if not cleaned:
+            return []
+        facts: list[UnderstandingFact] = []
+        if re.search(r"\b(my goal is|i want to|i need to|i'm trying to|i am trying to)\b", cleaned, flags=re.I):
+            facts.append(self._fact("short_term_goals", "goals", "shortTermGoals", "Short-term goals", cleaned, 0.8, [cleaned[:260]]))
+        if re.search(r"\b(i prefer|i like|i dislike|my preference is|i want you to)\b", cleaned, flags=re.I):
+            facts.append(self._fact("preferences", "personal_life", "preferences", "Preferences", cleaned, 0.72, [cleaned[:260]]))
+        if re.search(r"\b(blocker|blocked|struggle|stuck|urgent)\b", cleaned, flags=re.I):
+            facts.append(self._fact("current_struggles", "current_state", "currentStruggles", "Current struggles", cleaned, 0.76, [cleaned[:260]]))
+        return facts
 
     @staticmethod
     def _goal_bucket(text: str) -> tuple[str, str, str]:

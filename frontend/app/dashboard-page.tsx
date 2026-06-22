@@ -6,58 +6,48 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowRight, CheckCircle2, CircleDot, Loader2, Sparkles, Target, Undo2 } from "lucide-react";
 import { RecoveryBanner } from "@/components/ui/recovery-banner";
-import { api, type Dashboard, type S1Home } from "@/lib/api";
+import { api, type S1Home } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth";
-import { useWorkspaceStore } from "@/stores/workspace";
 import { PageFrame } from "@frontend/components/layout/page-frame";
 
 const CHAT_DRAFT_KEY = "synzept_chat_draft";
 
 export function DashboardPage() {
   const router = useRouter();
-  const { dashboard, isLoading, hasFreshDashboard, setDashboard, setLoading } = useWorkspaceStore();
   const user = useAuthStore((state) => state.user);
   const [s1Home, setS1Home] = useState<S1Home | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    setLoading(true);
+    setIsLoading(true);
     setError(null);
     try {
       setS1Home(await api.getS1Home());
     } catch {
-      try {
-        const legacyDashboard = await api.getDashboard();
-        setDashboard(legacyDashboard);
-      } catch {
-        setError("Home could not refresh. You can still continue in Chat.");
-      }
+      setError("Home could not refresh. You can still continue in Chat.");
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
-  }, [setDashboard, setLoading]);
+  }, []);
 
   useEffect(() => {
-    if (s1Home || (dashboard && hasFreshDashboard())) return;
     void load();
-  }, [dashboard, hasFreshDashboard, load, s1Home]);
+  }, [load]);
 
-  const home = useMemo(
-    () => getHomeContext(dashboard, user?.display_name || null, s1Home),
-    [dashboard, user?.display_name, s1Home],
-  );
+  const home = useMemo(() => getHomeContext(user?.display_name || null, s1Home), [user?.display_name, s1Home]);
 
   useEffect(() => {
-    if (!s1Home && !dashboard) return;
+    if (!s1Home) return;
     void api.trackEvent("s1_home_loaded", "home", {
       open_loops: home.openLoops.length,
-      used_s1_context: Boolean(s1Home),
+      used_s1_context: true,
     });
-  }, [dashboard, home.openLoops.length, s1Home]);
+  }, [home.openLoops.length, s1Home]);
 
   const continueWorking = () => {
     localStorage.setItem(CHAT_DRAFT_KEY, s1Home?.continue_prompt || buildMomentPrompt(home));
-    void api.trackEvent("s1_continue_clicked", "home", { kind: s1Home ? "s1_home" : "fallback" });
+    void api.trackEvent("s1_continue_clicked", "home", { kind: s1Home ? "s1_home" : "default" });
     router.push("/chat");
   };
 
@@ -66,7 +56,7 @@ export function DashboardPage() {
       <div className="min-h-full bg-[#f7f6f2] text-stone-950">
         <div className="mx-auto w-full max-w-6xl px-4 py-5 sm:px-6 lg:px-8 lg:py-8">
           <RecoveryBanner message={error} onRetry={load} className="mb-5" />
-          <SynzeptMoment home={home} loading={isLoading && !s1Home && !dashboard} onContinue={continueWorking} />
+          <SynzeptMoment home={home} loading={isLoading && !s1Home} onContinue={continueWorking} />
         </div>
       </div>
     </PageFrame>
@@ -234,26 +224,23 @@ type HomeContext = {
   sourceCount: number;
 };
 
-function getHomeContext(dashboard: Dashboard | null, displayName: string | null, s1: S1Home | null): HomeContext {
-  const os = dashboard?.personal_os;
-  const activeProject = dashboard?.projects?.find((project) => project.status === "active") || dashboard?.projects?.[0];
-  const mission = s1?.home.mission || cleanText(os?.current_mission) || cleanText(activeProject?.description) || "Add a mission in Synzept Knows You so Home can hold your north star.";
-  const focus = s1?.home.focus || cleanText(os?.current_focus) || cleanText(activeProject?.currentFocus) || "Choose the one thing that matters most right now.";
+function getHomeContext(displayName: string | null, s1: S1Home | null): HomeContext {
+  const mission = s1?.home.mission || "Add a mission in Synzept Knows You so Home can hold your north star.";
+  const focus = s1?.home.focus || "Choose the one thing that matters most right now.";
   const openLoops = s1?.home.open_loops.length
     ? s1.home.open_loops.map((item) => ({ id: item.id, title: item.title, detail: item.detail, href: item.href }))
-    : (os?.open_loops || []).slice(0, 5).map((item) => ({ id: item.id, title: item.title, detail: item.next_step || item.description || "", href: item.href }));
+    : [];
   const lastTime = s1?.home.last_time.length
     ? s1.home.last_time.map((item) => ({ id: item.id, title: item.title, detail: item.detail, href: item.href }))
-    : (dashboard?.continuity_cards || []).slice(0, 3).map((item) => ({ id: item.id, title: item.title, detail: item.description, href: item.href }));
-  const fallbackTask = dashboard?.priorities?.[0] || dashboard?.unfinished_tasks?.[0];
-  const suggestedAction = s1?.home.suggested_next_action || os?.suggested_next_action || {
-    title: fallbackTask?.title || "Choose one meaningful priority for today.",
-    reason: fallbackTask?.description || "One clear next move makes this workspace easier to return to.",
+    : [];
+  const suggestedAction = s1?.home.suggested_next_action || {
+    title: "Choose one meaningful priority for today.",
+    reason: "One clear next move makes this workspace easier to return to.",
     href: "/chat",
   };
 
   return {
-    greeting: s1?.home.greeting || os?.greeting || "Synzept knows where you left off.",
+    greeting: s1?.home.greeting || "Synzept knows where you left off.",
     welcome: `Welcome back${displayName ? `, ${displayName}` : ""}.`,
     mission,
     missionIsEmpty: mission.startsWith("Add a mission"),
@@ -278,8 +265,4 @@ function buildMomentPrompt(home: HomeContext) {
     "",
     "Do not ask me to re-explain. Help me continue from this context.",
   ].filter(Boolean).join("\n");
-}
-
-function cleanText(value: string | null | undefined) {
-  return value?.trim() || "";
 }

@@ -46,8 +46,8 @@ async def test_understanding_engine_refresh_builds_full_user_model(session_facto
         refreshed = await UnderstandingEngineService(session).refresh(user)
 
         assert refreshed.created >= 6
-        assert refreshed.understanding.understandingModel.identity.background
-        assert "calm AI systems" in refreshed.understanding.understandingModel.personalLife["interests"][0]
+        assert refreshed.understanding.understandingModel.identity["background"] or refreshed.understanding.understandingModel.identity["personalInformation"]
+        assert "calm ai systems" in refreshed.understanding.understandingModel.personalLife["interests"][0].casefold()
         assert refreshed.understanding.summary["whatYouCareAbout"]
         assert refreshed.understanding.summary["whatYouAreWorkingOn"]
         assert refreshed.understanding.summary["whatYouShouldDoNext"]

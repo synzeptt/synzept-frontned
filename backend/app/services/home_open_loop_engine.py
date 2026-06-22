@@ -7,7 +7,7 @@ class OpenLoopEngine:
     def generate(self, context: HomeContext, *, limit: int = 5) -> list[HomeSignalOut]:
         loops: list[HomeSignalOut] = []
         loops.extend(
-            HomeSignalOut(id=f"understanding-{index}", title=item, detail="Saved in User Understanding", href="/knows-you", source="user_understanding", priority="high")
+            HomeSignalOut(id=f"understanding-{index}", title=item, detail="Saved in User Understanding", href="/knows-you", source="knows_you", priority="high")
             for index, item in enumerate(context.profile.open_loops[:3])
         )
         loops.extend(

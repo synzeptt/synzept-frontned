@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { CircleHelp, EyeOff, Link2, Merge, PencilLine, Search, ShieldAlert, Trash2 } from "lucide-react";
 import { PageFrame } from "@frontend/components/layout/page-frame";
 import { Button } from "@/components/ui/button";
@@ -30,7 +30,7 @@ export function MemoryPage() {
   const [explanationError, setExplanationError] = useState<string | null>(null);
   const [explanationLoading, setExplanationLoading] = useState(false);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -42,11 +42,11 @@ export function MemoryPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [includeIgnored]);
 
   useEffect(() => {
     void load();
-  }, [includeIgnored]);
+  }, [load]);
 
   const selected = useMemo(() => items.find((item) => item.memory.id === selectedId) || null, [items, selectedId]);
 
@@ -58,7 +58,7 @@ export function MemoryPage() {
     setEditReason("");
     setMergeSourceId("");
     setMergeReason("");
-  }, [selected?.memory.id]);
+  }, [selected]);
 
   const visibleItems = useMemo(() => {
     const query = search.trim().toLowerCase();

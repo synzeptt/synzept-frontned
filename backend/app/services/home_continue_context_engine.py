@@ -37,12 +37,12 @@ class ContinueContextEngine:
     @staticmethod
     def _cards(context: HomeContext, open_loops: list[HomeSignalOut], action: HomeActionOut) -> list[HomeSignalOut]:
         cards: list[HomeSignalOut] = []
-        cards.append(HomeSignalOut(id="suggested-action", title=action.title, detail=action.reason, href=action.href, source=action.source, priority="high"))
-        if open_loops:
-            cards.append(open_loops[0])
         project = context.projects[0] if context.projects else None
         if project:
             cards.append(HomeSignalOut(id=str(project.id), title=project.name, detail=project.current_focus or project.recommended_next_step or project.description or "Active project", href=f"/projects/{project.id}", source="project"))
+        cards.append(HomeSignalOut(id="suggested-action", title=action.title, detail=action.reason, href=action.href, source=action.source, priority="high"))
+        if open_loops:
+            cards.append(open_loops[0])
         conversation = context.conversations[0] if context.conversations else None
         if conversation:
             cards.append(HomeSignalOut(id=str(conversation.id), title=conversation.title or "Recent conversation", detail=truncate(conversation.summary or conversation.active_intent or "", 200), href=f"/chat?conversation={conversation.id}", source="previous_conversation"))
