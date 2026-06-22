@@ -3,8 +3,7 @@
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { ArrowRight, CheckCircle2, CircleDot, Loader2, Sparkles, Target, Undo2 } from "lucide-react";
+import { ArrowRight, Loader2 } from "lucide-react";
 import { RecoveryBanner } from "@/components/ui/recovery-banner";
 import { api, type S1Home } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth";
@@ -65,191 +64,140 @@ export function DashboardPage() {
 
 function SynzeptMoment({ home, loading, onContinue }: { home: HomeContext; loading: boolean; onContinue: () => void }) {
   return (
-    <section className="space-y-4 sm:space-y-5">
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
-        <div className="rounded-lg border border-stone-200 bg-white p-5 shadow-[0_18px_48px_rgba(32,31,28,0.07)] sm:p-6 lg:p-7">
-          <div className="flex flex-wrap items-center gap-3">
-            <p className="text-sm font-medium text-stone-500">{home.greeting}</p>
-            {loading ? <LoadingPill /> : <SourcePill count={home.sourceCount} />}
-          </div>
-          <h1 className="mt-3 max-w-3xl text-3xl font-semibold leading-tight tracking-normal text-stone-950 sm:text-4xl lg:text-5xl">{home.welcome}</h1>
-          <div className="mt-6 grid gap-3 sm:grid-cols-2">
-            <SignalCard icon={<Target className="h-4 w-4" />} label="Mission" value={home.mission} href={home.missionIsEmpty ? "/knows-you" : undefined} />
-            <SignalCard icon={<CircleDot className="h-4 w-4" />} label="Current Focus" value={home.focus} href={home.focusIsEmpty ? "/knows-you" : undefined} />
-          </div>
-        </div>
-
-        <aside className="rounded-lg bg-stone-950 p-5 text-white shadow-[0_18px_48px_rgba(32,31,28,0.16)] sm:p-6">
-          <div className="flex items-center gap-2 text-stone-400">
-            <Sparkles className="h-4 w-4" />
-            <p className="text-xs font-medium uppercase tracking-[0.14em]">Suggested Next Action</p>
-          </div>
-          <h2 className="mt-4 text-2xl font-semibold leading-tight">{home.suggestedAction.title}</h2>
-          {home.suggestedAction.reason ? <p className="mt-3 text-sm leading-6 text-stone-300">{home.suggestedAction.reason}</p> : null}
-          <button type="button" onClick={onContinue} className="mt-6 inline-flex h-12 w-full items-center justify-center gap-2 rounded-md bg-white px-5 text-sm font-semibold text-stone-950 transition hover:bg-stone-100 sm:w-auto">
-            Continue Working
-            <ArrowRight className="h-4 w-4" />
-          </button>
-        </aside>
+    <section className="space-y-6 sm:space-y-8">
+      <div className="rounded-[2rem] bg-white px-6 py-7 shadow-[0_18px_45px_rgba(15,15,15,0.04)] sm:px-8 sm:py-8">
+        <p className="text-xs font-semibold uppercase tracking-[0.28em] text-stone-500">Home</p>
+        <h1 className="mt-4 max-w-3xl text-4xl font-semibold tracking-tight text-stone-950 sm:text-5xl">{home.greeting}</h1>
+        <p className="mt-3 max-w-2xl text-lg leading-8 text-stone-600">{home.subtitle}</p>
+        {loading ? <LoadingPill className="mt-6" /> : null}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.45fr)]">
-        <ContextList
-          icon={<Undo2 className="h-4 w-4" />}
-          label="Open Loops"
-          items={home.openLoops}
-          emptyTitle="No open loops need attention right now."
-          emptyDetail="As you add tasks, project loops, or Knows You notes, they will surface here."
-          emptyHref="/tasks"
-        />
-        <ContextList
-          icon={<CheckCircle2 className="h-4 w-4" />}
-          label="Continue Working"
-          items={home.lastTime}
-          emptyTitle="Start a thread or project to create a return point."
-          emptyDetail="Synzept will preserve the context once there is something to resume."
-          emptyHref="/chat"
-          compact
-        />
+      <div className="grid gap-5 lg:grid-cols-[1.1fr_0.9fr]">
+        <HomeCard title="Mission" className="min-h-[220px]">
+          <p className="text-xl font-semibold leading-8 text-stone-950">{home.mission}</p>
+        </HomeCard>
+
+        <HomeCard title="Next Action" className="min-h-[220px]">
+          <div className="flex h-full flex-col justify-between gap-6">
+            <div>
+              <p className="text-xl font-semibold leading-8 text-stone-950">{home.nextAction.title}</p>
+              <p className="mt-3 max-w-lg text-sm leading-6 text-stone-600">{home.nextAction.detail}</p>
+            </div>
+            <button
+              type="button"
+              onClick={onContinue}
+              className="inline-flex items-center justify-center rounded-2xl bg-stone-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-stone-800 focus:outline-none focus:ring-2 focus:ring-stone-950/30"
+            >
+              Continue Working
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </button>
+          </div>
+        </HomeCard>
       </div>
+
+      <div className="grid gap-5 xl:grid-cols-[1fr_0.95fr]">
+        <HomeCard title={`Open Loops (${home.openLoops.length})`} className="min-h-[280px]">
+          {home.openLoops.length ? (
+            <ul className="space-y-4">
+              {home.openLoops.slice(0, 3).map((loop) => (
+                <li key={loop.id ?? loop.title} className="flex items-start gap-3">
+                  <span className="mt-2 h-2.5 w-2.5 rounded-full bg-stone-950" />
+                  <div>
+                    <p className="text-sm font-semibold text-stone-950">{loop.title}</p>
+                    {loop.detail ? <p className="mt-1 text-sm leading-6 text-stone-500">{loop.detail}</p> : null}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm leading-6 text-stone-500">No open loops need attention right now.</p>
+          )}
+        </HomeCard>
+
+        <HomeCard title="Recent Activity" className="min-h-[280px]">
+          {home.recentActivity.length ? (
+            <ul className="space-y-4">
+              {home.recentActivity.slice(0, 3).map((activity) => (
+                <li key={activity.id ?? activity.title}>
+                  <p className="text-sm font-semibold text-stone-950">{activity.title}</p>
+                  <p className="mt-1 text-sm leading-6 text-stone-500">{activity.subtitle}</p>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm leading-6 text-stone-500">Recent work appears here once Synzept can preserve a return point.</p>
+          )}
+        </HomeCard>
+      </div>
+
+      {home.dailyFocus ? (
+        <HomeCard title="Daily Brief Preview" className="bg-[#fafaf7]">
+          <p className="text-base leading-7 text-stone-700">{home.dailyFocus}</p>
+        </HomeCard>
+      ) : null}
     </section>
   );
 }
 
-function LoadingPill() {
+function LoadingPill({ className }: { className?: string }) {
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-md bg-stone-100 px-2 py-1 text-xs text-stone-500">
-      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+    <span className={`inline-flex items-center gap-2 rounded-full bg-stone-100 px-4 py-2 text-sm text-stone-500 ${className ?? ""}`}>
+      <Loader2 className="h-4 w-4 animate-spin" />
       Restoring context
     </span>
   );
 }
 
-function SourcePill({ count }: { count: number }) {
+function HomeCard({ title, children, className }: { title: string; children: ReactNode; className?: string }) {
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-md bg-[#eef3ed] px-2 py-1 text-xs font-medium text-[#36533f]">
-      <Sparkles className="h-3.5 w-3.5" />
-      {count ? `${count} signals` : "New workspace"}
-    </span>
-  );
-}
-
-function SignalCard({ icon, label, value, href }: { icon: ReactNode; label: string; value: string; href?: string }) {
-  const content = (
-    <div className="h-full rounded-lg border border-stone-200 bg-[#fbfbf8] px-4 py-4 transition hover:border-stone-300">
-      <div className="flex items-center gap-2 text-stone-400">
-        {icon}
-        <p className="text-xs font-medium uppercase tracking-[0.14em]">{label}</p>
-      </div>
-      <p className="mt-3 line-clamp-4 text-lg font-semibold leading-7 text-stone-950">{value}</p>
-    </div>
-  );
-
-  return href ? (
-    <Link href={href} className="block h-full">
-      {content}
-    </Link>
-  ) : content;
-}
-
-function ContextList({
-  icon,
-  label,
-  items,
-  emptyTitle,
-  emptyDetail,
-  emptyHref,
-  compact = false,
-}: {
-  icon: ReactNode;
-  label: string;
-  items: HomeItem[];
-  emptyTitle: string;
-  emptyDetail: string;
-  emptyHref: string;
-  compact?: boolean;
-}) {
-  return (
-    <section className="rounded-lg border border-stone-200 bg-white p-4 shadow-[0_12px_34px_rgba(32,31,28,0.05)] sm:p-5">
-      <div className="flex items-center gap-2 text-stone-400">
-        {icon}
-        <p className="text-xs font-medium uppercase tracking-[0.14em]">{label}</p>
-      </div>
-      <div className={compact ? "mt-4 space-y-2" : "mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3"}>
-        {items.slice(0, compact ? 3 : 5).map((item) => (
-          <ContextItem key={`${label}-${item.id || item.title}`} item={item} />
-        ))}
-        {!items.length ? <EmptyContext title={emptyTitle} detail={emptyDetail} href={emptyHref} /> : null}
-      </div>
+    <section className={`rounded-[1.75rem] bg-white p-6 ring-1 ring-stone-200/80 shadow-[0_12px_35px_rgba(15,15,15,0.04)] ${className ?? ""}`}>
+      <p className="text-xs font-semibold uppercase tracking-[0.26em] text-stone-500">{title}</p>
+      <div className="mt-5">{children}</div>
     </section>
   );
 }
 
-function ContextItem({ item }: { item: HomeItem }) {
-  const content = (
-    <div className="h-full rounded-lg border border-stone-100 bg-[#fbfbf8] px-3 py-3 transition hover:border-stone-300 hover:bg-white">
-      <p className="line-clamp-2 text-sm font-semibold leading-5 text-stone-950">{item.title}</p>
-      {item.detail ? <p className="mt-1 line-clamp-2 text-xs leading-5 text-stone-500">{item.detail}</p> : null}
-    </div>
-  );
-
-  return item.href ? (
-    <Link href={item.href} className="block h-full">
-      {content}
-    </Link>
-  ) : content;
-}
-
-function EmptyContext({ title, detail, href }: { title: string; detail: string; href: string }) {
-  return (
-    <Link href={href} className="block rounded-lg border border-dashed border-stone-300 bg-[#fbfbf8] px-3 py-3 transition hover:border-stone-400 hover:bg-white">
-      <p className="text-sm font-semibold text-stone-950">{title}</p>
-      <p className="mt-1 text-xs leading-5 text-stone-500">{detail}</p>
-    </Link>
-  );
-}
-
-type HomeItem = { id?: string | null; title: string; detail: string; href?: string | null };
-type HomeAction = { title: string; reason: string; href?: string | null };
+type HomeItem = { id?: string | null; title: string; detail?: string };
+type HomeActivityItem = { id?: string | null; title: string; subtitle: string };
 type HomeContext = {
   greeting: string;
-  welcome: string;
+  subtitle: string;
   mission: string;
-  missionIsEmpty: boolean;
-  focus: string;
-  focusIsEmpty: boolean;
+  nextAction: { title: string; detail: string };
   openLoops: HomeItem[];
-  lastTime: HomeItem[];
-  suggestedAction: HomeAction;
-  sourceCount: number;
+  recentActivity: HomeActivityItem[];
+  dailyFocus?: string;
 };
 
 function getHomeContext(displayName: string | null, s1: S1Home | null): HomeContext {
-  const mission = s1?.home.mission || "Add a mission in Synzept Knows You so Home can hold your north star.";
-  const focus = s1?.home.focus || "Choose the one thing that matters most right now.";
-  const openLoops = s1?.home.open_loops.length
-    ? s1.home.open_loops.map((item) => ({ id: item.id, title: item.title, detail: item.detail, href: item.href }))
-    : [];
-  const lastTime = s1?.home.last_time.length
-    ? s1.home.last_time.map((item) => ({ id: item.id, title: item.title, detail: item.detail, href: item.href }))
-    : [];
+  const mission = s1?.home.mission || "Build Synzept into the AI that knows you.";
   const suggestedAction = s1?.home.suggested_next_action || {
     title: "Choose one meaningful priority for today.",
     reason: "One clear next move makes this workspace easier to return to.",
     href: "/chat",
   };
+  const openLoops = s1?.home.open_loops.slice(0, 3).map((loop) => ({
+    id: loop.id,
+    title: loop.title,
+    detail: loop.detail,
+  })) || [];
+  const recentActivity = s1?.home.last_time.slice(0, 3).map((item) => ({
+    id: item.id,
+    title: item.title,
+    subtitle: item.detail || "Recent activity",
+  })) || [];
 
   return {
-    greeting: s1?.home.greeting || "Synzept knows where you left off.",
-    welcome: `Welcome back${displayName ? `, ${displayName}` : ""}.`,
+    greeting: `Good morning, ${displayName || "there"} 👋`,
+    subtitle: "Synzept knows where you left off.",
     mission,
-    missionIsEmpty: mission.startsWith("Add a mission"),
-    focus,
-    focusIsEmpty: focus.startsWith("Choose the one thing"),
+    nextAction: {
+      title: suggestedAction.title,
+      detail: suggestedAction.reason,
+    },
     openLoops,
-    lastTime,
-    suggestedAction,
-    sourceCount: Object.values(s1?.context_sources || {}).reduce((total, value) => total + value, 0),
+    recentActivity,
+    dailyFocus: s1?.home.focus || undefined,
   };
 }
 
@@ -258,11 +206,13 @@ function buildMomentPrompt(home: HomeContext) {
     "Continue working from my Synzept Home.",
     "",
     `Mission: ${home.mission}`,
-    `Current Focus: ${home.focus}`,
+    `Current Focus: ${home.dailyFocus || "None"}`,
     `Open Loops: ${home.openLoops.map((item) => item.title).join("; ") || "None visible"}`,
-    `Suggested Next Action: ${home.suggestedAction.title}`,
-    home.suggestedAction.reason ? `Why: ${home.suggestedAction.reason}` : "",
+    `Suggested Next Action: ${home.nextAction.title}`,
+    home.nextAction.detail ? `Why: ${home.nextAction.detail}` : "",
     "",
     "Do not ask me to re-explain. Help me continue from this context.",
-  ].filter(Boolean).join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
