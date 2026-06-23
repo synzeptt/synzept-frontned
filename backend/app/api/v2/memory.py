@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
@@ -41,10 +42,15 @@ async def search_memory(
 @router.get("/explorer", response_model=list[MemoryExplorerItemOut])
 async def memory_explorer(
     include_ignored: bool = False,
+    include_archived: bool = False,
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
-    return await MemoryTrustService(session).explorer(user.id, include_ignored=include_ignored)
+    return await MemoryTrustService(session).explorer(
+        user.id,
+        include_ignored=include_ignored,
+        include_archived=include_archived,
+    )
 
 
 @router.get("/{memory_id}/timeline", response_model=list[MemoryTrustEventOut])
@@ -71,7 +77,14 @@ async def create_memory(
         metadata={"source": "manual"},
         project_id=body.project_id,
     )
-    return await MemoryService(session).create_memory(user_id=user.id, item=item)
+    memory = await MemoryService(session).create_memory(user_id=user.id, item=item)
+    if body.pinned:
+        memory.pinned = True
+    if body.archived:
+        memory.archived_at = datetime.now(timezone.utc)
+    if body.pinned or body.archived:
+        await session.flush()
+    return memory
 
 
 @router.patch("/{memory_id}", response_model=MemoryOut)
@@ -86,7 +99,9 @@ async def update_memory(
         memory_id=memory_id,
         content=body.content,
         category=body.category,
-        importance_score=body.importance,
+        importance=body.importance,
+        pinned=body.pinned,
+        archived=body.archived,
         reason=body.reason,
     )
 

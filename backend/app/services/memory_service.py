@@ -14,11 +14,17 @@ class CoreMemoryService:
         self.session = session
 
     async def list(self, user_id: UUID) -> list[Memory]:
-        result = await self.session.execute(select(Memory).where(Memory.user_id == user_id, Memory.deleted_at.is_(None)).order_by(Memory.created_at.desc()))
+        result = await self.session.execute(
+            select(Memory)
+            .where(Memory.user_id == user_id, Memory.deleted_at.is_(None), Memory.archived_at.is_(None))
+            .order_by(Memory.created_at.desc())
+        )
         return list(result.scalars())
 
     async def get(self, user_id: UUID, item_id: UUID) -> Memory:
-        result = await self.session.execute(select(Memory).where(Memory.id == item_id, Memory.user_id == user_id, Memory.deleted_at.is_(None)))
+        result = await self.session.execute(
+            select(Memory).where(Memory.id == item_id, Memory.user_id == user_id, Memory.deleted_at.is_(None), Memory.archived_at.is_(None))
+        )
         item = result.scalar_one_or_none()
         if not item:
             raise NotFoundError("Memory not found")

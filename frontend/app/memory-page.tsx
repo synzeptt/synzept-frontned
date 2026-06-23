@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { CircleHelp, EyeOff, Link2, Merge, PencilLine, Search, ShieldAlert, Trash2 } from "lucide-react";
+import { Archive, CircleHelp, EyeOff, Link2, Merge, PencilLine, Pin, RotateCcw, Search, ShieldAlert, Trash2 } from "lucide-react";
 import { PageFrame } from "@frontend/components/layout/page-frame";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -18,10 +18,16 @@ export function MemoryPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [includeIgnored, setIncludeIgnored] = useState(false);
+  const [includeArchived, setIncludeArchived] = useState(false);
   const [search, setSearch] = useState("");
+  const [newMemoryContent, setNewMemoryContent] = useState("");
+  const [newMemoryCategory, setNewMemoryCategory] = useState("goals");
+  const [newMemoryImportance, setNewMemoryImportance] = useState("0.6");
   const [editContent, setEditContent] = useState("");
   const [editCategory, setEditCategory] = useState("");
   const [editImportance, setEditImportance] = useState("0.5");
+  const [editPinned, setEditPinned] = useState(false);
+  const [editArchived, setEditArchived] = useState(false);
   const [editReason, setEditReason] = useState("");
   const [mergeSourceId, setMergeSourceId] = useState("");
   const [mergeReason, setMergeReason] = useState("");
@@ -34,7 +40,7 @@ export function MemoryPage() {
     setLoading(true);
     setError(null);
     try {
-      const rows = await api.listMemoryExplorer(includeIgnored);
+      const rows = await api.listMemoryExplorer(includeIgnored, includeArchived);
       setItems(rows);
       setSelectedId((current) => rows.some((item) => item.memory.id === current) ? current : rows[0]?.memory.id ?? null);
     } catch {
@@ -42,7 +48,7 @@ export function MemoryPage() {
     } finally {
       setLoading(false);
     }
-  }, [includeIgnored]);
+  }, [includeIgnored, includeArchived]);
 
   useEffect(() => {
     void load();
@@ -55,6 +61,8 @@ export function MemoryPage() {
     setEditContent(selected.memory.content);
     setEditCategory(selected.memory.category || selected.memory.memory_type);
     setEditImportance(String(selected.memory.importance));
+    setEditPinned(selected.memory.pinned);
+    setEditArchived(Boolean(selected.memory.archived_at));
     setEditReason("");
     setMergeSourceId("");
     setMergeReason("");
@@ -81,11 +89,36 @@ export function MemoryPage() {
         content: editContent.trim(),
         category: editCategory.trim() || null,
         importance: Number.parseFloat(editImportance),
+        pinned: editPinned,
+        archived: editArchived,
         reason: editReason.trim() || null,
       });
       await load();
     } catch {
       setError("Memory update could not be saved. Your edits are still here.");
+    }
+  };
+
+  const createMemory = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!newMemoryContent.trim()) return;
+    setError(null);
+    try {
+      await api.createMemory({
+        content: newMemoryContent.trim(),
+        category: newMemoryCategory,
+        memory_type: newMemoryCategory,
+        importance: Number.parseFloat(newMemoryImportance),
+        project_id: null,
+        pinned: false,
+        archived: false,
+      });
+      setNewMemoryContent("");
+      setNewMemoryImportance("0.6");
+      setNewMemoryCategory("goals");
+      await load();
+    } catch {
+      setError("Could not add the memory. Please try again.");
     }
   };
 
@@ -112,6 +145,34 @@ export function MemoryPage() {
       await load();
     } catch {
       setError("Memory ignore failed. The memory is still active.");
+    }
+  };
+
+  const togglePin = async () => {
+    if (!selected) return;
+    setError(null);
+    try {
+      await api.updateMemoryV2(selected.memory.id, {
+        pinned: !selected.memory.pinned,
+        reason: selected.memory.pinned ? "User unpinned this memory." : "User pinned this memory.",
+      });
+      await load();
+    } catch {
+      setError("Could not update pin status for this memory.");
+    }
+  };
+
+  const toggleArchive = async () => {
+    if (!selected) return;
+    setError(null);
+    try {
+      await api.updateMemoryV2(selected.memory.id, {
+        archived: !selected.memory.archived_at,
+        reason: selected.memory.archived_at ? "User unarchived this memory." : "User archived this memory.",
+      });
+      await load();
+    } catch {
+      setError("Could not update archive status for this memory.");
     }
   };
 
@@ -143,21 +204,30 @@ export function MemoryPage() {
   };
 
   return (
-    <PageFrame eyebrow="Trust" title="Memory Explorer">
+    <PageFrame eyebrow="Memory" title="What Synzept knows about you">
       <div className="grid min-h-0 gap-4 p-4 md:grid-cols-[360px_minmax(0,1fr)] md:p-6">
         <aside className="min-h-0 rounded-xl border border-border bg-white p-4 shadow-soft">
           <div className="flex items-center gap-2">
             <Search className="h-4 w-4 text-muted" />
-            <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search memory, project, or goal" />
+            <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search memories, connections, or sources" />
           </div>
-          <div className="mt-3 flex items-center justify-between gap-2">
-            <button
-              type="button"
-              onClick={() => setIncludeIgnored((value) => !value)}
-              className={cn("rounded-md border px-3 py-1.5 text-xs font-medium transition", includeIgnored ? "border-stone-900 bg-stone-900 text-white" : "border-border bg-white text-stone-700 hover:bg-stone-50")}
-            >
-              {includeIgnored ? "Showing ignored" : "Hide ignored"}
-            </button>
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setIncludeIgnored((value) => !value)}
+                className={cn("rounded-md border px-3 py-1.5 text-xs font-medium transition", includeIgnored ? "border-stone-900 bg-stone-900 text-white" : "border-border bg-white text-stone-700 hover:bg-stone-50")}
+              >
+                {includeIgnored ? "Showing hidden memories" : "Show hidden memories"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setIncludeArchived((value) => !value)}
+                className={cn("rounded-md border px-3 py-1.5 text-xs font-medium transition", includeArchived ? "border-stone-900 bg-stone-950 text-white" : "border-border bg-white text-stone-700 hover:bg-stone-50")}
+              >
+                {includeArchived ? "Showing archived memories" : "Show archived memories"}
+              </button>
+            </div>
             <span className="text-xs text-muted">{visibleItems.length} memories</span>
           </div>
           <div className="mt-4 max-h-[calc(100dvh-240px)] space-y-2 overflow-y-auto pr-1">
@@ -235,6 +305,70 @@ export function MemoryPage() {
             )}
           </section>
 
+          <section className="rounded-xl border border-border bg-white p-4 shadow-soft">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted">Your memory control center</p>
+                <h2 className="mt-1 text-lg font-semibold text-stone-950">Control what Synzept knows about you</h2>
+                <p className="mt-2 text-sm text-muted">
+                  Create, correct, pin, archive, or restore memories so Synzept uses the latest context everywhere.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-xl border border-border bg-white p-4 shadow-soft">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted">Add memory</p>
+                <h2 className="mt-1 text-lg font-semibold text-stone-950">Tell Synzept something important</h2>
+                <p className="mt-2 text-sm text-muted">
+                  Manually add memories for goals, projects, preferences, relationships, and facts you want Synzept to remember.
+                </p>
+              </div>
+            </div>
+            <form onSubmit={createMemory} className="mt-4 space-y-3">
+              <Textarea
+                value={newMemoryContent}
+                onChange={(event) => setNewMemoryContent(event.target.value)}
+                rows={5}
+                placeholder="What should Synzept remember?"
+              />
+              <div className="grid gap-3 md:grid-cols-3">
+                <label className="space-y-1 text-sm text-stone-900">
+                  <span className="text-xs uppercase tracking-[0.14em] text-muted">Category</span>
+                  <select
+                    value={newMemoryCategory}
+                    onChange={(event) => setNewMemoryCategory(event.target.value)}
+                    className="h-10 w-full rounded-lg border border-border bg-white px-3 text-sm text-stone-800 outline-none"
+                  >
+                    <option value="goals">Goals</option>
+                    <option value="projects">Projects</option>
+                    <option value="priorities">Current Focus</option>
+                    <option value="preferences">Preferences</option>
+                    <option value="identity">Relationships</option>
+                    <option value="work">Important Facts</option>
+                    <option value="long_term_plans">AI Learned Memories</option>
+                  </select>
+                </label>
+                <label className="space-y-1 text-sm text-stone-900">
+                  <span className="text-xs uppercase tracking-[0.14em] text-muted">Importance</span>
+                  <Input
+                    value={newMemoryImportance}
+                    onChange={(event) => setNewMemoryImportance(event.target.value)}
+                    placeholder="0.0 - 1.0"
+                  />
+                </label>
+                <div className="flex items-end">
+                  <Button type="submit" size="sm">
+                    <Pin className="mr-1.5 h-4 w-4" />
+                    Add memory
+                  </Button>
+                </div>
+              </div>
+            </form>
+          </section>
+
           {!selected ? (
             <EmptyState
               icon={<PencilLine className="h-5 w-5" />}
@@ -248,60 +382,97 @@ export function MemoryPage() {
                   <div>
                     <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted">Memory</p>
                     <h2 className="mt-1 text-lg font-semibold text-stone-950">{selected.memory.summary || "Untitled memory"}</h2>
-                    <p className="mt-1 text-sm text-muted">Source {selected.memory.source} · confidence {Math.round(selected.memory.confidence * 100)}% · last updated {formatDate(selected.memory.updated_at)}</p>
+                      <p className="mt-1 text-sm text-muted">
+                        Source {selected.memory.source}
+                        {selected.memory.category ? ` · category ${selected.memory.category}` : ""}
+                        {` · confidence ${Math.round(selected.memory.confidence * 100)}% · updated ${formatDate(selected.memory.updated_at)}`}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button type="button" variant="outline" size="sm" onClick={togglePin}>
+                        <Pin className="mr-1.5 h-4 w-4" />
+                        {selected.memory.pinned ? "Unpin" : "Pin"}
+                      </Button>
+                      <Button type="button" variant="outline" size="sm" onClick={toggleArchive}>
+                        <Archive className="mr-1.5 h-4 w-4" />
+                        {selected.memory.archived_at ? "Restore" : "Archive"}
+                      </Button>
+                      <Button type="button" variant="outline" size="sm" onClick={ignoreMemory}>
+                        <EyeOff className="mr-1.5 h-4 w-4" />
+                        Hide from Synzept
+                      </Button>
+                      <Button type="button" variant="destructive" size="sm" onClick={deleteMemory}>
+                        <Trash2 className="mr-1.5 h-4 w-4" />
+                        Delete forever
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex gap-2">
-                    <Button type="button" variant="outline" size="sm" onClick={ignoreMemory}>
-                      <EyeOff className="mr-1.5 h-4 w-4" />
-                      Ignore
-                    </Button>
-                    <Button type="button" variant="outline" size="sm" onClick={deleteMemory}>
-                      <Trash2 className="mr-1.5 h-4 w-4" />
-                      Delete
-                    </Button>
-                  </div>
-                </div>
 
-                <form onSubmit={saveMemory} className="mt-4 space-y-3">
-                  <Textarea value={editContent} onChange={(event) => setEditContent(event.target.value)} rows={8} />
-                  <div className="grid gap-3 md:grid-cols-3">
-                    <Input value={editCategory} onChange={(event) => setEditCategory(event.target.value)} placeholder="Category" />
-                    <Input value={editImportance} onChange={(event) => setEditImportance(event.target.value)} placeholder="Importance 0-1" />
-                    <Input value={editReason} onChange={(event) => setEditReason(event.target.value)} placeholder="Why did this change?" />
-                  </div>
-                  <Button type="submit" size="sm">
-                    <PencilLine className="mr-1.5 h-4 w-4" />
-                    Save changes
-                  </Button>
-                </form>
-
-                <div className="mt-5 grid gap-3 md:grid-cols-2">
-                  <EntityCard title="Connected projects" items={selected.connected_projects.map((item) => item.title)} />
-                  <EntityCard title="Connected goals" items={selected.connected_goals.map((item) => item.title)} />
-                </div>
-
-                <div className="mt-5 rounded-lg border border-stone-200 bg-stone-50 p-4">
-                  <div className="flex items-center gap-2 text-sm font-medium text-stone-950">
-                    <Merge className="h-4 w-4 text-muted" />
-                    Merge into this memory
-                  </div>
-                  <div className="mt-3 grid gap-3 md:grid-cols-[1fr_1fr_auto]">
-                    <select value={mergeSourceId} onChange={(event) => setMergeSourceId(event.target.value)} className="h-10 rounded-lg border border-border bg-white px-3 text-sm text-stone-800 outline-none">
-                      <option value="">Choose source memory</option>
-                      {visibleItems.filter((item) => item.memory.id !== selected.memory.id).map((item) => (
-                        <option key={item.memory.id} value={item.memory.id}>
-                          {item.memory.summary || item.memory.content.slice(0, 60)}
-                        </option>
-                      ))}
-                    </select>
-                    <Input value={mergeReason} onChange={(event) => setMergeReason(event.target.value)} placeholder="Reason for merge" />
-                    <Button type="button" variant="outline" onClick={mergeMemory} disabled={!mergeSourceId}>
-                      <Link2 className="mr-1.5 h-4 w-4" />
-                      Merge
+                  <form onSubmit={saveMemory} className="mt-4 space-y-3">
+                    <Textarea value={editContent} onChange={(event) => setEditContent(event.target.value)} rows={8} />
+                    <div className="grid gap-3 md:grid-cols-3">
+                      <Input value={editCategory} onChange={(event) => setEditCategory(event.target.value)} placeholder="Category" />
+                      <Input value={editImportance} onChange={(event) => setEditImportance(event.target.value)} placeholder="Importance 0-1" />
+                      <div className="space-y-3">
+                        <label className="flex items-center gap-2 text-sm text-stone-900">
+                          <input
+                            type="checkbox"
+                            checked={editPinned}
+                            onChange={(event) => setEditPinned(event.target.checked)}
+                            className="h-4 w-4 rounded border-border text-stone-900"
+                          />
+                          Pin memory
+                        </label>
+                        <label className="flex items-center gap-2 text-sm text-stone-900">
+                          <input
+                            type="checkbox"
+                            checked={editArchived}
+                            onChange={(event) => setEditArchived(event.target.checked)}
+                            className="h-4 w-4 rounded border-border text-stone-900"
+                          />
+                          Archive memory
+                        </label>
+                      </div>
+                    </div>
+                    <Input value={editReason} onChange={(event) => setEditReason(event.target.value)} placeholder="Why this memory changed" />
+                    <Button type="submit" size="sm">
+                      <PencilLine className="mr-1.5 h-4 w-4" />
+                      Update memory
                     </Button>
+                  </form>
+
+                  <div className="mt-5 rounded-lg border border-stone-200 bg-stone-50 p-4">
+                    <p className="text-sm font-medium text-stone-950">Connected workspace items</p>
+                    <div className="mt-3 grid gap-3 md:grid-cols-2">
+                      <EntityCard title="Projects" items={selected.connected_projects.map((item) => item.title)} />
+                      <EntityCard title="Goals" items={selected.connected_goals.map((item) => item.title)} />
+                    </div>
                   </div>
-                </div>
-              </section>
+
+                  <div className="mt-5 rounded-lg border border-stone-200 bg-stone-50 p-4">
+                    <div className="flex items-center gap-2 text-sm font-medium text-stone-950">
+                      <Merge className="h-4 w-4 text-muted" />
+                      Merge with another memory
+                    </div>
+                    <div className="mt-3 grid gap-3 md:grid-cols-[1fr_1fr_auto]">
+                      <select value={mergeSourceId} onChange={(event) => setMergeSourceId(event.target.value)} className="h-10 rounded-lg border border-border bg-white px-3 text-sm text-stone-800 outline-none">
+                        <option value="">Choose another memory</option>
+                        {visibleItems
+                          .filter((item) => item.memory.id !== selected.memory.id)
+                          .map((item) => (
+                            <option key={item.memory.id} value={item.memory.id}>
+                              {item.memory.summary || item.memory.content.slice(0, 60)}
+                            </option>
+                          ))}
+                      </select>
+                      <Input value={mergeReason} onChange={(event) => setMergeReason(event.target.value)} placeholder="Reason for merge" />
+                      <Button type="button" variant="outline" onClick={mergeMemory} disabled={!mergeSourceId}>
+                        <Link2 className="mr-1.5 h-4 w-4" />
+                        Merge
+                      </Button>
+                    </div>
+                  </div>
+                </section>
 
               <aside className="space-y-4">
                 <section className="rounded-xl border border-border bg-white p-4 shadow-soft">

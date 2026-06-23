@@ -12,12 +12,16 @@ class MemoryCreate(BaseModel):
     memory_type: str = "long_term"
     project_id: UUID | None = None
     importance: float = Field(default=0.5, ge=0, le=1)
+    pinned: bool = False
+    archived: bool = False
 
 
 class MemoryUpdate(BaseModel):
     content: str | None = Field(default=None, min_length=1, max_length=4000)
     category: str | None = None
     importance: float | None = Field(default=None, ge=0, le=1)
+    pinned: bool | None = None
+    archived: bool | None = None
     reason: str | None = Field(default=None, max_length=500)
 
 
@@ -33,6 +37,8 @@ class MemoryOut(ORMModel):
     importance_score: float
     version: int
     project_id: UUID | None
+    pinned: bool
+    archived_at: datetime | None
     created_at: datetime
     updated_at: datetime
 

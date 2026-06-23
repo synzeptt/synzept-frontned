@@ -2,29 +2,17 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  Brain,
-  CalendarDays,
-  LayoutDashboard,
-  ListChecks,
-  History,
-  Settings,
-  Sparkles,
-  Target,
-} from "lucide-react";
+import { BookOpen, CalendarDays, LayoutDashboard, MessageSquare, Settings } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { UpgradeCta } from "@/components/pro/upgrade-cta";
 import { cn } from "@/lib/cn";
 import { useAuthStore } from "@/stores/auth";
 
 const links = [
-  { href: "/dashboard", label: "OS", icon: LayoutDashboard },
-  { href: "/autonomous-workspace", label: "Execution", icon: Target },
-  { href: "/agent", label: "Agent", icon: Sparkles },
+  { href: "/dashboard", label: "Home", icon: LayoutDashboard },
+  { href: "/chat", label: "Chat", icon: MessageSquare },
+  { href: "/memory", label: "Memory", icon: BookOpen },
   { href: "/daily-brief", label: "Daily Brief", icon: CalendarDays },
-  { href: "/open-loops", label: "Open Loops", icon: ListChecks },
-  { href: "/weekly-reflection", label: "Weekly", icon: History },
-  { href: "/knows-you", label: "Knows You", icon: Brain },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 

@@ -562,6 +562,8 @@ export type MemoryTrustRecord = {
   summary: string | null;
   importance: number;
   importance_score: number;
+  pinned: boolean;
+  archived_at: string | null;
   version: number;
   project_id: string | null;
   created_at: string;
@@ -1635,10 +1637,19 @@ export const api = {
     request<Goal>(`/api/v2/goals/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
   getAgentMemoryTimeline: (days = 90, limit = 80) =>
     request<AgentMemoryTimeline>(`/api/v2/agent-memory/timeline?days=${days}&limit=${limit}`),
-  listMemoryExplorer: (includeIgnored = false) =>
-    request<MemoryExplorerItem[]>(`/api/v2/memory/explorer?include_ignored=${includeIgnored ? "true" : "false"}`),
+  listMemoryExplorer: (includeIgnored = false, includeArchived = false) =>
+    request<MemoryExplorerItem[]>(`/api/v2/memory/explorer?include_ignored=${includeIgnored ? "true" : "false"}&include_archived=${includeArchived ? "true" : "false"}`),
   getMemoryTimeline: (memoryId: string) => request<MemoryTrustEvent[]>(`/api/v2/memory/${memoryId}/timeline`),
-  updateMemoryV2: (id: string, data: Partial<Pick<MemoryTrustRecord, "content" | "category" | "importance">> & { reason?: string | null }) =>
+  createMemory: (data: {
+    content: string;
+    category?: string;
+    memory_type: string;
+    project_id?: string | null;
+    importance: number;
+    pinned?: boolean;
+    archived?: boolean;
+  }) => request<MemoryTrustRecord>(`/api/v2/memory`, { method: "POST", body: JSON.stringify(data) }),
+  updateMemoryV2: (id: string, data: Partial<Pick<MemoryTrustRecord, "content" | "category" | "importance" | "pinned">> & { archived?: boolean; reason?: string | null }) =>
     request<MemoryTrustRecord>(`/api/v2/memory/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
   mergeMemory: (id: string, data: { source_memory_id: string; reason?: string | null }) =>
     request<MemoryTrustRecord>(`/api/v2/memory/${id}/merge`, { method: "POST", body: JSON.stringify(data) }),

@@ -113,8 +113,11 @@ class MemoryService:
         content: str | None = None,
         category: str | None = None,
         importance_score: float | None = None,
+        pinned: bool | None = None,
+        archived: bool | None = None,
+        include_archived: bool = False,
     ) -> Memory:
-        memory = await self._get_owned(user_id=user_id, memory_id=memory_id)
+        memory = await self._get_owned(user_id=user_id, memory_id=memory_id, include_archived=include_archived)
         if content is not None:
             memory.content = content
             memory.summary = self.extractor._summarize(content)
@@ -124,6 +127,10 @@ class MemoryService:
             memory.memory_type = category if category in MEMORY_TYPES else memory.memory_type
         if importance_score is not None:
             memory.importance_score = importance_score
+        if pinned is not None:
+            memory.pinned = pinned
+        if archived is not None:
+            memory.archived_at = datetime.now(timezone.utc) if archived else None
         memory.version += 1
         await self.session.flush()
         await self._record_revision(memory, action="updated")
@@ -146,14 +153,14 @@ class MemoryService:
         category: str | None = None,
         limit: int = 40,
     ) -> list[Memory]:
-        statement = select(Memory).where(Memory.user_id == user_id, Memory.deleted_at.is_(None))
+        statement = select(Memory).where(Memory.user_id == user_id, Memory.deleted_at.is_(None), Memory.archived_at.is_(None))
         if category:
             statement = statement.where(Memory.category == category)
         if query:
             pattern = f"%{query.strip()}%"
             statement = statement.where(or_(Memory.content.ilike(pattern), Memory.summary.ilike(pattern)))
         result = await self.session.execute(
-            statement.order_by(Memory.importance_score.desc(), Memory.updated_at.desc()).limit(limit)
+            statement.order_by(Memory.pinned.desc(), Memory.importance_score.desc(), Memory.updated_at.desc()).limit(limit)
         )
         return list(result.scalars().all())
 
@@ -179,12 +186,12 @@ class MemoryService:
         project_id: UUID | None = None,
         limit: int = 80,
     ) -> list[Memory]:
-        query: Select[tuple[Memory]] = select(Memory).where(Memory.user_id == user_id, Memory.deleted_at.is_(None))
+        query: Select[tuple[Memory]] = select(Memory).where(Memory.user_id == user_id, Memory.deleted_at.is_(None), Memory.archived_at.is_(None))
         if memory_types:
             query = query.where(Memory.memory_type.in_(memory_types))
         if project_id:
             query = query.where((Memory.project_id == project_id) | (Memory.project_id.is_(None)))
-        query = query.order_by(Memory.importance_score.desc(), Memory.updated_at.desc()).limit(limit)
+        query = query.order_by(Memory.pinned.desc(), Memory.importance_score.desc(), Memory.updated_at.desc()).limit(limit)
         result = await self.session.execute(query)
         return list(result.scalars().all())
 
@@ -201,6 +208,7 @@ class MemoryService:
                 Memory.content_hash == self._content_hash(item.content),
                 Memory.category == item.memory_type,
                 Memory.deleted_at.is_(None),
+                Memory.archived_at.is_(None),
             )
         )
         return result.scalar_one_or_none()
@@ -218,10 +226,11 @@ class MemoryService:
         await self._record_trust_event(memory, action="merged", reason="Synzept merged a repeated memory signal.", caused_by_type="conversation", caused_by_id=item.conversation_id)
         return memory
 
-    async def _get_owned(self, *, user_id: UUID, memory_id: UUID) -> Memory:
-        result = await self.session.execute(
-            select(Memory).where(Memory.id == memory_id, Memory.user_id == user_id, Memory.deleted_at.is_(None))
-        )
+    async def _get_owned(self, *, user_id: UUID, memory_id: UUID, include_archived: bool = False) -> Memory:
+        statement = select(Memory).where(Memory.id == memory_id, Memory.user_id == user_id, Memory.deleted_at.is_(None))
+        if not include_archived:
+            statement = statement.where(Memory.archived_at.is_(None))
+        result = await self.session.execute(statement)
         memory = result.scalar_one_or_none()
         if not memory:
             raise NotFoundError("Memory not found")

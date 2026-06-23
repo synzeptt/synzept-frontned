@@ -133,8 +133,8 @@ class NotificationService:
         day = self._local_now(user).date().isoformat()
         return NotificationCandidate(
             notification_type="daily_brief",
-            title="Your Daily Brief is ready.",
-            message="Your Daily Brief is ready. Open Synzept to see what matters, what is unfinished, and what to do next.",
+            title="Daily Brief is ready.",
+            message="Open Synzept to review today’s most important work.",
             priority="medium",
             dedupe_key=f"daily_brief:{day}",
             metadata={"href": "/daily-brief"},
@@ -149,18 +149,11 @@ class NotificationService:
         if not total:
             return []
         priority = "high" if pending_decision_count or overdue_followups else "medium"
-        detail = []
-        if open_task_count:
-            detail.append(f"{open_task_count} unfinished task{'s' if open_task_count != 1 else ''}")
-        if pending_decision_count:
-            detail.append(f"{pending_decision_count} pending decision{'s' if pending_decision_count != 1 else ''}")
-        if overdue_followups:
-            detail.append(f"{overdue_followups} overdue follow-up{'s' if overdue_followups != 1 else ''}")
         return [
             NotificationCandidate(
                 notification_type="open_loop",
-                title="Important unfinished work needs attention.",
-                message=f"You have {', '.join(detail)} waiting in Synzept.",
+                title="Unfinished work needs your attention.",
+                message="Open Synzept to review your open tasks and decisions.",
                 priority=priority,
                 dedupe_key=f"open_loops:{day}:{total}",
                 metadata={"href": "/open-loops", "openTasks": open_task_count, "pendingDecisions": pending_decision_count, "overdueFollowups": overdue_followups},
@@ -181,7 +174,7 @@ class NotificationService:
                     NotificationCandidate(
                         notification_type="project_attention",
                         title=f"{project.name} needs attention.",
-                        message=f"{project.name} has had no activity for {inactive_days} days.",
+                        message="Open the project to move it forward.",
                         priority="high" if inactive_days >= 14 else "medium",
                         dedupe_key=f"project_inactive:{project.id}:{inactive_days // 7}",
                         metadata={"href": f"/projects/{project.id}", "projectId": str(project.id), "inactiveDays": inactive_days},
@@ -192,7 +185,7 @@ class NotificationService:
                     NotificationCandidate(
                         notification_type="project_attention",
                         title=f"{project.name} may be blocked.",
-                        message=f"{project.name} looks blocked. Open it to decide the next step.",
+                        message="Open the project to decide the next step.",
                         priority="high",
                         dedupe_key=f"project_blocked:{project.id}",
                         metadata={"href": f"/projects/{project.id}", "projectId": str(project.id)},
@@ -216,8 +209,8 @@ class NotificationService:
         return [
             NotificationCandidate(
                 notification_type="return_to_work",
-                title="You have unfinished work waiting in Synzept.",
-                message="You have unfinished work waiting in Synzept. Open your workspace to continue where you left off.",
+                title="You have work waiting.",
+                message="Open Synzept to continue where you left off.",
                 priority="high" if threshold >= 7 else "medium",
                 dedupe_key=f"return_to_work:{threshold}:{last_seen.date().isoformat()}",
                 metadata={"href": "/agent", "daysInactive": days, "unfinished": unfinished, "openLoops": open_loops},
@@ -240,7 +233,7 @@ class NotificationService:
                 NotificationCandidate(
                     notification_type="project_attention",
                     title=f"Milestone approaching: {event.title}",
-                    message=f"{event.title} is approaching. Review the related project and next step.",
+                    message="Review the milestone before it arrives.",
                     priority="high" if event.importance >= 0.75 else "medium",
                     dedupe_key=f"milestone_due:{event.id}:{event.event_date.isoformat()}",
                     metadata={"href": f"/projects/{event.project_id}" if event.project_id else "/timeline", "eventId": str(event.id)},

@@ -17,6 +17,7 @@ android/local.properties
 android/keystore.properties
 android/release.keystore
 __pycache__/
+ backend/.venv/
 *.pyc
 *.pyo
 *.db

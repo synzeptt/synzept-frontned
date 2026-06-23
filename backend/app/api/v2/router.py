@@ -9,6 +9,7 @@ from app.api.v2 import (
     daily_brief,
     goals,
     learning_engine,
+    memory,
     proactive_intelligence,
     project_intelligence,
     user_understanding,
@@ -28,3 +29,4 @@ api_router.include_router(autonomous_workspace.router, tags=["autonomous-workspa
 api_router.include_router(goals.router, tags=["goals"])
 api_router.include_router(workspace.router, tags=["workspace"])
 api_router.include_router(proactive_intelligence.router, tags=["proactive-intelligence"])
+api_router.include_router(memory.router, tags=["memory"])

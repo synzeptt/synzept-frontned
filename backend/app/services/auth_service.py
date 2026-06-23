@@ -197,8 +197,8 @@ class AuthService:
                 code="invalid_request",
                 user_message="Type DELETE to confirm account deletion.",
             )
-        if user.password_hash:
-            if not password or not verify_password(password, user.password_hash):
+        if user.auth_provider != "google":
+            if not password or not user.password_hash or not verify_password(password, user.password_hash):
                 raise AppError(
                     "Password confirmation failed",
                     status_code=401,

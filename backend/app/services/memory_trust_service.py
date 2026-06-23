@@ -26,11 +26,19 @@ class MemoryTrustService:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
-    async def explorer(self, user_id: UUID, *, include_ignored: bool = False) -> list[MemoryExplorerItemOut]:
+    async def explorer(
+        self,
+        user_id: UUID,
+        *,
+        include_ignored: bool = False,
+        include_archived: bool = False,
+    ) -> list[MemoryExplorerItemOut]:
         statement = select(Memory).where(Memory.user_id == user_id)
         if not include_ignored:
             statement = statement.where(Memory.deleted_at.is_(None))
-        result = await self.session.execute(statement.order_by(Memory.updated_at.desc()).limit(200))
+        if not include_archived:
+            statement = statement.where(Memory.archived_at.is_(None))
+        result = await self.session.execute(statement.order_by(Memory.pinned.desc(), Memory.updated_at.desc()).limit(200))
         return [await self._explorer_item(memory) for memory in result.scalars()]
 
     async def timeline(self, user_id: UUID, memory_id: UUID) -> list[MemoryTrustEventOut]:
@@ -69,9 +77,11 @@ class MemoryTrustService:
         content: str | None,
         category: str | None,
         importance: float | None,
+        pinned: bool | None = None,
+        archived: bool | None = None,
         reason: str | None,
     ) -> Memory:
-        memory = await self._owned_memory(user_id, memory_id)
+        memory = await self._owned_memory(user_id, memory_id, include_deleted=True)
         before = self._snapshot(memory)
         updated = await MemoryService(self.session).update_memory(
             user_id=user_id,
@@ -79,6 +89,9 @@ class MemoryTrustService:
             content=content,
             category=category,
             importance_score=importance,
+            pinned=pinned,
+            archived=archived,
+            include_archived=True,
         )
         await self.record_event(
             user_id=user_id,

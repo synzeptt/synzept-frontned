@@ -233,7 +233,13 @@ async def test_reset_password_updates_hash_uses_token_and_revokes_sessions():
 
 @pytest.mark.asyncio
 async def test_delete_account_requires_confirmation_and_password():
-    user = User(id=uuid4(), email="user@example.com", password_hash=hash_password("current-password"), is_active=True)
+    user = User(
+        id=uuid4(),
+        email="user@example.com",
+        password_hash=hash_password("current-password"),
+        auth_provider="email",
+        is_active=True,
+    )
     session = _Session()
 
     with pytest.raises(AppError) as exc_info:
@@ -241,6 +247,22 @@ async def test_delete_account_requires_confirmation_and_password():
 
     assert exc_info.value.status_code == 401
     assert user not in session.deleted
+
+
+@pytest.mark.asyncio
+async def test_delete_account_allows_google_user_without_password():
+    user = User(
+        id=uuid4(),
+        email="google-user@example.com",
+        password_hash=hash_password("current-password"),
+        auth_provider="google",
+        is_active=True,
+    )
+    session = _Session()
+
+    await AuthService(session).delete_account(user, None, "DELETE")
+
+    assert user in session.deleted
 
 
 @pytest.mark.asyncio
