@@ -25,6 +25,7 @@ class Conversation(Base, TimestampMixin, SoftDeleteMixin):
     conversation_type: Mapped[str] = mapped_column(String(50), default="general", index=True)
     active_intent: Mapped[str | None] = mapped_column(String(500), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    pinned: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
 
     user = relationship("User", back_populates="conversations")

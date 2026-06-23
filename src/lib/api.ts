@@ -201,6 +201,7 @@ export type Conversation = {
   project_id: string | null;
   summary: string | null;
   conversation_type?: string;
+  pinned?: boolean;
   archived_at?: string | null;
   created_at?: string;
   updated_at?: string;
@@ -2007,6 +2008,21 @@ export const api = {
 
   createConversation: (data: { title?: string; project_id?: string }) =>
     request<Conversation>("/api/v1/conversations", { method: "POST", body: JSON.stringify(data) }),
+
+  renameConversation: (conversationId: string, title: string) =>
+    request<Conversation>(`/api/v1/conversations/${conversationId}/rename`, {
+      method: "PATCH",
+      body: JSON.stringify({ title }),
+    }),
+
+  archiveConversation: (conversationId: string) =>
+    request<Conversation>(`/api/v1/conversations/${conversationId}/archive`, { method: "PATCH" }),
+
+  pinConversation: (conversationId: string, pinned: boolean) =>
+    request<Conversation>(`/api/v1/conversations/${conversationId}/pin?pinned=${pinned}`, { method: "PATCH" }),
+
+  deleteConversation: (conversationId: string) =>
+    request<Conversation>(`/api/v1/conversations/${conversationId}`, { method: "DELETE" }),
 
   listMemories: () => request<Memory[]>("/api/v1/memories"),
 

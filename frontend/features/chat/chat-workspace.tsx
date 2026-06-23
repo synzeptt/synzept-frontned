@@ -1,13 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { ArrowRight, ChevronRight, Loader2, PanelRightOpen, Plus, RotateCcw, Square, WifiOff, X } from "lucide-react";
+import { ArrowRight, ChevronRight, Loader2, Menu, PanelRightOpen, Plus, RotateCcw, Square, WifiOff, X } from "lucide-react";
 import { ChatInput } from "@/components/chat/chat-input";
 import { MessageBubble } from "@/components/chat/message-bubble";
 import { Button } from "@/components/ui/button";
 import { RecoveryBanner } from "@/components/ui/recovery-banner";
 import { api, type ContinuityMode, type Conversation, type Dashboard, type Project } from "@/lib/api";
 import { useChatStore } from "@/stores/chat";
+import { ConversationSidebar } from "@frontend/features/chat/conversation-sidebar";
 import { useAutoScroll } from "@frontend/hooks/use-auto-scroll";
 
 const CHAT_DRAFT_KEY = "synzept_chat_draft";
@@ -26,6 +27,7 @@ export function ChatWorkspace() {
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
   const [continuityMode, setContinuityMode] = useState<ContinuityMode | null>(null);
   const [continuityOpen, setContinuityOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isOnline, setIsOnline] = useState(() => (typeof navigator === "undefined" ? true : navigator.onLine));
   const [isPending, startTransition] = useTransition();
   const {
@@ -65,6 +67,15 @@ export function ChatWorkspace() {
       if (!background) setLoadingHistory(false);
     }
   }, [setConversations, setError, startTransition]);
+
+  const updateConversation = useCallback(
+    (updated: Conversation) => {
+      setConversations(
+        conversations.map((conversation) => (conversation.id === updated.id ? updated : conversation)),
+      );
+    },
+    [conversations, setConversations],
+  );
 
   useEffect(() => {
     if (conversations.length && hasFreshConversations()) {
@@ -138,11 +149,83 @@ export function ChatWorkspace() {
     }
   };
 
-  const newConversation = () => {
+  const newConversation = useCallback(async () => {
     abortRef.current?.abort();
     reset();
     setActiveProject(null);
-  };
+    setInput("");
+    setError(null);
+    try {
+      const conversation = await api.createConversation({ title: "New conversation" });
+      setConversations([conversation, ...conversations]);
+      setActiveConversation(conversation.id);
+      setMessages([]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not start a new conversation.");
+    }
+  }, [conversations, reset, setActiveConversation, setActiveProject, setConversations, setError, setInput, setMessages]);
+
+  const archiveConversation = useCallback(
+    async (conversation: Conversation) => {
+      const confirmed = window.confirm("Archive this conversation? You can still recover it from history later.");
+      if (!confirmed) return;
+
+      try {
+        const updated = await api.archiveConversation(conversation.id);
+        setConversations(conversations.filter((item) => item.id !== updated.id));
+        if (activeConversationId === updated.id) {
+          await newConversation();
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Could not archive that thread.");
+      }
+    },
+    [activeConversationId, conversations, newConversation, setConversations, setError],
+  );
+
+  const deleteConversation = useCallback(
+    async (conversation: Conversation) => {
+      const confirmed = window.confirm("Delete this conversation? This action cannot be undone.");
+      if (!confirmed) return;
+
+      try {
+        await api.deleteConversation(conversation.id);
+        setConversations(conversations.filter((item) => item.id !== conversation.id));
+        if (activeConversationId === conversation.id) {
+          newConversation();
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Could not delete that thread.");
+      }
+    },
+    [activeConversationId, conversations, newConversation, setConversations, setError],
+  );
+
+  const pinConversation = useCallback(
+    async (conversation: Conversation, pinned: boolean) => {
+      try {
+        const updated = await api.pinConversation(conversation.id, pinned);
+        updateConversation(updated);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Could not update pin state.");
+      }
+    },
+    [setError, updateConversation],
+  );
+
+  const renameConversation = useCallback(
+    async (conversation: Conversation) => {
+      const title = window.prompt("Rename thread", conversation.title || "");
+      if (!title || !title.trim() || title.trim() === conversation.title) return;
+      try {
+        const updated = await api.renameConversation(conversation.id, title.trim());
+        updateConversation(updated);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Could not rename that thread.");
+      }
+    },
+    [setError, updateConversation],
+  );
 
   const stop = () => {
     abortRef.current?.abort();
@@ -234,14 +317,40 @@ export function ChatWorkspace() {
   const continuity = useMemo(() => getContinuityPanel(continuityMode, dashboard, projects), [continuityMode, dashboard, projects]);
 
   return (
-    <div className="flex h-full min-h-0 bg-[#f7f7f4]">
+    <div className="relative flex h-full min-h-0 bg-[#f7f7f4]">
+      <ConversationSidebar
+        conversations={conversations}
+        projects={projects}
+        activeConversationId={activeConversationId}
+        onSelect={(conversation) => {
+          selectConversation(conversation);
+          setSidebarOpen(false);
+        }}
+        onRename={renameConversation}
+        onArchive={archiveConversation}
+        onDelete={deleteConversation}
+        onPin={pinConversation}
+        onCreate={newConversation}
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+      />
       <section className="flex min-w-0 flex-1 flex-col">
         <header className="flex min-h-16 items-center justify-between border-b border-border bg-white/80 px-4 backdrop-blur md:px-6">
-          <div className="min-w-0">
-            <p className="text-xs text-muted">Chat</p>
-            <h1 className="truncate text-lg font-semibold text-stone-950">
-              {activeConversationId ? activeTitle : "New conversation"}
-            </h1>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setSidebarOpen((value) => !value)}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-border bg-white text-stone-700 transition hover:bg-stone-50 lg:hidden"
+              aria-label="Open threads"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+            <div className="min-w-0">
+              <p className="text-xs text-muted">Chat</p>
+              <h1 className="truncate text-lg font-semibold text-stone-950">
+                {activeConversationId ? activeTitle : "New conversation"}
+              </h1>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             {loadingHistory && <Loader2 className="h-4 w-4 animate-spin text-muted" />}
@@ -305,6 +414,7 @@ export function ChatWorkspace() {
           placeholder="What would you like to continue?"
         />
       </section>
+      {sidebarOpen ? <div className="fixed inset-0 z-40 bg-black/30 lg:hidden" onClick={() => setSidebarOpen(false)} /> : null}
       <ContinuityPanel open={continuityOpen} continuity={continuity} conversations={conversations} activeConversationId={activeConversationId} onClose={() => setContinuityOpen(false)} onSelect={selectConversation} />
     </div>
   );

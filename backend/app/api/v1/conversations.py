@@ -128,6 +128,31 @@ async def rename_conversation(
     return conversation
 
 
+@router.patch("/{conversation_id}/pin", response_model=ConversationOut)
+async def pin_conversation(
+    conversation_id: UUID,
+    pinned: bool,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+):
+    conversation = await ConversationService(session).pin(user.id, conversation_id, pinned)
+    if not conversation:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    return conversation
+
+
+@router.delete("/{conversation_id}", response_model=ConversationOut)
+async def delete_conversation(
+    conversation_id: UUID,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+):
+    conversation = await ConversationService(session).delete(user.id, conversation_id)
+    if not conversation:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    return conversation
+
+
 @router.patch("/{conversation_id}/summary", response_model=ConversationOut)
 async def update_conversation_summary(
     conversation_id: UUID,

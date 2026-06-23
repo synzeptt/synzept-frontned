@@ -76,7 +76,7 @@ class ConversationService:
             query = query.where(Conversation.archived_at.is_(None))
 
         result = await self.session.execute(
-            query.order_by(Conversation.updated_at.desc()).offset(offset).limit(limit)
+            query.order_by(Conversation.pinned.desc(), Conversation.updated_at.desc()).offset(offset).limit(limit)
         )
         return list(result.scalars().all())
 
@@ -102,6 +102,23 @@ class ConversationService:
         if not conversation:
             return None
         conversation.summary = summary
+        await self.session.flush()
+        return conversation
+
+    async def delete(self, user_id: UUID, conversation_id: UUID) -> Conversation | None:
+        conversation = await self.get(user_id, conversation_id)
+        if not conversation:
+            return None
+        conversation.deleted_at = datetime.now(timezone.utc)
+        conversation.is_active = False
+        await self.session.flush()
+        return conversation
+
+    async def pin(self, user_id: UUID, conversation_id: UUID, pinned: bool) -> Conversation | None:
+        conversation = await self.get(user_id, conversation_id)
+        if not conversation:
+            return None
+        conversation.pinned = pinned
         await self.session.flush()
         return conversation
 

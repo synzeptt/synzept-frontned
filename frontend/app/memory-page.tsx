@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { Archive, CircleHelp, EyeOff, Link2, Merge, PencilLine, Pin, RotateCcw, Search, ShieldAlert, Trash2 } from "lucide-react";
+import { Archive, CircleHelp, EyeOff, Link2, Merge, PencilLine, Pin, Search, ShieldAlert, Trash2 } from "lucide-react";
 import { PageFrame } from "@frontend/components/layout/page-frame";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";

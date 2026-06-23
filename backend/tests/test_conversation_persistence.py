@@ -73,7 +73,13 @@ class _Session:
             if "archived_at_1" not in params and "conversations.archived_at IS NULL" in str(statement):
                 rows = [row for row in rows if row.archived_at is None]
             rows = [row for row in rows if row.deleted_at is None]
-            rows.sort(key=lambda row: row.updated_at, reverse=True)
+            rows.sort(
+                key=lambda row: (
+                    bool(row.pinned),
+                    row.updated_at or datetime.min.replace(tzinfo=timezone.utc),
+                ),
+                reverse=True,
+            )
             return _Result(rows)
 
         if entity is Message:
@@ -178,6 +184,41 @@ async def test_archive_removes_conversation_from_default_listing():
     assert archived.is_active is False
     assert conversation not in listed
     assert conversation in listed_with_archived
+
+
+@pytest.mark.asyncio
+async def test_delete_marks_conversation_deleted_and_removes_from_listing():
+    session = _Session()
+    user_id = uuid4()
+    conversation = _conversation(user_id)
+    session.conversations[conversation.id] = conversation
+
+    deleted = await ConversationService(session).delete(user_id, conversation.id)
+    listed = await ConversationService(session).list(user_id)
+    listed_with_archived = await ConversationService(session).list(user_id, include_archived=True)
+
+    assert deleted.deleted_at is not None
+    assert deleted.is_active is False
+    assert conversation not in listed
+    assert conversation not in listed_with_archived
+
+
+@pytest.mark.asyncio
+async def test_pin_marks_conversation_and_keeps_it_in_list_top_of_results():
+    session = _Session()
+    user_id = uuid4()
+    older = _conversation(user_id, updated_at=datetime.now(timezone.utc) - timedelta(days=2))
+    newer = _conversation(user_id, updated_at=datetime.now(timezone.utc) - timedelta(days=1))
+    session.conversations[older.id] = older
+    session.conversations[newer.id] = newer
+
+    pinned = await ConversationService(session).pin(user_id, older.id, True)
+    listed = await ConversationService(session).list(user_id)
+
+    assert pinned is not None
+    assert pinned.pinned is True
+    assert listed[0].id == older.id
+    assert listed[1].id == newer.id
 
 
 @pytest.mark.asyncio

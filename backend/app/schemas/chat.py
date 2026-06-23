@@ -56,6 +56,7 @@ class ConversationOut(TimestampedSchema):
     project_id: UUID | None
     summary: str | None
     conversation_type: str
+    pinned: bool = False
     archived_at: datetime | None
 
 
