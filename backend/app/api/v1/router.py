@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1 import auth, briefing, chat, continue_context, conversations, daily, dashboard, feedback, launch, memories, memory, notes, onboarding, projects, s1, tasks
+from app.api.v1 import auth, attachments, briefing, chat, continue_context, conversations, daily, dashboard, feedback, launch, memories, memory, notes, onboarding, projects, s1, tasks
 
 api_router = APIRouter(prefix="/api/v1")
 api_router.include_router(auth.router, tags=["auth"])
@@ -20,3 +20,4 @@ api_router.include_router(daily.router, tags=["daily"])
 api_router.include_router(briefing.router, tags=["briefing"])
 api_router.include_router(feedback.router, tags=["feedback"])
 api_router.include_router(feedback.analytics_router, tags=["analytics"])
+api_router.include_router(attachments.router, tags=["attachments"])

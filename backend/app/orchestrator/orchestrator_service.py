@@ -65,9 +65,10 @@ class OrchestratorService:
         model: str | None = None,
         temperature: float | None = None,
         max_tokens: int = 1200,
+        attachments: list[dict] | None = None,
     ) -> OrchestratedResponse:
         with monitor.timed("orchestration.prepare"):
-            plan = await self._prepare(message, conversation_id, project_id)
+            plan = await self._prepare(message, conversation_id, project_id, attachments)
         try:
             with monitor.timed("orchestration.ai_complete", intent=plan["intent"].category.value):
                 response = await self.responses.complete(
@@ -125,9 +126,10 @@ class OrchestratorService:
         model: str | None = None,
         temperature: float | None = None,
         max_tokens: int = 1200,
+        attachments: list[dict] | None = None,
     ) -> AsyncIterator[str]:
         with monitor.timed("orchestration.prepare"):
-            plan = await self._prepare(message, conversation_id, project_id)
+            plan = await self._prepare(message, conversation_id, project_id, attachments)
         conversation = plan["conversation"]
         intent = plan["intent"]
         yield json.dumps({"conversation_id": str(conversation.id), "intent": intent.category.value})
@@ -191,6 +193,7 @@ class OrchestratorService:
         message: str,
         conversation_id: UUID | None,
         project_id: UUID | None,
+        attachments: list[dict] | None = None,
     ) -> dict:
         clean_message = sanitize_user_input(message)
         conversation = await self.chat.get_or_create(self.user_id, conversation_id, project_id)
@@ -204,7 +207,12 @@ class OrchestratorService:
         active_project = detected_project or conversation.project_id or project_id
         if active_project and not conversation.project_id:
             conversation.project_id = active_project
-        await self.chat.add_message(conversation.id, "user", clean_message)
+        await self.chat.add_message(
+            conversation.id,
+            "user",
+            clean_message,
+            metadata={"attachments": attachments} if attachments else None,
+        )
         if hasattr(self.session, "commit"):
             await self.session.commit()
         user = await self.session.get(User, self.user_id) if hasattr(self.session, "get") else None
@@ -216,7 +224,14 @@ class OrchestratorService:
             intent=intent,
             project_id=active_project,
         )
-        messages = self.prompts.build(user_message=clean_message, intent=intent, context=context)
+        if attachments:
+            attachment_text = "\n\nAttached files:\n" + "\n".join(
+                f"- {attachment['filename']} ({attachment['size']} bytes)" for attachment in attachments
+            )
+            user_message = f"{clean_message}{attachment_text}"
+        else:
+            user_message = clean_message
+        messages = self.prompts.build(user_message=user_message, intent=intent, context=context)
         if has_prompt_injection_signal(clean_message):
             messages.insert(
                 1,

@@ -193,7 +193,20 @@ function logRequestFailure(path: string, err: unknown) {
   });
 }
 
-export type ChatMessage = { role: "user" | "assistant" | "system"; content: string; id?: string; metadata?: Record<string, unknown> };
+export type AttachmentMetadata = {
+  id: string;
+  filename: string;
+  url: string;
+  size: number;
+  content_type?: string | null;
+};
+
+export type ChatMessage = {
+  role: "user" | "assistant" | "system";
+  content: string;
+  id?: string;
+  metadata?: { attachments?: AttachmentMetadata[] } | Record<string, unknown>;
+};
 
 export type Conversation = {
   id: string;
@@ -1760,16 +1773,68 @@ export const api = {
       `/api/v1/conversations/${conversationId}/messages`,
     ),
 
-  sendMessage: (message: string, conversationId?: string, projectId?: string) =>
+  uploadAttachment: async (file: File, onProgress?: (progress: number) => void) => {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const upload = () =>
+      new Promise<Response>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", backendUrl("/api/v1/attachments"));
+        xhr.withCredentials = true;
+        const authHeader = authHeaders()["Authorization"];
+        if (authHeader) {
+          xhr.setRequestHeader("Authorization", authHeader);
+        }
+
+        xhr.onload = () => {
+          resolve(
+            new Response(xhr.responseText, {
+              status: xhr.status,
+              headers: { "Content-Type": xhr.getResponseHeader("Content-Type") || "application/json" },
+            }),
+          );
+        };
+
+        xhr.onerror = () => reject(new Error("Network error while uploading attachment."));
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable && onProgress) {
+            onProgress((event.loaded / event.total) * 100);
+          }
+        };
+        xhr.send(formData);
+      });
+
+    let response = await upload();
+    if (response.status === 401) {
+      const refreshed = await refreshAccessToken();
+      if (refreshed) {
+        response = await upload();
+      } else {
+        clearTokens();
+      }
+    }
+
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      const message = body.message || body.detail || "Synzept could not upload the attachment. Please try again.";
+      throw new Error(typeof message === "string" ? message : "Synzept could not upload the attachment. Please try again.");
+    }
+
+    return response.json() as Promise<AttachmentMetadata>;
+  },
+
+  sendMessage: (message: string, conversationId?: string, projectId?: string, attachments?: AttachmentMetadata[]) =>
     request<{ conversation_id: string; message_id: string; reply: string }>("/api/v1/chat", {
       method: "POST",
-      body: JSON.stringify({ message, conversation_id: conversationId, project_id: projectId }),
+      body: JSON.stringify({ message, conversation_id: conversationId, project_id: projectId, attachments }),
     }),
 
   streamMessage: async function* (
     message: string,
     conversationId?: string,
     projectId?: string,
+    attachments?: AttachmentMetadata[],
     signal?: AbortSignal,
   ): AsyncGenerator<{ type: string; content?: string; conversation_id?: string }> {
     if (typeof navigator !== "undefined" && !navigator.onLine) {
@@ -1781,7 +1846,7 @@ export const api = {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify({ message, conversation_id: conversationId, project_id: projectId }),
+        body: JSON.stringify({ message, conversation_id: conversationId, project_id: projectId, attachments }),
         signal,
       });
     } catch (err) {
@@ -1795,7 +1860,7 @@ export const api = {
           method: "POST",
           credentials: "include",
           headers: { "Content-Type": "application/json", ...authHeaders() },
-          body: JSON.stringify({ message, conversation_id: conversationId, project_id: projectId }),
+          body: JSON.stringify({ message, conversation_id: conversationId, project_id: projectId, attachments }),
           signal,
         });
       } else {

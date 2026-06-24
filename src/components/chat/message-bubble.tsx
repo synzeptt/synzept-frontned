@@ -5,22 +5,24 @@ import { motion } from "framer-motion";
 import { Check, CircleHelp, Copy, Loader2, ThumbsDown, ThumbsUp } from "lucide-react";
 import { Markdown } from "./markdown";
 import { cn } from "@/lib/cn";
-import { api, type MemoryExplain } from "@/lib/api";
+import { api, type AttachmentMetadata, type MemoryExplain } from "@/lib/api";
 
 type Props = {
   role: "user" | "assistant" | "system";
   content: string;
   isStreaming?: boolean;
   messageId?: string;
+  metadata?: { attachments?: AttachmentMetadata[] } | Record<string, unknown>;
 };
 
-function MessageBubbleComponent({ role, content, isStreaming, messageId }: Props) {
+function MessageBubbleComponent({ role, content, isStreaming, messageId, metadata }: Props) {
   const [copied, setCopied] = useState(false);
   const [rated, setRated] = useState<"up" | "down" | null>(null);
   const [explanationOpen, setExplanationOpen] = useState(false);
   const [explanationLoading, setExplanationLoading] = useState(false);
   const [explanationError, setExplanationError] = useState<string | null>(null);
   const [explanation, setExplanation] = useState<MemoryExplain | null>(null);
+  const messageMetadata = metadata || {};
   const isUser = role === "user";
 
   const copy = async () => {
@@ -58,6 +60,8 @@ function MessageBubbleComponent({ role, content, isStreaming, messageId }: Props
     }
   };
 
+  const attachments = Array.isArray(messageMetadata?.attachments) ? messageMetadata.attachments : [];
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 6 }}
@@ -81,6 +85,25 @@ function MessageBubbleComponent({ role, content, isStreaming, messageId }: Props
         ) : (
           <Markdown content={content || (isStreaming ? " " : "")} />
         )}
+        {attachments.length > 0 ? (
+          <div className="mt-4 space-y-2 border-t border-stone-200 pt-3 text-sm text-stone-700">
+            <p className="text-xs uppercase tracking-[0.12em] text-muted">Attachments</p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {attachments.map((attachment) => (
+                <a
+                  key={attachment.id}
+                  href={attachment.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-2xl border border-stone-200 bg-stone-50 px-3 py-2 transition hover:border-stone-300 hover:bg-stone-100"
+                >
+                  <p className="truncate font-semibold text-stone-900">{attachment.filename}</p>
+                  <p className="text-xs text-stone-500">{attachment.content_type || "Attachment"}</p>
+                </a>
+              ))}
+            </div>
+          </div>
+        ) : null}
         {isStreaming && !content && (
           <span className="inline-flex gap-1 py-1">
             <span className="h-1.5 w-1.5 animate-pulse-soft rounded-full bg-accent" />

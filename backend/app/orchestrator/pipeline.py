@@ -23,8 +23,9 @@ class Orchestrator:
         model: str | None = None,
         temperature: float | None = None,
         max_tokens: int = 1200,
+        attachments: list[dict] | None = None,
     ) -> dict:
-        result = await self._brain.run(message, conversation_id, project_id, provider, model, temperature, max_tokens)
+        result = await self._brain.run(message, conversation_id, project_id, provider, model, temperature, max_tokens, attachments)
         return {
             "conversation_id": result.conversation_id,
             "message_id": result.message_id,
@@ -43,6 +44,7 @@ class Orchestrator:
         model: str | None = None,
         temperature: float | None = None,
         max_tokens: int = 1200,
+        attachments: list[dict] | None = None,
     ) -> AsyncIterator[str]:
-        async for chunk in self._brain.stream(message, conversation_id, project_id, provider, model, temperature, max_tokens):
+        async for chunk in self._brain.stream(message, conversation_id, project_id, provider, model, temperature, max_tokens, attachments):
             yield chunk

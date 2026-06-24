@@ -6,7 +6,7 @@ import { ChatInput } from "@/components/chat/chat-input";
 import { MessageBubble } from "@/components/chat/message-bubble";
 import { Button } from "@/components/ui/button";
 import { RecoveryBanner } from "@/components/ui/recovery-banner";
-import { api, type ContinuityMode, type Conversation, type Dashboard, type Project } from "@/lib/api";
+import { api, type AttachmentMetadata, type ContinuityMode, type Conversation, type Dashboard, type Project } from "@/lib/api";
 import { useChatStore } from "@/stores/chat";
 import { ConversationSidebar } from "@frontend/features/chat/conversation-sidebar";
 import { useAutoScroll } from "@frontend/hooks/use-auto-scroll";
@@ -21,6 +21,10 @@ export function ChatWorkspace() {
   const pendingAssistantRef = useRef("");
   const [input, setInput] = useState("");
   const [lastUserMessage, setLastUserMessage] = useState("");
+  const [attachments, setAttachments] = useState<AttachmentMetadata[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [uploadFileName, setUploadFileName] = useState<string | null>(null);
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [selectingConversationId, setSelectingConversationId] = useState<string | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -140,7 +144,7 @@ export function ChatWorkspace() {
     try {
       const rows = await api.getMessages(conversation.id);
       startTransition(() => {
-        setMessages(rows.map((row) => ({ id: row.id, role: row.role as "user" | "assistant" | "system", content: row.content })));
+        setMessages(rows.map((row) => ({ id: row.id, role: row.role as "user" | "assistant" | "system", content: row.content, metadata: row.metadata })));
       });
     } catch {
       setError("This thread could not load. Your history is still saved; choose another thread or retry in a moment.");
@@ -153,6 +157,7 @@ export function ChatWorkspace() {
     abortRef.current?.abort();
     reset();
     setActiveProject(null);
+    setAttachments([]);
     setInput("");
     setError(null);
     try {
@@ -232,7 +237,10 @@ export function ChatWorkspace() {
   };
 
   const send = async (retry = false, overrideText?: string, overrideProjectId?: string | null) => {
-    const text = retry ? lastUserMessage : overrideText ?? input.trim();
+    const requestAttachments = attachments.length ? attachments : undefined;
+    const text = retry
+      ? lastUserMessage
+      : (overrideText ?? input.trim()) || (attachments.length > 0 ? "Attached files" : "");
     const outboundProjectId = overrideProjectId ?? activeProjectId;
     if (!text || isStreaming) return;
     if (!isOnline) {
@@ -244,7 +252,7 @@ export function ChatWorkspace() {
       setInput("");
       localStorage.removeItem(CHAT_DRAFT_KEY);
       setLastUserMessage(text);
-      appendMessage({ role: "user", content: text });
+      appendMessage({ role: "user", content: text, metadata: requestAttachments ? { attachments: requestAttachments } : undefined });
       void api.trackEvent("chat_message_sent", "chat", {
         conversation_id: activeConversationId,
         project_id: outboundProjectId,
@@ -265,6 +273,7 @@ export function ChatWorkspace() {
         text,
         activeConversationId ?? undefined,
         outboundProjectId ?? undefined,
+        requestAttachments,
         abortRef.current.signal,
       )) {
         if ((event.type === "meta" || event.type === "done") && event.conversation_id) {
@@ -278,9 +287,17 @@ export function ChatWorkspace() {
         }
       }
       if (!gotToken) {
-        const result = await api.sendMessage(text, activeConversationId ?? undefined, outboundProjectId ?? undefined);
+        const result = await api.sendMessage(
+          text,
+          activeConversationId ?? undefined,
+          outboundProjectId ?? undefined,
+          attachments.length ? attachments : undefined,
+        );
         setActiveConversation(result.conversation_id);
         updateLastAssistant(result.reply);
+      }
+      if (!retry) {
+        setAttachments([]);
       }
       const syncedConversationId = useChatStore.getState().activeConversationId;
       if (syncedConversationId) {
@@ -315,6 +332,30 @@ export function ChatWorkspace() {
   );
 
   const continuity = useMemo(() => getContinuityPanel(continuityMode, dashboard, projects), [continuityMode, dashboard, projects]);
+
+  const attachFiles = async (files: FileList) => {
+    const batch = Array.from(files);
+    if (!batch.length) return;
+    setUploading(true);
+    try {
+      for (const file of batch) {
+        setUploadProgress(0);
+        setUploadFileName(file.name);
+        const attachment = await api.uploadAttachment(file, (progress) => setUploadProgress(Math.round(progress)));
+        setAttachments((current) => [...current, attachment]);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not upload attachment. Please try again.");
+    } finally {
+      setUploading(false);
+      setUploadProgress(null);
+      setUploadFileName(null);
+    }
+  };
+
+  const removeAttachment = (attachmentId: string) => {
+    setAttachments((current) => current.filter((item) => item.id !== attachmentId));
+  };
 
   return (
     <div className="relative flex h-full min-h-0 bg-[#f7f7f4]">
@@ -389,6 +430,7 @@ export function ChatWorkspace() {
                   key={message.id || index}
                   role={message.role as "user" | "assistant"}
                   content={message.content}
+                  metadata={message.metadata}
                   messageId={message.id}
                   isStreaming={isStreaming && index === messages.length - 1 && message.role === "assistant"}
                 />
@@ -410,8 +452,14 @@ export function ChatWorkspace() {
           value={input}
           onChange={setInput}
           onSubmit={() => send()}
-          disabled={isStreaming}
+          disabled={isStreaming || uploading}
           placeholder="What would you like to continue?"
+          attachments={attachments}
+          onAttachFiles={attachFiles}
+          onRemoveAttachment={removeAttachment}
+          uploading={uploading}
+          uploadProgress={uploadProgress}
+          uploadFileName={uploadFileName}
         />
       </section>
       {sidebarOpen ? <div className="fixed inset-0 z-40 bg-black/30 lg:hidden" onClick={() => setSidebarOpen(false)} /> : null}

@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useDeferredValue, useMemo, useState } from "react";
+import { memo, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { FolderKanban, MessageSquare, Pin, Search } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import type { Conversation, Project } from "@/lib/api";
@@ -76,6 +76,18 @@ function ConversationSidebarComponent({
     [filtered],
   );
 
+  const [contextMenu, setContextMenu] = useState<{
+    conversation: Conversation;
+    x: number;
+    y: number;
+  } | null>(null);
+
+  useEffect(() => {
+    const onDismiss = () => setContextMenu(null);
+    window.addEventListener("mousedown", onDismiss);
+    return () => window.removeEventListener("mousedown", onDismiss);
+  }, []);
+
   const groupedConversations = useMemo(() => {
     const bucketOrder = ["Today", "Yesterday", "Last 7 days", "Older"] as const;
     const buckets = new Map<string, Conversation[]>(bucketOrder.map((label) => [label, []]));
@@ -92,7 +104,7 @@ function ConversationSidebarComponent({
   return (
     <aside
       className={cn(
-        "shrink-0 border-r border-border bg-white lg:flex lg:flex-col",
+        "relative shrink-0 border-r border-border bg-white lg:flex lg:flex-col",
         open ? "fixed inset-y-0 left-0 z-50 w-[320px] shadow-xl lg:static lg:shadow-none block" : "hidden lg:block",
       )}
     >
@@ -163,8 +175,12 @@ function ConversationSidebarComponent({
                 return (
                   <div
                     key={conversation.id}
+                    onContextMenu={(event) => {
+                      event.preventDefault();
+                      setContextMenu({ conversation, x: event.clientX, y: event.clientY });
+                    }}
                     className={cn(
-                      "rounded-3xl border px-3 py-3 transition",
+                      "relative rounded-3xl border px-3 py-3 transition",
                       active ? "border-stone-200 bg-stone-100 shadow-sm" : "border-transparent bg-white hover:border-border hover:bg-stone-50",
                     )}
                   >
@@ -236,6 +252,10 @@ function ConversationSidebarComponent({
                   return (
                     <div
                       key={conversation.id}
+                      onContextMenu={(event) => {
+                        event.preventDefault();
+                        setContextMenu({ conversation, x: event.clientX, y: event.clientY });
+                      }}
                       className={cn(
                         "rounded-3xl border px-3 py-3 transition",
                         active ? "border-stone-200 bg-stone-100 shadow-sm" : "border-transparent bg-white hover:border-border hover:bg-stone-50",
@@ -308,6 +328,66 @@ function ConversationSidebarComponent({
           />
         )}
       </div>
+      {contextMenu ? (
+        <div
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          className="absolute z-50 min-w-[180px] rounded-2xl border border-stone-200 bg-white shadow-soft"
+          onMouseDown={(event) => event.stopPropagation()}
+        >
+          <div className="flex flex-col p-2">
+            <button
+              type="button"
+              onClick={() => {
+                onSelect(contextMenu.conversation);
+                setContextMenu(null);
+              }}
+              className="rounded-lg px-3 py-2 text-left text-sm text-stone-700 transition hover:bg-stone-100"
+            >
+              Open conversation
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                onPin(contextMenu.conversation, !contextMenu.conversation.pinned);
+                setContextMenu(null);
+              }}
+              className="rounded-lg px-3 py-2 text-left text-sm text-stone-700 transition hover:bg-stone-100"
+            >
+              {contextMenu.conversation.pinned ? "Unpin" : "Pin"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                onRename(contextMenu.conversation);
+                setContextMenu(null);
+              }}
+              className="rounded-lg px-3 py-2 text-left text-sm text-stone-700 transition hover:bg-stone-100"
+            >
+              Rename
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                onArchive(contextMenu.conversation);
+                setContextMenu(null);
+              }}
+              className="rounded-lg px-3 py-2 text-left text-sm text-stone-700 transition hover:bg-stone-100"
+            >
+              Archive
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                onDelete(contextMenu.conversation);
+                setContextMenu(null);
+              }}
+              className="rounded-lg px-3 py-2 text-left text-sm text-rose-600 transition hover:bg-rose-50"
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+      ) : null}
     </aside>
   );
 }

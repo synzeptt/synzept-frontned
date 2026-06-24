@@ -13,7 +13,7 @@ from app.infrastructure.monitoring import monitor
 from app.models.user import User
 from app.models.feedback import UsageEvent
 from app.orchestrator.pipeline import Orchestrator
-from app.schemas.chat import ChatRequest, ChatResponse
+from app.schemas.chat import AttachmentMetadata, ChatRequest, ChatResponse
 from app.utils.sse import format_sse
 
 router = APIRouter(prefix="/chat")
@@ -37,6 +37,7 @@ async def send_message(
             body.model,
             body.temperature,
             body.max_tokens,
+            body.attachments,
         )
     session.add(
         UsageEvent(
@@ -74,6 +75,7 @@ async def stream_message(body: ChatRequest, user: User = Depends(get_current_use
                     body.model,
                     body.temperature,
                     body.max_tokens,
+                    body.attachments,
                 ):
                     now = asyncio.get_running_loop().time()
                     if now - last_emit > 10:

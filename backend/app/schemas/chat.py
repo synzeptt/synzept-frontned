@@ -8,6 +8,14 @@ from app.core.reliability import sanitize_user_input
 from app.schemas.base import ORMModel, TimestampedSchema
 
 
+class AttachmentMetadata(BaseModel):
+    id: UUID
+    filename: str
+    url: str
+    size: int
+    content_type: str | None = None
+
+
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=16000)
     conversation_id: UUID | None = None
@@ -16,6 +24,7 @@ class ChatRequest(BaseModel):
     model: str | None = Field(default=None, max_length=120)
     temperature: float = Field(default=0.3, ge=0, le=2)
     max_tokens: int = Field(default=1200, ge=1, le=8000)
+    attachments: list[AttachmentMetadata] = Field(default_factory=list)
 
     @field_validator("message")
     @classmethod
