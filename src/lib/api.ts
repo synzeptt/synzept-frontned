@@ -1834,9 +1834,11 @@ export const api = {
     message: string,
     conversationId?: string,
     projectId?: string,
-    attachments?: AttachmentMetadata[],
+    attachmentsOrSignal?: AttachmentMetadata[] | AbortSignal,
     signal?: AbortSignal,
   ): AsyncGenerator<{ type: string; content?: string; conversation_id?: string }> {
+    const attachments = Array.isArray(attachmentsOrSignal) ? attachmentsOrSignal : undefined;
+    const requestSignal = attachmentsOrSignal instanceof AbortSignal ? attachmentsOrSignal : signal;
     if (typeof navigator !== "undefined" && !navigator.onLine) {
       throw new Error("You appear to be offline. Your message is still here; reconnect and try again.");
     }
@@ -1847,7 +1849,7 @@ export const api = {
         credentials: "include",
         headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({ message, conversation_id: conversationId, project_id: projectId, attachments }),
-        signal,
+        signal: requestSignal,
       });
     } catch (err) {
       if (err instanceof Error && err.name === "AbortError") throw err;
@@ -1861,7 +1863,7 @@ export const api = {
           credentials: "include",
           headers: { "Content-Type": "application/json", ...authHeaders() },
           body: JSON.stringify({ message, conversation_id: conversationId, project_id: projectId, attachments }),
-          signal,
+          signal: requestSignal,
         });
       } else {
         clearTokens();
@@ -2085,6 +2087,12 @@ export const api = {
 
   pinConversation: (conversationId: string, pinned: boolean) =>
     request<Conversation>(`/api/v1/conversations/${conversationId}/pin?pinned=${pinned}`, { method: "PATCH" }),
+
+  moveConversationToProject: (conversationId: string, projectId: string | null) =>
+    request<Conversation>(`/api/v1/conversations/${conversationId}/project`, {
+      method: "PATCH",
+      body: JSON.stringify({ project_id: projectId }),
+    }),
 
   deleteConversation: (conversationId: string) =>
     request<Conversation>(`/api/v1/conversations/${conversationId}`, { method: "DELETE" }),

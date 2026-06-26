@@ -1,32 +1,48 @@
 "use client";
 
 import { memo, useDeferredValue, useEffect, useMemo, useState } from "react";
-import { FolderKanban, MessageSquare, Pin, Search } from "lucide-react";
-import { EmptyState } from "@/components/ui/empty-state";
+import { Archive, ChevronDown, FileText, Folder, MoreHorizontal, Pencil, Pin, Plus, Search, Trash2, X } from "lucide-react";
 import type { Conversation, Project } from "@/lib/api";
 import { cn } from "@/lib/cn";
 
+const BUCKETS = ["Today", "Yesterday", "Last 7 Days", "Older"] as const;
+
 function formatUpdatedAt(value?: string | null) {
-  if (!value) return "Updated recently";
+  if (!value) return "Recently";
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Updated recently";
-  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  if (Number.isNaN(date.getTime())) return "Recently";
+  return new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(date);
 }
 
-function bucketForConversation(dateString?: string | null) {
-  if (!dateString) return "Older";
-  const date = new Date(dateString);
+function bucketForConversation(value?: string | null) {
+  if (!value) return "Older";
+  const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "Older";
   const now = new Date();
-  const delta = now.getTime() - date.getTime();
-  const oneDay = 24 * 60 * 60 * 1000;
-  if (date.toDateString() === now.toDateString()) return "Today";
   const yesterday = new Date(now);
   yesterday.setDate(now.getDate() - 1);
+  const oneDay = 24 * 60 * 60 * 1000;
+
+  if (date.toDateString() === now.toDateString()) return "Today";
   if (date.toDateString() === yesterday.toDateString()) return "Yesterday";
-  if (delta <= 7 * oneDay) return "Last 7 days";
+  if (now.getTime() - date.getTime() <= 7 * oneDay) return "Last 7 Days";
   return "Older";
 }
+
+type Props = {
+  conversations: Conversation[];
+  projects: Project[];
+  activeConversationId: string | null;
+  onSelect: (conversation: Conversation) => void;
+  onRename: (conversation: Conversation) => void;
+  onArchive: (conversation: Conversation) => void;
+  onDelete: (conversation: Conversation) => void;
+  onPin: (conversation: Conversation, pinned: boolean) => void;
+  onMoveToProject: (conversation: Conversation, projectId: string | null) => void;
+  onCreate: () => void;
+  open?: boolean;
+  onClose?: () => void;
+};
 
 function ConversationSidebarComponent({
   conversations,
@@ -37,359 +53,273 @@ function ConversationSidebarComponent({
   onArchive,
   onDelete,
   onPin,
+  onMoveToProject,
   onCreate,
   open,
   onClose,
-}: {
-  conversations: Conversation[];
-  projects: Project[];
-  activeConversationId: string | null;
-  onSelect: (conversation: Conversation) => void;
-  onRename: (conversation: Conversation) => void;
-  onArchive: (conversation: Conversation) => void;
-  onDelete: (conversation: Conversation) => void;
-  onPin: (conversation: Conversation, pinned: boolean) => void;
-  onCreate: () => void;
-  open?: boolean;
-  onClose?: () => void;
-}) {
+}: Props) {
   const [query, setQuery] = useState("");
+  const [projectsOpen, setProjectsOpen] = useState(true);
+  const [menuId, setMenuId] = useState<string | null>(null);
+  const [moveMenuId, setMoveMenuId] = useState<string | null>(null);
   const deferredQuery = useDeferredValue(query);
   const projectById = useMemo(() => new Map(projects.map((project) => [project.id, project])), [projects]);
 
-  const featuredConversation = useMemo(() => {
-    const active = conversations.find((conversation) => conversation.id === activeConversationId);
-    return active ?? conversations[0] ?? null;
-  }, [activeConversationId, conversations]);
+  useEffect(() => {
+    const close = () => {
+      setMenuId(null);
+      setMoveMenuId(null);
+    };
+    window.addEventListener("click", close);
+    return () => window.removeEventListener("click", close);
+  }, []);
 
   const filtered = useMemo(() => {
-    const q = deferredQuery.toLowerCase().trim();
+    const q = deferredQuery.trim().toLowerCase();
     if (!q) return conversations;
     return conversations.filter((conversation) => {
       const project = conversation.project_id ? projectById.get(conversation.project_id) : null;
       return [conversation.title, conversation.summary, project?.name].some((value) => value?.toLowerCase().includes(q));
     });
-  }, [conversations, projectById, deferredQuery]);
+  }, [conversations, deferredQuery, projectById]);
 
-  const pinnedConversations = useMemo(
-    () => filtered.filter((conversation) => conversation.pinned),
-    [filtered],
-  );
-
-  const [contextMenu, setContextMenu] = useState<{
-    conversation: Conversation;
-    x: number;
-    y: number;
-  } | null>(null);
-
-  useEffect(() => {
-    const onDismiss = () => setContextMenu(null);
-    window.addEventListener("mousedown", onDismiss);
-    return () => window.removeEventListener("mousedown", onDismiss);
-  }, []);
-
-  const groupedConversations = useMemo(() => {
-    const bucketOrder = ["Today", "Yesterday", "Last 7 days", "Older"] as const;
-    const buckets = new Map<string, Conversation[]>(bucketOrder.map((label) => [label, []]));
-    const items = filtered.filter((conversation) => conversation !== featuredConversation && !conversation.pinned);
-    for (const conversation of items) {
-      const bucket = bucketForConversation(conversation.updated_at);
-      buckets.get(bucket)?.push(conversation);
-    }
-    return bucketOrder
-      .map((label) => ({ label, items: buckets.get(label) ?? [] }))
-      .filter((bucket) => bucket.items.length > 0);
-  }, [filtered, featuredConversation]);
+  const pinned = useMemo(() => filtered.filter((conversation) => conversation.pinned), [filtered]);
+  const grouped = useMemo(() => {
+    const unpinned = filtered.filter((conversation) => !conversation.pinned);
+    return BUCKETS.map((label) => ({
+      label,
+      items: unpinned.filter((conversation) => bucketForConversation(conversation.updated_at) === label),
+    })).filter((group) => group.items.length > 0);
+  }, [filtered]);
 
   return (
     <aside
       className={cn(
-        "relative shrink-0 border-r border-border bg-white lg:flex lg:flex-col",
-        open ? "fixed inset-y-0 left-0 z-50 w-[320px] shadow-xl lg:static lg:shadow-none block" : "hidden lg:block",
+        "z-50 flex h-full w-[320px] shrink-0 flex-col border-r border-stone-200/70 bg-[#fbfaf7]",
+        open ? "fixed inset-y-0 left-0 shadow-2xl md:static md:shadow-none" : "hidden md:flex",
       )}
     >
-      {open ? (
-        <div className="flex items-center justify-between border-b border-border px-4 py-3 lg:hidden">
-          <div>
-            <p className="text-xs uppercase tracking-[0.12em] text-muted">Threads</p>
-            <p className="mt-1 text-sm font-semibold text-stone-950">Conversation history</p>
-          </div>
-          <button type="button" onClick={onClose} className="text-sm font-medium text-stone-500 hover:text-stone-900">
-            Close
+      <div className="px-4 pb-3 pt-4">
+        <div className="mb-4 flex items-center justify-between">
+          <h1 className="text-lg font-semibold tracking-tight text-stone-950">Synzept</h1>
+          <button type="button" onClick={onClose} className="grid h-8 w-8 place-items-center rounded-md text-stone-500 hover:bg-stone-100 md:hidden" aria-label="Close chats">
+            <X className="h-4 w-4" />
           </button>
         </div>
-      ) : null}
-      <div className="border-b border-border p-4">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="mb-3 text-xs font-medium uppercase tracking-[0.12em] text-muted">Threads</p>
-            <p className="text-sm text-stone-700">Continue where you left off</p>
-          </div>
-          <button
-            type="button"
-            onClick={onCreate}
-            className="rounded-md bg-stone-950 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-stone-800"
-          >
-            New Chat
-          </button>
-        </div>
-        <label className="mt-3 flex h-9 items-center gap-2 rounded-md border border-border bg-stone-50 px-3 text-stone-500">
+        <button
+          type="button"
+          onClick={onCreate}
+          className="flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-stone-950 px-3 text-sm font-medium text-white transition hover:bg-stone-800"
+        >
+          <Plus className="h-4 w-4" />
+          New Chat
+        </button>
+        <label className="mt-3 flex h-10 items-center gap-2 rounded-lg border border-stone-200 bg-white px-3 text-stone-500 shadow-sm">
           <Search className="h-4 w-4" />
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search chats..."
-            className="min-w-0 flex-1 bg-transparent text-sm text-stone-800 outline-none placeholder:text-stone-400"
+            placeholder="Search Chats..."
+            className="min-w-0 flex-1 bg-transparent text-sm text-stone-900 outline-none placeholder:text-stone-400"
           />
         </label>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto p-3">
-        {!deferredQuery && featuredConversation ? (
-          <div className="mb-4 rounded-3xl border border-stone-200 bg-stone-50 p-4 shadow-sm">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-xs uppercase tracking-[0.18em] text-stone-500">Continue where you left off</p>
-                <p className="mt-3 truncate text-sm font-semibold text-stone-950">{featuredConversation.title || "Untitled conversation"}</p>
-                <p className="mt-2 line-clamp-2 text-sm leading-6 text-stone-600">
-                  {featuredConversation.summary || "Resume a recent conversation or open a new thread to keep momentum going."}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => onSelect(featuredConversation)}
-                className="rounded-full bg-stone-950 px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-white transition hover:bg-stone-800"
-              >
-                Continue
-              </button>
-            </div>
-          </div>
-        ) : null}
 
-        {pinnedConversations.length > 0 ? (
-          <div className="mb-5">
-            <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-stone-500">Pinned</p>
-            <div className="space-y-2">
-              {pinnedConversations.map((conversation) => {
-                const active = conversation.id === activeConversationId;
-                const project = conversation.project_id ? projectById.get(conversation.project_id) : null;
+      <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-4">
+        <section className="border-t border-stone-200/70 pt-4">
+          <button type="button" onClick={() => setProjectsOpen((value) => !value)} className="flex w-full items-center justify-between px-1 text-xs font-semibold uppercase tracking-[0.12em] text-stone-500">
+            Projects
+            <ChevronDown className={cn("h-4 w-4 transition", !projectsOpen && "-rotate-90")} />
+          </button>
+          {projectsOpen ? (
+            <div className="mt-2 space-y-1">
+              {(projects.length ? projects : exampleProjects).slice(0, 8).map((project) => {
+                const realProject = "id" in project;
+                const projectConversations = realProject ? conversations.filter((conversation) => conversation.project_id === project.id) : [];
                 return (
-                  <div
-                    key={conversation.id}
-                    onContextMenu={(event) => {
-                      event.preventDefault();
-                      setContextMenu({ conversation, x: event.clientX, y: event.clientY });
-                    }}
-                    className={cn(
-                      "relative rounded-3xl border px-3 py-3 transition",
-                      active ? "border-stone-200 bg-stone-100 shadow-sm" : "border-transparent bg-white hover:border-border hover:bg-stone-50",
-                    )}
-                  >
-                    <button type="button" onClick={() => onSelect(conversation)} className="w-full text-left">
-                      <div className="flex items-center gap-2">
-                        <Pin className="mt-0.5 h-4 w-4 shrink-0 text-stone-500" />
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-semibold text-stone-950">{conversation.title || "Untitled conversation"}</p>
-                          <p className="mt-1 line-clamp-2 text-xs leading-5 text-stone-600">
-                            {conversation.summary || "Continue the thread with a fresh message."}
-                          </p>
-                        </div>
-                      </div>
-                    </button>
-                    <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted">
-                      {project ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-stone-100 px-2 py-1 text-[11px] text-stone-700">
-                          <FolderKanban className="h-3 w-3" />
-                          {project.name}
-                        </span>
-                      ) : null}
-                      <span>{formatUpdatedAt(conversation.updated_at)}</span>
-                    </div>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => onPin(conversation, !conversation.pinned)}
-                        className="rounded-md border border-border bg-white px-2.5 py-1.5 text-[11px] font-semibold text-stone-700 transition hover:border-stone-300 hover:bg-stone-50"
-                      >
-                        {conversation.pinned ? "Unpin" : "Pin"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onRename(conversation)}
-                        className="rounded-md border border-border bg-white px-2.5 py-1.5 text-[11px] font-semibold text-stone-700 transition hover:border-stone-300 hover:bg-stone-50"
-                      >
-                        Rename
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onArchive(conversation)}
-                        className="rounded-md border border-border bg-white px-2.5 py-1.5 text-[11px] font-semibold text-stone-700 transition hover:border-stone-300 hover:bg-stone-50"
-                      >
-                        Archive
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onDelete(conversation)}
-                        className="rounded-md border border-border bg-white px-2.5 py-1.5 text-[11px] font-semibold text-rose-600 transition hover:border-rose-300 hover:bg-rose-50"
-                      >
-                        Delete
-                      </button>
+                  <div key={project.name} className="rounded-lg px-2 py-1.5 text-sm text-stone-700">
+                    <div className="flex items-center gap-2">
+                      <Folder className="h-4 w-4 text-stone-500" />
+                      <span className="truncate">{project.name}</span>
+                      {projectConversations.length > 0 ? <span className="ml-auto text-xs text-stone-400">{projectConversations.length}</span> : null}
                     </div>
                   </div>
                 );
               })}
             </div>
-          </div>
-        ) : null}
+          ) : null}
+        </section>
 
-        {groupedConversations.length > 0 ? (
-          groupedConversations.map((bucket) => (
-            <div key={bucket.label} className="mb-4">
-              <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-stone-500">{bucket.label}</p>
-              <div className="space-y-2">
-                {bucket.items.map((conversation) => {
-                  const active = conversation.id === activeConversationId;
-                  const project = conversation.project_id ? projectById.get(conversation.project_id) : null;
-                  return (
-                    <div
-                      key={conversation.id}
-                      onContextMenu={(event) => {
-                        event.preventDefault();
-                        setContextMenu({ conversation, x: event.clientX, y: event.clientY });
-                      }}
-                      className={cn(
-                        "rounded-3xl border px-3 py-3 transition",
-                        active ? "border-stone-200 bg-stone-100 shadow-sm" : "border-transparent bg-white hover:border-border hover:bg-stone-50",
-                      )}
-                    >
-                      <button type="button" onClick={() => onSelect(conversation)} className="w-full text-left">
-                        <div className="flex items-center gap-2">
-                          <MessageSquare className="mt-0.5 h-4 w-4 shrink-0 text-stone-500" />
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-semibold text-stone-950">{conversation.title || "Untitled conversation"}</p>
-                            <p className="mt-1 line-clamp-2 text-xs leading-5 text-stone-600">
-                              {conversation.summary || "Continue the thread with a fresh message."}
-                            </p>
-                          </div>
-                        </div>
-                      </button>
-                      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted">
-                        {project ? (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-stone-100 px-2 py-1 text-[11px] text-stone-700">
-                            <FolderKanban className="h-3 w-3" />
-                            {project.name}
-                          </span>
-                        ) : null}
-                        <span>{formatUpdatedAt(conversation.updated_at)}</span>
-                      </div>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          onClick={() => onRename(conversation)}
-                          className="rounded-md border border-border bg-white px-2.5 py-1.5 text-[11px] font-semibold text-stone-700 transition hover:border-stone-300 hover:bg-stone-50"
-                        >
-                          Rename
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onArchive(conversation)}
-                          className="rounded-md border border-border bg-white px-2.5 py-1.5 text-[11px] font-semibold text-stone-700 transition hover:border-stone-300 hover:bg-stone-50"
-                        >
-                          Archive
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onDelete(conversation)}
-                          className="rounded-md border border-border bg-white px-2.5 py-1.5 text-[11px] font-semibold text-rose-600 transition hover:border-rose-300 hover:bg-rose-50"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          ))
-        ) : (
-          <EmptyState
-            icon={<MessageSquare className="h-5 w-5" />}
-            title={query ? "No matching chats" : "Start your first conversation with Synzept."}
-            description={
-              query
-                ? "Try a different word from the project, decision, or topic you remember."
-                : "Ask anything to begin your first conversation with Synzept."
-            }
-            steps={
-              query
-                ? ["Search project names, decisions, or words from the conversation."]
-                : ["Click New Chat to begin.", "Type a question or project update.", "Synzept will keep the thread ready for later."]
-            }
-            className="mx-2 mt-3 px-4 py-8"
-          />
-        )}
-      </div>
-      {contextMenu ? (
-        <div
-          style={{ left: contextMenu.x, top: contextMenu.y }}
-          className="absolute z-50 min-w-[180px] rounded-2xl border border-stone-200 bg-white shadow-soft"
-          onMouseDown={(event) => event.stopPropagation()}
-        >
-          <div className="flex flex-col p-2">
-            <button
-              type="button"
-              onClick={() => {
-                onSelect(contextMenu.conversation);
-                setContextMenu(null);
-              }}
-              className="rounded-lg px-3 py-2 text-left text-sm text-stone-700 transition hover:bg-stone-100"
-            >
-              Open conversation
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                onPin(contextMenu.conversation, !contextMenu.conversation.pinned);
-                setContextMenu(null);
-              }}
-              className="rounded-lg px-3 py-2 text-left text-sm text-stone-700 transition hover:bg-stone-100"
-            >
-              {contextMenu.conversation.pinned ? "Unpin" : "Pin"}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                onRename(contextMenu.conversation);
-                setContextMenu(null);
-              }}
-              className="rounded-lg px-3 py-2 text-left text-sm text-stone-700 transition hover:bg-stone-100"
-            >
-              Rename
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                onArchive(contextMenu.conversation);
-                setContextMenu(null);
-              }}
-              className="rounded-lg px-3 py-2 text-left text-sm text-stone-700 transition hover:bg-stone-100"
-            >
-              Archive
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                onDelete(contextMenu.conversation);
-                setContextMenu(null);
-              }}
-              className="rounded-lg px-3 py-2 text-left text-sm text-rose-600 transition hover:bg-rose-50"
-            >
-              Delete
-            </button>
+        <section className="mt-5 border-t border-stone-200/70 pt-4">
+          <p className="px-1 text-xs font-semibold uppercase tracking-[0.12em] text-stone-500">Recent Chats</p>
+          <div className="mt-2 space-y-5">
+            {pinned.length > 0 ? (
+              <ConversationGroup
+                label="Pinned"
+                conversations={pinned}
+                activeConversationId={activeConversationId}
+                projectById={projectById}
+                projects={projects}
+                menuId={menuId}
+                moveMenuId={moveMenuId}
+                setMenuId={setMenuId}
+                setMoveMenuId={setMoveMenuId}
+                onSelect={onSelect}
+                onRename={onRename}
+                onArchive={onArchive}
+                onDelete={onDelete}
+                onPin={onPin}
+                onMoveToProject={onMoveToProject}
+              />
+            ) : null}
+            {grouped.map((group) => (
+              <ConversationGroup
+                key={group.label}
+                label={group.label}
+                conversations={group.items}
+                activeConversationId={activeConversationId}
+                projectById={projectById}
+                projects={projects}
+                menuId={menuId}
+                moveMenuId={moveMenuId}
+                setMenuId={setMenuId}
+                setMoveMenuId={setMoveMenuId}
+                onSelect={onSelect}
+                onRename={onRename}
+                onArchive={onArchive}
+                onDelete={onDelete}
+                onPin={onPin}
+                onMoveToProject={onMoveToProject}
+              />
+            ))}
+            {!filtered.length ? <p className="px-2 py-6 text-sm text-stone-500">No chats found.</p> : null}
           </div>
-        </div>
-      ) : null}
+        </section>
+      </div>
     </aside>
   );
 }
+
+function ConversationGroup({
+  label,
+  conversations,
+  activeConversationId,
+  projectById,
+  projects,
+  menuId,
+  moveMenuId,
+  setMenuId,
+  setMoveMenuId,
+  onSelect,
+  onRename,
+  onArchive,
+  onDelete,
+  onPin,
+  onMoveToProject,
+}: {
+  label: string;
+  conversations: Conversation[];
+  activeConversationId: string | null;
+  projectById: Map<string, Project>;
+  projects: Project[];
+  menuId: string | null;
+  moveMenuId: string | null;
+  setMenuId: (id: string | null) => void;
+  setMoveMenuId: (id: string | null) => void;
+  onSelect: (conversation: Conversation) => void;
+  onRename: (conversation: Conversation) => void;
+  onArchive: (conversation: Conversation) => void;
+  onDelete: (conversation: Conversation) => void;
+  onPin: (conversation: Conversation, pinned: boolean) => void;
+  onMoveToProject: (conversation: Conversation, projectId: string | null) => void;
+}) {
+  return (
+    <div>
+      <p className="mb-1.5 px-1 text-xs font-medium text-stone-400">{label}</p>
+      <div className="space-y-1">
+        {conversations.map((conversation) => {
+          const active = conversation.id === activeConversationId;
+          const project = conversation.project_id ? projectById.get(conversation.project_id) : null;
+          return (
+            <div key={conversation.id} className="relative">
+              <button
+                type="button"
+                onClick={() => onSelect(conversation)}
+                className={cn(
+                  "group flex w-full gap-2 rounded-lg px-2 py-2 text-left transition",
+                  active ? "bg-stone-900 text-white" : "text-stone-700 hover:bg-stone-100",
+                )}
+              >
+                {conversation.pinned ? <Pin className="mt-0.5 h-3.5 w-3.5 shrink-0" /> : <FileText className="mt-0.5 h-3.5 w-3.5 shrink-0" />}
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium">{conversation.title || "Untitled conversation"}</span>
+                  <span className={cn("mt-0.5 block truncate text-xs", active ? "text-stone-300" : "text-stone-500")}>
+                    {conversation.summary || project?.name || "Continue the conversation"}
+                  </span>
+                  <span className={cn("mt-1 block text-[11px]", active ? "text-stone-300" : "text-stone-400")}>{formatUpdatedAt(conversation.updated_at)}</span>
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setMoveMenuId(null);
+                  setMenuId(menuId === conversation.id ? null : conversation.id);
+                }}
+                className={cn("absolute right-1 top-1 grid h-7 w-7 place-items-center rounded-md", active ? "text-stone-300 hover:bg-white/10" : "text-stone-500 hover:bg-stone-200")}
+                aria-label="Conversation menu"
+              >
+                <MoreHorizontal className="h-4 w-4" />
+              </button>
+              {menuId === conversation.id ? (
+                <div onClick={(event) => event.stopPropagation()} className="absolute right-1 top-9 z-20 w-52 rounded-lg border border-stone-200 bg-white p-1.5 shadow-xl">
+                  <MenuButton icon={<Pencil />} label="Rename" onClick={() => onRename(conversation)} />
+                  <div className="relative">
+                    <MenuButton icon={<Folder />} label="Move to Project" onClick={() => setMoveMenuId(moveMenuId === conversation.id ? null : conversation.id)} />
+                    {moveMenuId === conversation.id ? (
+                      <div className="absolute left-full top-0 z-30 ml-2 max-h-64 w-52 overflow-y-auto rounded-lg border border-stone-200 bg-white p-1.5 shadow-xl">
+                        <MenuButton icon={<X />} label="No Project" onClick={() => onMoveToProject(conversation, null)} />
+                        {projects.map((project) => (
+                          <MenuButton key={project.id} icon={<Folder />} label={project.name} onClick={() => onMoveToProject(conversation, project.id)} />
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                  <MenuButton icon={<Pin />} label={conversation.pinned ? "Unpin" : "Pin"} onClick={() => onPin(conversation, !conversation.pinned)} />
+                  <MenuButton icon={<Archive />} label="Archive" onClick={() => onArchive(conversation)} />
+                  <MenuButton icon={<Trash2 />} label="Delete" danger onClick={() => onDelete(conversation)} />
+                </div>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function MenuButton({ icon, label, danger, onClick }: { icon: React.ReactElement; label: string; danger?: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn("flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm text-stone-700 hover:bg-stone-100", danger && "text-rose-600 hover:bg-rose-50")}
+    >
+      {memoIcon(icon)}
+      <span className="truncate">{label}</span>
+    </button>
+  );
+}
+
+function memoIcon(icon: React.ReactElement) {
+  return <span className="grid h-4 w-4 shrink-0 place-items-center [&>svg]:h-4 [&>svg]:w-4">{icon}</span>;
+}
+
+const exampleProjects = [
+  { name: "Synzept" },
+  { name: "Startup" },
+  { name: "Personal" },
+  { name: "Learning" },
+];
 
 export const ConversationSidebar = memo(ConversationSidebarComponent);

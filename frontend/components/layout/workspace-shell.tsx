@@ -68,6 +68,15 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
 
   if (!isAuthenticated) return null;
 
+  if (pathname === "/chat") {
+    return (
+      <div className="h-[100dvh] overflow-hidden bg-surface text-stone-900">
+        {children}
+        <UsageTracker />
+      </div>
+    );
+  }
+
   const sidebar = (
     <aside className="flex h-full w-[264px] shrink-0 flex-col border-r border-border bg-white">
       <div className="flex h-16 items-center justify-between px-4">

@@ -8,6 +8,7 @@ from app.models.user import User
 from app.schemas.chat import (
     ConversationCreate,
     ConversationOut,
+    ConversationProjectMove,
     ConversationRename,
     ConversationSummaryUpdate,
     MessageCreate,
@@ -138,6 +139,19 @@ async def pin_conversation(
     conversation = await ConversationService(session).pin(user.id, conversation_id, pinned)
     if not conversation:
         raise HTTPException(status_code=404, detail="Conversation not found")
+    return conversation
+
+
+@router.patch("/{conversation_id}/project", response_model=ConversationOut)
+async def move_conversation_to_project(
+    conversation_id: UUID,
+    body: ConversationProjectMove,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+):
+    conversation = await ConversationService(session).move_to_project(user.id, conversation_id, body.project_id)
+    if not conversation:
+        raise HTTPException(status_code=404, detail="Conversation or project not found")
     return conversation
 
 

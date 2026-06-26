@@ -222,6 +222,25 @@ async def test_pin_marks_conversation_and_keeps_it_in_list_top_of_results():
 
 
 @pytest.mark.asyncio
+async def test_move_conversation_to_project_updates_project_link():
+    session = _Session()
+    user_id = uuid4()
+    project = Project(id=uuid4(), user_id=user_id, name="Research", deleted_at=None)
+    conversation = _conversation(user_id)
+    session.projects[project.id] = project
+    session.conversations[conversation.id] = conversation
+
+    moved = await ConversationService(session).move_to_project(user_id, conversation.id, project.id)
+    assert moved is not None
+    assert moved.project_id == project.id
+
+    cleared = await ConversationService(session).move_to_project(user_id, conversation.id, None)
+
+    assert cleared is not None
+    assert conversation.project_id is None
+
+
+@pytest.mark.asyncio
 async def test_streaming_placeholder_can_be_finalized():
     session = _Session()
     user_id = uuid4()

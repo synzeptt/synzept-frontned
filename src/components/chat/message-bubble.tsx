@@ -71,15 +71,13 @@ function MessageBubbleComponent({ role, content, isStreaming, messageId, metadat
     >
       <div
         className={cn(
-          "relative max-w-[min(100%,42rem)] rounded-xl px-4 py-3.5",
+          "relative max-w-[min(100%,42rem)] px-4 py-3.5",
           isUser
-            ? "bg-stone-900 text-white"
-            : "border border-border bg-white text-stone-700 shadow-soft",
+            ? "rounded-2xl bg-stone-950 text-white shadow-sm"
+            : "text-stone-700",
         )}
       >
-        <p className="mb-1.5 text-[10px] font-medium uppercase tracking-widest text-muted">
-          {isUser ? "You" : "Synzept"}
-        </p>
+        {!isUser ? <p className="mb-1.5 text-xs font-medium text-stone-500">Synzept</p> : null}
         {isUser ? (
           <p className="whitespace-pre-wrap text-[15px] leading-relaxed">{content}</p>
         ) : (
@@ -112,7 +110,7 @@ function MessageBubbleComponent({ role, content, isStreaming, messageId, metadat
           </span>
         )}
         {!isUser && content && !isStreaming && (
-          <div className="absolute right-2 top-2 flex gap-1 opacity-0 transition group-hover:opacity-100">
+          <div className="absolute right-0 top-1 flex gap-1 rounded-lg border border-stone-200 bg-white p-1 opacity-0 shadow-sm transition group-hover:opacity-100">
             {messageId && (
               <button
                 type="button"

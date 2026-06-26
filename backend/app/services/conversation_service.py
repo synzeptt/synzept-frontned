@@ -88,6 +88,21 @@ class ConversationService:
         await self.session.flush()
         return conversation
 
+    async def move_to_project(
+        self,
+        user_id: UUID,
+        conversation_id: UUID,
+        project_id: UUID | None,
+    ) -> Conversation | None:
+        conversation = await self.get(user_id, conversation_id)
+        if not conversation:
+            return None
+        if project_id and not await self._user_owns_project(user_id, project_id):
+            return None
+        conversation.project_id = project_id
+        await self.session.flush()
+        return conversation
+
     async def archive(self, user_id: UUID, conversation_id: UUID) -> Conversation | None:
         conversation = await self.get(user_id, conversation_id)
         if not conversation:

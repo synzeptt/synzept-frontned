@@ -1,12 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { ArrowRight, ChevronRight, Loader2, Menu, PanelRightOpen, Plus, RotateCcw, Square, WifiOff, X } from "lucide-react";
+import { Loader2, Menu, RotateCcw, Square, WifiOff } from "lucide-react";
 import { ChatInput } from "@/components/chat/chat-input";
 import { MessageBubble } from "@/components/chat/message-bubble";
-import { Button } from "@/components/ui/button";
 import { RecoveryBanner } from "@/components/ui/recovery-banner";
-import { api, type AttachmentMetadata, type ContinuityMode, type Conversation, type Dashboard, type Project } from "@/lib/api";
+import { api, type AttachmentMetadata, type ContinuityMode, type Conversation, type Project } from "@/lib/api";
 import { useChatStore } from "@/stores/chat";
 import { ConversationSidebar } from "@frontend/features/chat/conversation-sidebar";
 import { useAutoScroll } from "@frontend/hooks/use-auto-scroll";
@@ -28,12 +27,10 @@ export function ChatWorkspace() {
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [selectingConversationId, setSelectingConversationId] = useState<string | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
-  const [dashboard, setDashboard] = useState<Dashboard | null>(null);
   const [continuityMode, setContinuityMode] = useState<ContinuityMode | null>(null);
-  const [continuityOpen, setContinuityOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isOnline, setIsOnline] = useState(() => (typeof navigator === "undefined" ? true : navigator.onLine));
-  const [isPending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
   const {
     conversations,
     activeConversationId,
@@ -66,7 +63,7 @@ export function ChatWorkspace() {
         setProjects(projectRows);
       });
     } catch {
-      setError("Thread history could not load. You can still start a new conversation; retry from the sidebar when ready.");
+      setError("Thread history could not load. You can still start a new conversation.");
     } finally {
       if (!background) setLoadingHistory(false);
     }
@@ -74,9 +71,7 @@ export function ChatWorkspace() {
 
   const updateConversation = useCallback(
     (updated: Conversation) => {
-      setConversations(
-        conversations.map((conversation) => (conversation.id === updated.id ? updated : conversation)),
-      );
+      setConversations(conversations.map((conversation) => (conversation.id === updated.id ? updated : conversation)));
     },
     [conversations, setConversations],
   );
@@ -90,7 +85,6 @@ export function ChatWorkspace() {
   }, [conversations.length, hasFreshConversations, loadConversations]);
 
   useEffect(() => {
-    api.getDashboard().then(setDashboard).catch(() => setDashboard(null));
     api.getContinuityMode().then(setContinuityMode).catch(() => setContinuityMode(null));
   }, []);
 
@@ -105,11 +99,8 @@ export function ChatWorkspace() {
   }, [setActiveProject]);
 
   useEffect(() => {
-    if (input.trim()) {
-      localStorage.setItem(CHAT_DRAFT_KEY, input);
-    } else {
-      localStorage.removeItem(CHAT_DRAFT_KEY);
-    }
+    if (input.trim()) localStorage.setItem(CHAT_DRAFT_KEY, input);
+    else localStorage.removeItem(CHAT_DRAFT_KEY);
   }, [input]);
 
   useEffect(() => {
@@ -147,7 +138,7 @@ export function ChatWorkspace() {
         setMessages(rows.map((row) => ({ id: row.id, role: row.role as "user" | "assistant" | "system", content: row.content, metadata: row.metadata })));
       });
     } catch {
-      setError("This thread could not load. Your history is still saved; choose another thread or retry in a moment.");
+      setError("This thread could not load. Choose another thread or retry in a moment.");
     } finally {
       setSelectingConversationId(null);
     }
@@ -168,19 +159,15 @@ export function ChatWorkspace() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not start a new conversation.");
     }
-  }, [conversations, reset, setActiveConversation, setActiveProject, setConversations, setError, setInput, setMessages]);
+  }, [conversations, reset, setActiveConversation, setActiveProject, setConversations, setError, setMessages]);
 
   const archiveConversation = useCallback(
     async (conversation: Conversation) => {
-      const confirmed = window.confirm("Archive this conversation? You can still recover it from history later.");
-      if (!confirmed) return;
-
+      if (!window.confirm("Archive this conversation?")) return;
       try {
         const updated = await api.archiveConversation(conversation.id);
         setConversations(conversations.filter((item) => item.id !== updated.id));
-        if (activeConversationId === updated.id) {
-          await newConversation();
-        }
+        if (activeConversationId === updated.id) await newConversation();
       } catch (err) {
         setError(err instanceof Error ? err.message : "Could not archive that thread.");
       }
@@ -190,15 +177,11 @@ export function ChatWorkspace() {
 
   const deleteConversation = useCallback(
     async (conversation: Conversation) => {
-      const confirmed = window.confirm("Delete this conversation? This action cannot be undone.");
-      if (!confirmed) return;
-
+      if (!window.confirm("Delete this conversation? This action cannot be undone.")) return;
       try {
         await api.deleteConversation(conversation.id);
         setConversations(conversations.filter((item) => item.id !== conversation.id));
-        if (activeConversationId === conversation.id) {
-          newConversation();
-        }
+        if (activeConversationId === conversation.id) newConversation();
       } catch (err) {
         setError(err instanceof Error ? err.message : "Could not delete that thread.");
       }
@@ -209,8 +192,7 @@ export function ChatWorkspace() {
   const pinConversation = useCallback(
     async (conversation: Conversation, pinned: boolean) => {
       try {
-        const updated = await api.pinConversation(conversation.id, pinned);
-        updateConversation(updated);
+        updateConversation(await api.pinConversation(conversation.id, pinned));
       } catch (err) {
         setError(err instanceof Error ? err.message : "Could not update pin state.");
       }
@@ -220,11 +202,10 @@ export function ChatWorkspace() {
 
   const renameConversation = useCallback(
     async (conversation: Conversation) => {
-      const title = window.prompt("Rename thread", conversation.title || "");
-      if (!title || !title.trim() || title.trim() === conversation.title) return;
+      const title = window.prompt("Rename conversation", conversation.title || "");
+      if (!title?.trim() || title.trim() === conversation.title) return;
       try {
-        const updated = await api.renameConversation(conversation.id, title.trim());
-        updateConversation(updated);
+        updateConversation(await api.renameConversation(conversation.id, title.trim()));
       } catch (err) {
         setError(err instanceof Error ? err.message : "Could not rename that thread.");
       }
@@ -232,15 +213,24 @@ export function ChatWorkspace() {
     [setError, updateConversation],
   );
 
-  const stop = () => {
-    abortRef.current?.abort();
-  };
+  const moveConversationToProject = useCallback(
+    async (conversation: Conversation, projectId: string | null) => {
+      try {
+        const updated = await api.moveConversationToProject(conversation.id, projectId);
+        updateConversation(updated);
+        if (activeConversationId === updated.id) setActiveProject(updated.project_id);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Could not move that conversation.");
+      }
+    },
+    [activeConversationId, setActiveProject, setError, updateConversation],
+  );
+
+  const stop = () => abortRef.current?.abort();
 
   const send = async (retry = false, overrideText?: string, overrideProjectId?: string | null) => {
     const requestAttachments = attachments.length ? attachments : undefined;
-    const text = retry
-      ? lastUserMessage
-      : (overrideText ?? input.trim()) || (attachments.length > 0 ? "Attached files" : "");
+    const text = retry ? lastUserMessage : (overrideText ?? input.trim()) || (attachments.length > 0 ? "Attached files" : "");
     const outboundProjectId = overrideProjectId ?? activeProjectId;
     if (!text || isStreaming) return;
     if (!isOnline) {
@@ -269,16 +259,8 @@ export function ChatWorkspace() {
     try {
       let assistant = "";
       let gotToken = false;
-      for await (const event of api.streamMessage(
-        text,
-        activeConversationId ?? undefined,
-        outboundProjectId ?? undefined,
-        requestAttachments,
-        abortRef.current.signal,
-      )) {
-        if ((event.type === "meta" || event.type === "done") && event.conversation_id) {
-          setActiveConversation(event.conversation_id);
-        }
+      for await (const event of api.streamMessage(text, activeConversationId ?? undefined, outboundProjectId ?? undefined, requestAttachments, abortRef.current.signal)) {
+        if ((event.type === "meta" || event.type === "done") && event.conversation_id) setActiveConversation(event.conversation_id);
         if (event.type === "token" && event.content) {
           gotToken = true;
           assistant += event.content;
@@ -287,18 +269,11 @@ export function ChatWorkspace() {
         }
       }
       if (!gotToken) {
-        const result = await api.sendMessage(
-          text,
-          activeConversationId ?? undefined,
-          outboundProjectId ?? undefined,
-          attachments.length ? attachments : undefined,
-        );
+        const result = await api.sendMessage(text, activeConversationId ?? undefined, outboundProjectId ?? undefined, requestAttachments);
         setActiveConversation(result.conversation_id);
         updateLastAssistant(result.reply);
       }
-      if (!retry) {
-        setAttachments([]);
-      }
+      if (!retry) setAttachments([]);
       const syncedConversationId = useChatStore.getState().activeConversationId;
       if (syncedConversationId) {
         const rows = await api.getMessages(syncedConversationId);
@@ -307,10 +282,7 @@ export function ChatWorkspace() {
         });
       }
       void loadConversations(true);
-      void api.trackEvent("chat_response_completed", "chat", {
-        conversation_id: activeConversationId,
-        project_id: outboundProjectId,
-      });
+      void api.trackEvent("chat_response_completed", "chat", { conversation_id: activeConversationId, project_id: outboundProjectId });
     } catch (err) {
       const aborted = err instanceof DOMException && err.name === "AbortError";
       setError(aborted ? "Response stopped. You can continue from here." : err instanceof Error ? err.message : "Could not reach Synzept.");
@@ -325,13 +297,6 @@ export function ChatWorkspace() {
       setStreaming(false);
     }
   };
-
-  const activeTitle = useMemo(
-    () => conversations.find((item: Conversation) => item.id === activeConversationId)?.title || "Conversation",
-    [activeConversationId, conversations],
-  );
-
-  const continuity = useMemo(() => getContinuityPanel(continuityMode, dashboard, projects), [continuityMode, dashboard, projects]);
 
   const attachFiles = async (files: FileList) => {
     const batch = Array.from(files);
@@ -353,12 +318,10 @@ export function ChatWorkspace() {
     }
   };
 
-  const removeAttachment = (attachmentId: string) => {
-    setAttachments((current) => current.filter((item) => item.id !== attachmentId));
-  };
+  const activeProject = useMemo(() => projects.find((project) => project.id === activeProjectId) ?? null, [activeProjectId, projects]);
 
   return (
-    <div className="relative flex h-full min-h-0 bg-[#f7f7f4]">
+    <div className="relative flex h-full min-h-0 bg-[#f8f7f3]">
       <ConversationSidebar
         conversations={conversations}
         projects={projects}
@@ -371,57 +334,45 @@ export function ChatWorkspace() {
         onArchive={archiveConversation}
         onDelete={deleteConversation}
         onPin={pinConversation}
+        onMoveToProject={moveConversationToProject}
         onCreate={newConversation}
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
       />
-      <section className="flex min-w-0 flex-1 flex-col">
-        <header className="flex min-h-16 items-center justify-between border-b border-border bg-white/80 px-4 backdrop-blur md:px-6">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => setSidebarOpen((value) => !value)}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-border bg-white text-stone-700 transition hover:bg-stone-50 lg:hidden"
-              aria-label="Open threads"
-            >
-              <Menu className="h-5 w-5" />
-            </button>
-            <div className="min-w-0">
-              <p className="text-xs text-muted">Chat</p>
-              <h1 className="truncate text-lg font-semibold text-stone-950">
-                {activeConversationId ? activeTitle : "New conversation"}
-              </h1>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            {loadingHistory && <Loader2 className="h-4 w-4 animate-spin text-muted" />}
-            {(selectingConversationId || isPending) && !loadingHistory && <Loader2 className="h-4 w-4 animate-spin text-muted" />}
-            {error && (
-              <Button variant="outline" size="sm" onClick={() => send(true)}>
-                <RotateCcw className="h-4 w-4 md:mr-1.5" />
-                <span className="hidden md:inline">Retry</span>
-              </Button>
-            )}
-            {isStreaming ? (
-              <Button variant="outline" size="sm" onClick={stop}>
-                <Square className="h-4 w-4 md:mr-1.5" />
-                <span className="hidden md:inline">Stop</span>
-              </Button>
-            ) : (
-              <Button variant="ghost" size="sm" onClick={newConversation}>
-                <Plus className="h-4 w-4 md:mr-1.5" />
-                <span className="hidden md:inline">New</span>
-              </Button>
-            )}
-            <Button variant="outline" size="sm" onClick={() => setContinuityOpen((value) => !value)}>
-              <PanelRightOpen className="h-4 w-4 md:mr-1.5" />
-              <span className="hidden md:inline">Context</span>
-            </Button>
-          </div>
-        </header>
 
-        <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
-          <div className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-8 md:px-6">
+      {sidebarOpen ? <button type="button" className="fixed inset-0 z-40 bg-black/25 md:hidden" aria-label="Close chats" onClick={() => setSidebarOpen(false)} /> : null}
+
+      <main className="relative min-w-0 flex-1">
+        <button
+          type="button"
+          onClick={() => setSidebarOpen(true)}
+          className="fixed left-3 top-3 z-30 grid h-10 w-10 place-items-center rounded-lg border border-stone-200 bg-white text-stone-700 shadow-sm md:hidden"
+          aria-label="Open chats"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
+
+        {(loadingHistory || selectingConversationId) && (
+          <div className="fixed right-4 top-4 z-20 flex items-center gap-2 rounded-full border border-stone-200 bg-white px-3 py-1.5 text-xs text-stone-500 shadow-sm">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            Syncing
+          </div>
+        )}
+
+        {isStreaming ? (
+          <button type="button" onClick={stop} className="fixed right-4 top-4 z-30 flex items-center gap-2 rounded-full border border-stone-200 bg-white px-3 py-1.5 text-xs font-medium text-stone-700 shadow-sm hover:bg-stone-50">
+            <Square className="h-3.5 w-3.5" />
+            Stop
+          </button>
+        ) : error ? (
+          <button type="button" onClick={() => send(true)} className="fixed right-4 top-4 z-30 flex items-center gap-2 rounded-full border border-stone-200 bg-white px-3 py-1.5 text-xs font-medium text-stone-700 shadow-sm hover:bg-stone-50">
+            <RotateCcw className="h-3.5 w-3.5" />
+            Retry
+          </button>
+        ) : null}
+
+        <div ref={scrollRef} className="h-full overflow-y-auto pb-44 pt-8 md:pb-48 md:pt-10">
+          <div className="mx-auto flex min-h-full max-w-3xl flex-col gap-7 px-4 md:px-6">
             {selectingConversationId && !messagesByConversation[selectingConversationId] ? (
               <ConversationLoading />
             ) : messages.length ? (
@@ -436,233 +387,84 @@ export function ChatWorkspace() {
                 />
               ))
             ) : (
-              <ContinuityModeStart snapshot={continuityMode} onContinue={(prompt, projectId) => send(false, prompt, projectId)} />
+              <EmptyConversation snapshot={continuityMode} projectName={activeProject?.name} onContinue={(prompt, projectId) => send(false, prompt, projectId)} />
             )}
           </div>
         </div>
 
-        <RecoveryBanner message={error} onRetry={() => (lastUserMessage ? send(true) : loadConversations())} className="mx-4 mb-2" />
-        {!isOnline && !error && (
-          <p className="flex items-center justify-center gap-2 px-4 pb-2 text-center text-sm text-amber-700">
-            <WifiOff className="h-4 w-4" />
-            Offline. Reconnect to send.
-          </p>
-        )}
+        <div className="fixed bottom-[132px] left-0 right-0 z-20 px-3 md:left-[320px] md:px-6">
+          <div className="mx-auto max-w-3xl">
+            <RecoveryBanner message={error} onRetry={() => (lastUserMessage ? send(true) : loadConversations())} />
+            {!isOnline && !error ? (
+              <p className="mt-2 flex items-center justify-center gap-2 text-center text-sm text-amber-700">
+                <WifiOff className="h-4 w-4" />
+                Offline. Reconnect to send.
+              </p>
+            ) : null}
+          </div>
+        </div>
+
         <ChatInput
           value={input}
           onChange={setInput}
           onSubmit={() => send()}
           disabled={isStreaming || uploading}
-          placeholder="What would you like to continue?"
+          placeholder="Message Synzept..."
           attachments={attachments}
           onAttachFiles={attachFiles}
-          onRemoveAttachment={removeAttachment}
+          onRemoveAttachment={(attachmentId) => setAttachments((current) => current.filter((item) => item.id !== attachmentId))}
           uploading={uploading}
           uploadProgress={uploadProgress}
           uploadFileName={uploadFileName}
         />
-      </section>
-      {sidebarOpen ? <div className="fixed inset-0 z-40 bg-black/30 lg:hidden" onClick={() => setSidebarOpen(false)} /> : null}
-      <ContinuityPanel open={continuityOpen} continuity={continuity} conversations={conversations} activeConversationId={activeConversationId} onClose={() => setContinuityOpen(false)} onSelect={selectConversation} />
+      </main>
     </div>
   );
 }
 
 function ConversationLoading() {
   return (
-    <div className="space-y-4">
-      <div className="h-20 max-w-[70%] rounded-xl border border-border bg-white shadow-soft" />
-      <div className="ml-auto h-14 max-w-[62%] rounded-xl bg-stone-900" />
-      <div className="h-28 max-w-[82%] rounded-xl border border-border bg-white shadow-soft" />
+    <div className="space-y-5 pt-8">
+      <div className="h-16 max-w-[68%] animate-pulse rounded-xl bg-white" />
+      <div className="ml-auto h-12 max-w-[58%] animate-pulse rounded-xl bg-stone-200" />
+      <div className="h-24 max-w-[78%] animate-pulse rounded-xl bg-white" />
     </div>
   );
 }
 
-function ContinuityModeStart({
+function EmptyConversation({
   snapshot,
+  projectName,
   onContinue,
 }: {
   snapshot: ContinuityMode | null;
+  projectName?: string;
   onContinue: (prompt: string, projectId?: string | null) => void;
 }) {
-  if (!snapshot) {
-    return (
-      <div className="rounded-xl border border-border bg-white p-5 shadow-soft">
-        <p className="text-sm text-stone-500">Synzept is gathering your continuity context.</p>
-        <h2 className="mt-2 text-2xl font-semibold text-stone-950">What would you like to continue?</h2>
-        <p className="mt-3 text-sm leading-6 text-stone-600">Start with one sentence. Memory, projects, goals, and open loops will come in behind the scenes.</p>
-      </div>
-    );
-  }
-
+  const actions = snapshot?.actions?.slice(0, 3) ?? [];
   return (
-    <div className="space-y-5">
-      <section className="rounded-xl border border-border bg-white p-5 shadow-soft md:p-6">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-sm text-stone-500">{snapshot.headline}</p>
-          <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">Context ready</span>
-        </div>
-        <h2 className="mt-2 text-2xl font-semibold leading-tight text-stone-950">You were working on {snapshot.last_focus}</h2>
-
-        <div className="mt-5 grid gap-4 md:grid-cols-2">
-          <ContinuityList title="Since then" items={snapshot.what_changed} />
-          <ContinuityList title="Open loops" items={snapshot.open_loops} />
-        </div>
-
-        <p className="mt-4 text-xs leading-5 text-stone-500">
-          Using memory, your understanding, goals, projects, previous conversations, and open loops automatically.
+    <div className="flex flex-1 items-center justify-center py-20">
+      <div className="w-full max-w-2xl text-center">
+        <p className="text-sm text-stone-500">{projectName ? `Working in ${projectName}` : "AI workspace"}</p>
+        <h2 className="mt-3 text-3xl font-semibold tracking-tight text-stone-950 md:text-4xl">What would you like to work through?</h2>
+        <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-stone-600">
+          Start a new thought, continue a project, or drop in files for Synzept to read.
         </p>
-
-        <div className="mt-5 rounded-lg border border-stone-200 bg-stone-50 p-4">
-          <p className="text-xs font-medium uppercase tracking-[0.14em] text-stone-400">Suggested next action</p>
-          <p className="mt-2 text-base font-medium text-stone-950">{snapshot.recommended_next_action}</p>
-          {snapshot.recommended_reason && <p className="mt-1 text-sm leading-6 text-stone-600">{snapshot.recommended_reason}</p>}
-        </div>
-      </section>
-
-      <section className="grid gap-2 sm:grid-cols-2">
-        {snapshot.actions.map((action) => (
-          <button
-            key={action.mode}
-            type="button"
-            onClick={() => onContinue(action.prompt, action.project_id)}
-            className="group flex min-h-14 items-center justify-between gap-3 rounded-lg border border-stone-200 bg-white px-4 py-3 text-left text-sm font-medium text-stone-900 shadow-sm transition hover:border-stone-300 hover:bg-stone-50"
-          >
-            <span>{action.label}</span>
-            <ArrowRight className="h-4 w-4 shrink-0 text-stone-400 transition group-hover:translate-x-0.5 group-hover:text-stone-900" />
-          </button>
-        ))}
-      </section>
-    </div>
-  );
-}
-
-function ContinuityList({ title, items }: { title: string; items: string[] }) {
-  return (
-    <div>
-      <p className="text-xs font-medium uppercase tracking-[0.14em] text-stone-400">{title}</p>
-      <div className="mt-2 space-y-2">
-        {items.slice(0, 5).map((item) => (
-          <p key={item} className="rounded-md bg-stone-50 px-3 py-2 text-sm leading-5 text-stone-700">{item}</p>
-        ))}
+        {actions.length ? (
+          <div className="mt-7 grid gap-2 text-left sm:grid-cols-3">
+            {actions.map((action) => (
+              <button
+                key={action.mode}
+                type="button"
+                onClick={() => onContinue(action.prompt, action.project_id)}
+                className="rounded-lg border border-stone-200 bg-white px-3 py-3 text-sm font-medium text-stone-800 shadow-sm transition hover:border-stone-300 hover:bg-stone-50"
+              >
+                {action.label}
+              </button>
+            ))}
+          </div>
+        ) : null}
       </div>
     </div>
   );
-}
-
-function ContinuityPanel({
-  open,
-  continuity,
-  conversations,
-  activeConversationId,
-  onClose,
-  onSelect,
-}: {
-  open: boolean;
-  continuity: ReturnType<typeof getContinuityPanel>;
-  conversations: Conversation[];
-  activeConversationId: string | null;
-  onClose: () => void;
-  onSelect: (conversation: Conversation) => void;
-}) {
-  if (!open) return null;
-
-  return (
-    <aside className="fixed inset-y-0 right-0 z-50 flex w-full max-w-sm flex-col border-l border-border bg-white shadow-xl md:relative md:z-auto md:w-[340px] md:max-w-none md:shadow-none">
-      <div className="flex min-h-16 items-center justify-between border-b border-border px-4">
-        <div>
-          <p className="text-xs text-muted">Continuity</p>
-          <h2 className="text-base font-semibold text-stone-950">What Synzept knows</h2>
-        </div>
-        <button type="button" onClick={onClose} className="grid h-9 w-9 place-items-center rounded-md text-stone-500 hover:bg-stone-100" aria-label="Close context">
-          <X className="h-4 w-4" />
-        </button>
-      </div>
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
-        <PanelSection title="Mission">
-          <p className="text-sm leading-6 text-stone-700">{continuity.mission}</p>
-        </PanelSection>
-        <PanelSection title="Focus">
-          <p className="text-sm leading-6 text-stone-700">{continuity.focus}</p>
-        </PanelSection>
-        <PanelSection title="Projects">
-          <div className="space-y-2">
-            {continuity.projects.map((project) => (
-              <div key={project.id} className="rounded-md bg-stone-50 px-3 py-2">
-                <p className="line-clamp-1 text-sm font-medium text-stone-950">{project.name}</p>
-                <p className="mt-1 line-clamp-2 text-xs leading-5 text-stone-600">{project.currentFocus || project.recommendedNextStep || project.description || "Active context"}</p>
-              </div>
-            ))}
-          </div>
-        </PanelSection>
-        <PanelSection title="Open Loops">
-          <div className="space-y-2">
-            {continuity.openLoops.map((loop) => (
-              <div key={loop.id || loop.title} className="rounded-md bg-stone-50 px-3 py-2">
-                <p className="line-clamp-2 text-sm font-medium text-stone-950">{loop.title}</p>
-                {loop.next_step || loop.description ? <p className="mt-1 line-clamp-2 text-xs leading-5 text-stone-600">{loop.next_step || loop.description}</p> : null}
-              </div>
-            ))}
-          </div>
-        </PanelSection>
-        <PanelSection title="Recent Threads">
-          <div className="space-y-1">
-            {conversations.slice(0, 5).map((conversation) => {
-              const active = conversation.id === activeConversationId;
-              return (
-                <button
-                  key={conversation.id}
-                  type="button"
-                  onClick={() => onSelect(conversation)}
-                  className={`flex w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-left text-sm transition ${active ? "bg-stone-100 text-stone-950" : "text-stone-700 hover:bg-stone-50"}`}
-                >
-                  <span className="truncate">{conversation.title || "Untitled conversation"}</span>
-                  <ChevronRight className="h-4 w-4 shrink-0 text-stone-400" />
-                </button>
-              );
-            })}
-          </div>
-        </PanelSection>
-      </div>
-    </aside>
-  );
-}
-
-function PanelSection({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section className="mb-5">
-      <p className="mb-2 text-xs font-medium uppercase tracking-[0.14em] text-stone-400">{title}</p>
-      {children}
-    </section>
-  );
-}
-
-function getContinuityPanel(continuityMode: ContinuityMode | null, dashboard: Dashboard | null, projects: Project[]) {
-  const os = dashboard?.personal_os;
-  const activeProjects = (dashboard?.projects?.length ? dashboard.projects : projects).filter((project) => project.status !== "archived").slice(0, 4);
-  const openLoops = (os?.open_loops || []).slice(0, 4);
-  const modeOpenLoops = (continuityMode?.open_loops || []).slice(0, 4).map((title, index) => ({
-    id: `continuity-${index}`,
-    title,
-    description: "",
-    next_step: "",
-  }));
-
-  return {
-    mission: os?.current_mission || activeProjects[0]?.description || activeProjects[0]?.name || continuityMode?.last_focus || "Start a thread and Synzept will keep the mission visible.",
-    focus: os?.current_focus || activeProjects[0]?.currentFocus || activeProjects[0]?.recommendedNextStep || continuityMode?.recommended_next_action || "Ask what to continue next.",
-    projects: activeProjects,
-    openLoops: openLoops.length
-      ? openLoops
-      : modeOpenLoops.length
-        ? modeOpenLoops
-      : [
-          {
-            id: "continue",
-            title: "Continue from the thread that matters most.",
-            description: "",
-            next_step: "Ask Synzept what to resume.",
-          },
-        ],
-  };
 }

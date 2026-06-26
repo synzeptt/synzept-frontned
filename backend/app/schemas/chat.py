@@ -46,6 +46,10 @@ class ConversationRename(BaseModel):
     title: str = Field(min_length=1, max_length=300)
 
 
+class ConversationProjectMove(BaseModel):
+    project_id: UUID | None = None
+
+
 class ConversationSummaryUpdate(BaseModel):
     summary: str | None = None
 
