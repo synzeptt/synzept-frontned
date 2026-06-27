@@ -1,6 +1,10 @@
+import logging
+import traceback
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.core.dependencies import get_current_user, get_db
 from app.models.user import User
 from app.schemas.auth import (
@@ -28,6 +32,8 @@ from app.services.user_profile_service import UserProfileService
 from app.services.account_data_export_service import AccountDataExportService
 
 router = APIRouter(prefix="/auth")
+logger = logging.getLogger(__name__)
+settings = get_settings()
 
 
 def _auth_response(tokens: TokenResponse, user: User) -> AuthResponse:
@@ -71,9 +77,21 @@ async def reset_password(body: ResetPasswordRequest, session: AsyncSession = Dep
 
 @router.post("/google", response_model=AuthResponse)
 async def google_login(body: GoogleAuthIn, session: AsyncSession = Depends(get_db)):
-    tokens, user = await GoogleAuthService(session).login_with_google(body.id_token)
-    await UsageEventService(session).track(user_id=user.id, event_type="login_completed", surface="auth", metadata={"provider": "google"})
-    return _auth_response(tokens, user)
+    logger.info(
+        "Google OAuth environment: GOOGLE_CLIENT_ID=%s GOOGLE_CLIENT_SECRET=%s FRONTEND_URL=%s JWT_SECRET_KEY=%s",
+        "present" if settings.google_client_id else "missing",
+        "present" if settings.google_client_secret else "missing",
+        "present" if settings.frontend_url else "missing",
+        "present" if settings.jwt_secret_key and settings.jwt_secret_key != "dev-only-change-me" else "missing",
+    )
+    try:
+        tokens, user = await GoogleAuthService(session).login_with_google(body.id_token)
+        await UsageEventService(session).track(user_id=user.id, event_type="login_completed", surface="auth", metadata={"provider": "google"})
+        return _auth_response(tokens, user)
+    except Exception:
+        logger.exception("Google OAuth failed")
+        logger.debug("Google OAuth traceback:\n%s", traceback.format_exc())
+        raise
 
 
 @router.post("/refresh", response_model=TokenResponse)
