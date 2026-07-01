@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import get_current_user, get_db
+from app.models.conversation import Conversation
 from app.models.project import Project
 from app.models.user import User
 from app.schemas.project import ProjectContextOut, ProjectCreate, ProjectOut, ProjectUpdate
@@ -30,9 +31,16 @@ async def create_project(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
-    project = Project(user_id=user.id, name=body.name, description=body.description)
+    project = Project(
+        user_id=user.id,
+        name=body.name,
+        description=body.description,
+        current_focus=body.current_focus or "",
+        recommended_next_step=body.recommended_next_step or "",
+    )
     session.add(project)
     await session.flush()
+    await session.refresh(project)
     await WorkspaceActivityService(session).record(user_id=user.id, action="project_created", title=project.name, project_id=project.id)
     await UsageEventService(session).track(user_id=user.id, event_type="project_created", surface="projects", metadata={"project_id": str(project.id)})
     return project
@@ -75,6 +83,7 @@ async def update_project(
     for field, value in body.model_dump(exclude_unset=True).items():
         setattr(project, field, value)
     await session.flush()
+    await session.refresh(project)
     await WorkspaceActivityService(session).record(user_id=user.id, action="project_updated", title=project.name, project_id=project.id)
     return project
 
@@ -90,7 +99,11 @@ async def archive_project(
         raise HTTPException(status_code=404, detail="Project not found")
     project.status = "archived"
     project.deleted_at = datetime.now(timezone.utc)
+    result = await session.execute(select(Conversation).where(Conversation.project_id == project.id, Conversation.user_id == user.id))
+    for conversation in result.scalars().all():
+        conversation.project_id = None
     await session.flush()
+    await session.refresh(project)
     await WorkspaceActivityService(session).record(user_id=user.id, action="project_archived", title=project.name, project_id=project.id)
     return project
 
@@ -106,5 +119,9 @@ async def delete_project(
         raise HTTPException(status_code=404, detail="Project not found")
     project.status = "archived"
     project.deleted_at = datetime.now(timezone.utc)
+    result = await session.execute(select(Conversation).where(Conversation.project_id == project.id, Conversation.user_id == user.id))
+    for conversation in result.scalars().all():
+        conversation.project_id = None
+    await session.flush()
     await WorkspaceActivityService(session).record(user_id=user.id, action="project_archived", title=project.name, project_id=project.id)
     return {"ok": True}

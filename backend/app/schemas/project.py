@@ -13,11 +13,15 @@ from app.schemas.task import TaskOut
 class ProjectCreate(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     description: str | None = None
+    current_focus: str | None = None
+    recommended_next_step: str | None = None
 
 
 class ProjectUpdate(BaseModel):
     name: str | None = None
     description: str | None = None
+    current_focus: str | None = None
+    recommended_next_step: str | None = None
     status: str | None = None
     context_summary: str | None = None
 
@@ -26,6 +30,8 @@ class ProjectOut(TimestampedSchema):
     id: UUID
     name: str
     description: str | None
+    current_focus: str
+    recommended_next_step: str
     status: str
     context_summary: str | None
 

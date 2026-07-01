@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2, Menu, RotateCcw, Square, WifiOff } from "lucide-react";
 import { ChatInput } from "@/components/chat/chat-input";
 import { MessageBubble } from "@/components/chat/message-bubble";
@@ -14,10 +15,13 @@ const CHAT_DRAFT_KEY = "synzept_chat_draft";
 const CONTINUE_PROJECT_KEY = "synzept_continue_project_id";
 
 export function ChatWorkspace() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const scrollRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const frameRef = useRef<number | null>(null);
   const pendingAssistantRef = useRef("");
+  const selectedFromUrlRef = useRef<string | null>(null);
   const [input, setInput] = useState("");
   const [lastUserMessage, setLastUserMessage] = useState("");
   const [attachments, setAttachments] = useState<AttachmentMetadata[]>([]);
@@ -29,6 +33,7 @@ export function ChatWorkspace() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [continuityMode, setContinuityMode] = useState<ContinuityMode | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isOnline, setIsOnline] = useState(() => (typeof navigator === "undefined" ? true : navigator.onLine));
   const [, startTransition] = useTransition();
   const {
@@ -121,11 +126,12 @@ export function ChatWorkspace() {
     updateLastAssistant(pendingAssistantRef.current);
   }, [updateLastAssistant]);
 
-  const selectConversation = async (conversation: Conversation) => {
+  const selectConversation = useCallback(async (conversation: Conversation) => {
     abortRef.current?.abort();
     setActiveConversation(conversation.id);
     setActiveProject(conversation.project_id);
     setError(null);
+    router.replace(`/chat?conversation=${conversation.id}`, { scroll: false });
     const cached = messagesByConversation[conversation.id];
     if (cached) {
       setMessages(cached);
@@ -142,7 +148,16 @@ export function ChatWorkspace() {
     } finally {
       setSelectingConversationId(null);
     }
-  };
+  }, [messagesByConversation, router, setActiveConversation, setActiveProject, setError, setMessages, startTransition]);
+
+  useEffect(() => {
+    const conversationId = searchParams.get("conversation");
+    if (!conversationId || selectedFromUrlRef.current === conversationId || activeConversationId === conversationId) return;
+    const conversation = conversations.find((item) => item.id === conversationId);
+    if (!conversation) return;
+    selectedFromUrlRef.current = conversationId;
+    void selectConversation(conversation);
+  }, [activeConversationId, conversations, searchParams, selectConversation]);
 
   const newConversation = useCallback(async () => {
     abortRef.current?.abort();
@@ -156,10 +171,11 @@ export function ChatWorkspace() {
       setConversations([conversation, ...conversations]);
       setActiveConversation(conversation.id);
       setMessages([]);
+      router.replace(`/chat?conversation=${conversation.id}`, { scroll: false });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not start a new conversation.");
     }
-  }, [conversations, reset, setActiveConversation, setActiveProject, setConversations, setError, setMessages]);
+  }, [conversations, reset, router, setActiveConversation, setActiveProject, setConversations, setError, setMessages]);
 
   const archiveConversation = useCallback(
     async (conversation: Conversation) => {
@@ -201,9 +217,8 @@ export function ChatWorkspace() {
   );
 
   const renameConversation = useCallback(
-    async (conversation: Conversation) => {
-      const title = window.prompt("Rename conversation", conversation.title || "");
-      if (!title?.trim() || title.trim() === conversation.title) return;
+    async (conversation: Conversation, title: string) => {
+      if (!title.trim() || title.trim() === conversation.title) return;
       try {
         updateConversation(await api.renameConversation(conversation.id, title.trim()));
       } catch (err) {
@@ -211,6 +226,43 @@ export function ChatWorkspace() {
       }
     },
     [setError, updateConversation],
+  );
+
+  const duplicateConversation = useCallback(
+    async (conversation: Conversation) => {
+      try {
+        const duplicated = await api.duplicateConversation(conversation.id);
+        setConversations([duplicated, ...conversations]);
+        setActiveConversation(duplicated.id);
+        setActiveProject(duplicated.project_id);
+        router.replace(`/chat?conversation=${duplicated.id}`, { scroll: false });
+        const rows = await api.getMessages(duplicated.id);
+        startTransition(() => {
+          setMessages(rows.map((row) => ({ id: row.id, role: row.role as "user" | "assistant" | "system", content: row.content, metadata: row.metadata })));
+        });
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Could not duplicate that conversation.");
+      }
+    },
+    [conversations, router, setActiveConversation, setActiveProject, setConversations, setError, setMessages, startTransition],
+  );
+
+  const shareConversation = useCallback(
+    async (conversation: Conversation) => {
+      const url = `${window.location.origin}/chat?conversation=${conversation.id}`;
+      try {
+        if (navigator.share) {
+          await navigator.share({ title: conversation.title || "Synzept conversation", url });
+        } else {
+          await navigator.clipboard.writeText(url);
+        }
+        setError(null);
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        setError("Could not share that conversation link.");
+      }
+    },
+    [setError],
   );
 
   const moveConversationToProject = useCallback(
@@ -224,6 +276,60 @@ export function ChatWorkspace() {
       }
     },
     [activeConversationId, setActiveProject, setError, updateConversation],
+  );
+
+  const createProject = useCallback(
+    async (name: string) => {
+      try {
+        const project = await api.createProject({ name });
+        setProjects((current) => [project, ...current]);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Could not create that project.");
+      }
+    },
+    [setError],
+  );
+
+  const renameProject = useCallback(
+    async (project: Project, name: string) => {
+      try {
+        const updated = await api.updateProject(project.id, { name });
+        setProjects((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Could not rename that project.");
+      }
+    },
+    [setError],
+  );
+
+  const archiveProject = useCallback(
+    async (project: Project) => {
+      if (!window.confirm(`Archive "${project.name}"? Conversations will stay in your chat history.`)) return;
+      try {
+        await api.archiveProject(project.id);
+        setProjects((current) => current.filter((item) => item.id !== project.id));
+        setConversations(conversations.map((conversation) => (conversation.project_id === project.id ? { ...conversation, project_id: null } : conversation)));
+        if (activeProjectId === project.id) setActiveProject(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Could not archive that project.");
+      }
+    },
+    [activeProjectId, conversations, setActiveProject, setConversations, setError],
+  );
+
+  const deleteProject = useCallback(
+    async (project: Project) => {
+      if (!window.confirm(`Delete "${project.name}"? Conversations will be removed from this project but not deleted.`)) return;
+      try {
+        await api.deleteProject(project.id);
+        setProjects((current) => current.filter((item) => item.id !== project.id));
+        setConversations(conversations.map((conversation) => (conversation.project_id === project.id ? { ...conversation, project_id: null } : conversation)));
+        if (activeProjectId === project.id) setActiveProject(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Could not delete that project.");
+      }
+    },
+    [activeProjectId, conversations, setActiveProject, setConversations, setError],
   );
 
   const stop = () => abortRef.current?.abort();
@@ -326,6 +432,8 @@ export function ChatWorkspace() {
         conversations={conversations}
         projects={projects}
         activeConversationId={activeConversationId}
+        collapsed={sidebarCollapsed}
+        onToggleCollapsed={() => setSidebarCollapsed((value) => !value)}
         onSelect={(conversation) => {
           selectConversation(conversation);
           setSidebarOpen(false);
@@ -334,8 +442,14 @@ export function ChatWorkspace() {
         onArchive={archiveConversation}
         onDelete={deleteConversation}
         onPin={pinConversation}
+        onDuplicate={duplicateConversation}
+        onShare={shareConversation}
         onMoveToProject={moveConversationToProject}
         onCreate={newConversation}
+        onCreateProject={createProject}
+        onRenameProject={renameProject}
+        onArchiveProject={archiveProject}
+        onDeleteProject={deleteProject}
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
       />
@@ -346,26 +460,26 @@ export function ChatWorkspace() {
         <button
           type="button"
           onClick={() => setSidebarOpen(true)}
-          className="fixed left-3 top-3 z-30 grid h-10 w-10 place-items-center rounded-lg border border-stone-200 bg-white text-stone-700 shadow-sm md:hidden"
+          className="absolute left-3 top-3 z-30 grid h-10 w-10 place-items-center rounded-lg border border-stone-200 bg-white text-stone-700 shadow-sm md:hidden"
           aria-label="Open chats"
         >
           <Menu className="h-5 w-5" />
         </button>
 
         {(loadingHistory || selectingConversationId) && (
-          <div className="fixed right-4 top-4 z-20 flex items-center gap-2 rounded-full border border-stone-200 bg-white px-3 py-1.5 text-xs text-stone-500 shadow-sm">
+          <div className="absolute right-4 top-4 z-20 flex items-center gap-2 rounded-full border border-stone-200 bg-white px-3 py-1.5 text-xs text-stone-500 shadow-sm">
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
             Syncing
           </div>
         )}
 
         {isStreaming ? (
-          <button type="button" onClick={stop} className="fixed right-4 top-4 z-30 flex items-center gap-2 rounded-full border border-stone-200 bg-white px-3 py-1.5 text-xs font-medium text-stone-700 shadow-sm hover:bg-stone-50">
+          <button type="button" onClick={stop} className="absolute right-4 top-4 z-30 flex items-center gap-2 rounded-full border border-stone-200 bg-white px-3 py-1.5 text-xs font-medium text-stone-700 shadow-sm hover:bg-stone-50">
             <Square className="h-3.5 w-3.5" />
             Stop
           </button>
         ) : error ? (
-          <button type="button" onClick={() => send(true)} className="fixed right-4 top-4 z-30 flex items-center gap-2 rounded-full border border-stone-200 bg-white px-3 py-1.5 text-xs font-medium text-stone-700 shadow-sm hover:bg-stone-50">
+          <button type="button" onClick={() => send(true)} className="absolute right-4 top-4 z-30 flex items-center gap-2 rounded-full border border-stone-200 bg-white px-3 py-1.5 text-xs font-medium text-stone-700 shadow-sm hover:bg-stone-50">
             <RotateCcw className="h-3.5 w-3.5" />
             Retry
           </button>
@@ -392,7 +506,7 @@ export function ChatWorkspace() {
           </div>
         </div>
 
-        <div className="fixed bottom-[132px] left-0 right-0 z-20 px-3 md:left-[320px] md:px-6">
+        <div className="absolute bottom-[132px] left-0 right-0 z-20 px-3 md:px-6">
           <div className="mx-auto max-w-3xl">
             <RecoveryBanner message={error} onRetry={() => (lastUserMessage ? send(true) : loadConversations())} />
             {!isOnline && !error ? (
@@ -409,6 +523,7 @@ export function ChatWorkspace() {
           onChange={setInput}
           onSubmit={() => send()}
           disabled={isStreaming || uploading}
+          sidebarCollapsed={sidebarCollapsed}
           placeholder="Message Synzept..."
           attachments={attachments}
           onAttachFiles={attachFiles}

@@ -40,19 +40,32 @@ class BillingService:
         }
 
     def plans(self) -> list[dict]:
+        yearly_savings = max((self.settings.pro_monthly_price_inr * 12) - self.settings.pro_yearly_price_inr, 0)
         return [
             {
                 "planType": "free",
                 "name": "Free",
                 "priceInr": 0,
                 "interval": "month",
+                "billingCycle": "monthly",
                 "benefits": ["Synzept Agent", "Basic Projects", "Basic AI", "Mobile Access", "Basic Memory"],
             },
             {
                 "planType": "pro",
-                "name": "Synzept Pro",
+                "name": "Synzept Pro Monthly",
                 "priceInr": self.settings.pro_monthly_price_inr,
                 "interval": "month",
+                "billingCycle": "monthly",
+                "savings": None,
+                "benefits": PRO_BENEFITS,
+            },
+            {
+                "planType": "pro",
+                "name": "Synzept Pro Yearly",
+                "priceInr": self.settings.pro_yearly_price_inr,
+                "interval": "year",
+                "billingCycle": "yearly",
+                "savings": f"Save ₹{yearly_savings}" if yearly_savings else None,
                 "benefits": PRO_BENEFITS,
             },
         ]
@@ -64,7 +77,8 @@ class BillingService:
         if self.is_pro(existing):
             raise AppError("Already subscribed", status_code=409, code="already_pro", user_message="You already have Synzept Pro.")
 
-        amount_paise = int(self.settings.pro_monthly_price_inr * 100)
+        plan = self._plan_for_cycle(body.billingCycle)
+        amount_paise = int(plan["priceInr"] * 100)
         if not self._razorpay_ready:
             raise AppError(
                 "Payment provider is not configured",
@@ -78,11 +92,11 @@ class BillingService:
             user_id=user.id,
             provider="razorpay",
             provider_order_id=order_id,
-            amount=self.settings.pro_monthly_price_inr,
+            amount=plan["priceInr"],
             currency="INR",
             status="created",
             plan_type="pro",
-            metadata_={"email": user.email},
+            metadata_={"email": user.email, "billingCycle": body.billingCycle, "interval": plan["interval"]},
         )
         self.session.add(transaction)
         await self.session.flush()
@@ -90,7 +104,7 @@ class BillingService:
             user_id=user.id,
             event_type="checkout_started",
             surface="billing",
-            metadata={"provider": "razorpay", "planType": "pro", "amount": self.settings.pro_monthly_price_inr},
+            metadata={"provider": "razorpay", "planType": "pro", "billingCycle": body.billingCycle, "amount": plan["priceInr"]},
         )
         return {
             "checkoutId": transaction.id,
@@ -100,8 +114,9 @@ class BillingService:
             "amount": amount_paise,
             "currency": "INR",
             "planType": "pro",
-            "priceInr": self.settings.pro_monthly_price_inr,
-            "description": "Synzept Pro monthly subscription",
+            "billingCycle": body.billingCycle,
+            "priceInr": plan["priceInr"],
+            "description": f"Synzept Pro {plan['interval']} subscription",
         }
 
     async def verify_payment(self, user: User, body: PaymentVerifyIn) -> dict:
@@ -133,7 +148,13 @@ class BillingService:
             user_id=user.id,
             event_type="payment_successful",
             surface="billing",
-            metadata={"provider": "razorpay", "planType": "pro", "transactionId": str(transaction.id), "amount": transaction.amount},
+            metadata={
+                "provider": "razorpay",
+                "planType": "pro",
+                "billingCycle": (transaction.metadata_ or {}).get("billingCycle", "monthly"),
+                "transactionId": str(transaction.id),
+                "amount": transaction.amount,
+            },
         )
         return self._status_out(user.id, subscription)
 
@@ -173,7 +194,8 @@ class BillingService:
 
     async def _activate(self, user_id: UUID, transaction: PaymentTransaction, provider: str) -> Subscription:
         now = datetime.now(timezone.utc)
-        renewal = now + timedelta(days=30)
+        billing_cycle = (transaction.metadata_ or {}).get("billingCycle", "monthly")
+        renewal = now + timedelta(days=365 if billing_cycle == "yearly" else 30)
         subscription = await self._subscription(user_id)
         if not subscription:
             subscription = Subscription(user_id=user_id)
@@ -187,6 +209,7 @@ class BillingService:
         subscription.current_period_start = now
         subscription.current_period_end = renewal
         subscription.cancel_at_period_end = False
+        subscription.metadata_ = {**(subscription.metadata_ or {}), "billingCycle": billing_cycle}
         subscription.updated_at = now
         transaction.subscription_id = subscription.id
         await self.session.flush()
@@ -307,8 +330,13 @@ class BillingService:
             "renewalDate": subscription.current_period_end if is_pro and subscription else None,
             "cancelAtPeriodEnd": subscription.cancel_at_period_end if subscription else False,
             "provider": subscription.provider if subscription else "manual",
-            "priceInr": self.settings.pro_monthly_price_inr,
+            "priceInr": self._plan_for_cycle((subscription.metadata_ or {}).get("billingCycle", "monthly") if subscription else "monthly")["priceInr"],
         }
+
+    def _plan_for_cycle(self, billing_cycle: str) -> dict:
+        if billing_cycle == "yearly":
+            return {"priceInr": self.settings.pro_yearly_price_inr, "interval": "year"}
+        return {"priceInr": self.settings.pro_monthly_price_inr, "interval": "month"}
 
     @staticmethod
     def is_pro(subscription: Subscription | None) -> bool:

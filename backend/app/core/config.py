@@ -75,6 +75,7 @@ class Settings(BaseSettings):
     razorpay_key_id: str = ""
     razorpay_key_secret: str = ""
     pro_monthly_price_inr: int = 399
+    pro_yearly_price_inr: int = 3999
     founder_analytics_emails: str = ""
 
     @property
@@ -103,6 +104,8 @@ class Settings(BaseSettings):
     def validate_production_secrets(self) -> "Settings":
         if self.environment == "production" and self.jwt_secret_key == "dev-only-change-me":
             raise ValueError("JWT_SECRET_KEY must be set in production")
+        if self.environment == "production" and self.is_sqlite:
+            raise ValueError("DATABASE_URL must point to PostgreSQL in production")
         if self.environment == "production" and not (self.gemini_api_key or self.openai_api_key or self.anthropic_api_key):
             raise ValueError("At least one AI provider key must be set in production")
         return self

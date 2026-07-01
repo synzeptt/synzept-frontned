@@ -16,6 +16,7 @@ type Props = {
   value: string;
   onChange: (v: string) => void;
   onSubmit: () => void;
+  sidebarCollapsed?: boolean;
   disabled?: boolean;
   placeholder?: string;
   attachments?: AttachmentMetadata[];
@@ -89,7 +90,7 @@ export function ChatInput({
         setDragging(false);
       }}
       onDrop={handleDrop}
-      className="fixed bottom-0 left-0 right-0 z-30 border-t border-stone-200/80 bg-[#f8f7f3]/92 px-3 pb-3 pt-3 backdrop-blur-xl md:left-[320px] md:px-6"
+      className="absolute bottom-0 left-0 right-0 z-30 border-t border-stone-200/80 bg-[#f8f7f3]/92 px-3 pb-3 pt-3 backdrop-blur-xl md:px-6"
     >
       <div className="mx-auto max-w-3xl">
         <div className="relative rounded-2xl border border-stone-200 bg-white shadow-[0_18px_50px_rgba(28,25,23,0.10)]">

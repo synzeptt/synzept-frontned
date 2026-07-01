@@ -129,6 +129,18 @@ async def rename_conversation(
     return conversation
 
 
+@router.post("/{conversation_id}/duplicate", response_model=ConversationOut)
+async def duplicate_conversation(
+    conversation_id: UUID,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+):
+    conversation = await ConversationService(session).duplicate(user.id, conversation_id)
+    if not conversation:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    return conversation
+
+
 @router.patch("/{conversation_id}/pin", response_model=ConversationOut)
 async def pin_conversation(
     conversation_id: UUID,

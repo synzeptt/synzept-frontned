@@ -6,6 +6,7 @@ from pydantic import AliasChoices, BaseModel, Field
 
 
 PlanType = Literal["free", "pro"]
+BillingCycle = Literal["monthly", "yearly"]
 SubscriptionStatus = Literal["inactive", "active", "canceled", "past_due"]
 
 
@@ -14,6 +15,8 @@ class BillingPlanOut(BaseModel):
     name: str
     priceInr: int
     interval: str = "month"
+    billingCycle: BillingCycle = "monthly"
+    savings: str | None = None
     benefits: list[str] = Field(default_factory=list)
 
 
@@ -50,6 +53,7 @@ class BillingOverviewOut(BaseModel):
 
 class CheckoutCreateIn(BaseModel):
     planType: Literal["pro"] = Field(default="pro", validation_alias=AliasChoices("planType", "plan_type"))
+    billingCycle: BillingCycle = Field(default="monthly", validation_alias=AliasChoices("billingCycle", "billing_cycle", "interval"))
 
 
 class CheckoutCreateOut(BaseModel):
@@ -60,6 +64,7 @@ class CheckoutCreateOut(BaseModel):
     amount: int
     currency: str = "INR"
     planType: Literal["pro"] = "pro"
+    billingCycle: BillingCycle = "monthly"
     priceInr: int
     description: str
 

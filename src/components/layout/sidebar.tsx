@@ -2,17 +2,16 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, CalendarDays, LayoutDashboard, MessageSquare, Settings } from "lucide-react";
+import { BookOpen, LayoutDashboard, MessageSquare, Settings } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { UpgradeCta } from "@/components/pro/upgrade-cta";
 import { cn } from "@/lib/cn";
 import { useAuthStore } from "@/stores/auth";
 
 const links = [
-  { href: "/dashboard", label: "Home", icon: LayoutDashboard },
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/chat", label: "Chat", icon: MessageSquare },
-  { href: "/memory", label: "Memory", icon: BookOpen },
-  { href: "/daily-brief", label: "Daily Brief", icon: CalendarDays },
+  { href: "/memory", label: "Synzept Knows You", icon: BookOpen },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
@@ -62,7 +61,7 @@ export function Sidebar() {
       </div>
 
       <p className="px-5 py-4 text-[11px] leading-relaxed text-muted">
-        Memory · Context · Continuity
+        Synzept Knows You · Context · Continuity
       </p>
     </aside>
   );

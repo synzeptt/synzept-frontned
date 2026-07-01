@@ -249,13 +249,24 @@ export type Project = {
   name: string;
   description: string;
   currentFocus: string;
+  current_focus?: string;
   recommendedNextStep: string;
+  recommended_next_step?: string;
   status: "active" | "paused" | "completed" | "archived" | string;
   context_summary: string | null;
   created_at: string;
   createdAt?: string;
   updatedAt?: string;
 };
+
+function normalizeProject(project: Project): Project {
+  return {
+    ...project,
+    description: project.description ?? "",
+    currentFocus: project.currentFocus ?? project.current_focus ?? "",
+    recommendedNextStep: project.recommendedNextStep ?? project.recommended_next_step ?? "",
+  };
+}
 
 export type OpenLoop = {
   id: string;
@@ -1155,6 +1166,8 @@ export type BillingPlan = {
   name: string;
   priceInr: number;
   interval: string;
+  billingCycle?: "monthly" | "yearly";
+  savings?: string | null;
   benefits: string[];
 };
 
@@ -1185,6 +1198,7 @@ export type CheckoutSession = {
   amount: number;
   currency: string;
   planType: "pro";
+  billingCycle?: "monthly" | "yearly";
   priceInr: number;
   description: string;
 };
@@ -1534,10 +1548,10 @@ export const api = {
 
   getBilling: () => request<BillingOverview>("/api/billing"),
 
-  createCheckout: (planType: "pro" = "pro") =>
+  createCheckout: (planType: "pro" = "pro", billingCycle: "monthly" | "yearly" = "monthly") =>
     request<CheckoutSession>("/api/create-order", {
       method: "POST",
-      body: JSON.stringify({ planType }),
+      body: JSON.stringify({ planType, billingCycle }),
     }),
 
   verifyPayment: (data: { checkoutId: string; providerOrderId: string; providerPaymentId: string; providerSignature: string }) =>
@@ -1936,21 +1950,38 @@ export const api = {
   deleteNote: (id: string) =>
     request<{ ok: boolean }>(`/api/v1/notes/${id}`, { method: "DELETE" }),
 
-  listProjects: () => request<Project[]>("/api/projects"),
+  listProjects: async () => (await request<Project[]>("/api/v1/projects")).map(normalizeProject),
 
   createProject: (data: { name: string; description?: string; currentFocus?: string; recommendedNextStep?: string; status?: string }) =>
-    request<Project>("/api/projects", { method: "POST", body: JSON.stringify(data) }),
+    request<Project>("/api/v1/projects", {
+      method: "POST",
+      body: JSON.stringify({
+        name: data.name,
+        description: data.description,
+        current_focus: data.currentFocus,
+        recommended_next_step: data.recommendedNextStep,
+      }),
+    }).then(normalizeProject),
 
-  getProject: (id: string) => request<Project>(`/api/projects/${id}`),
+  getProject: (id: string) => request<Project>(`/api/v1/projects/${id}`).then(normalizeProject),
 
   updateProject: (id: string, data: Partial<Pick<Project, "name" | "description" | "currentFocus" | "recommendedNextStep" | "status">>) =>
-    request<Project>(`/api/projects/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+    request<Project>(`/api/v1/projects/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        name: data.name,
+        description: data.description,
+        current_focus: data.currentFocus,
+        recommended_next_step: data.recommendedNextStep,
+        status: data.status,
+      }),
+    }).then(normalizeProject),
 
   archiveProject: (id: string) =>
-    request<{ ok: boolean }>(`/api/projects/${id}`, { method: "DELETE" }),
+    request<Project>(`/api/v1/projects/${id}/archive`, { method: "PATCH" }).then(normalizeProject),
 
   deleteProject: (id: string) =>
-    request<{ ok: boolean }>(`/api/projects/${id}`, { method: "DELETE" }),
+    request<{ ok: boolean }>(`/api/v1/projects/${id}`, { method: "DELETE" }),
 
   listOpenLoops: (projectId: string) => request<OpenLoop[]>(`/api/projects/${projectId}/open-loops`),
 
@@ -2081,6 +2112,9 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify({ title }),
     }),
+
+  duplicateConversation: (conversationId: string) =>
+    request<Conversation>(`/api/v1/conversations/${conversationId}/duplicate`, { method: "POST" }),
 
   archiveConversation: (conversationId: string) =>
     request<Conversation>(`/api/v1/conversations/${conversationId}/archive`, { method: "PATCH" }),

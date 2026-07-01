@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { Bell, BookOpen, CalendarDays, ChevronDown, ChevronUp, Home, Menu, MessageSquare, Settings, X } from "lucide-react";
+import { Bell, BookOpen, ChevronDown, ChevronUp, Home, Menu, MessageSquare, Settings, X } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { CopyrightLine } from "@/components/copyright-line";
 import { MobileNav } from "@/components/layout/mobile-nav";
@@ -19,10 +19,9 @@ import { cn } from "@/lib/cn";
 import { useWorkspaceUIStore } from "@frontend/store/workspace-ui";
 
 const navItems = [
-  { href: "/dashboard", label: "Home", icon: Home },
+  { href: "/dashboard", label: "Dashboard", icon: Home },
   { href: "/chat", label: "Chat", icon: MessageSquare },
-  { href: "/memory", label: "Memory", icon: BookOpen },
-  { href: "/daily-brief", label: "Daily Brief", icon: CalendarDays },
+  { href: "/memory", label: "Synzept Knows You", icon: BookOpen },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
@@ -67,15 +66,6 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   }
 
   if (!isAuthenticated) return null;
-
-  if (pathname === "/chat") {
-    return (
-      <div className="h-[100dvh] overflow-hidden bg-surface text-stone-900">
-        {children}
-        <UsageTracker />
-      </div>
-    );
-  }
 
   const sidebar = (
     <aside className="flex h-full w-[264px] shrink-0 flex-col border-r border-border bg-white">

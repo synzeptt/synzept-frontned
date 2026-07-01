@@ -340,11 +340,11 @@ function AgentBrief({ context, actionBusy, onAction }: { context: AgentContext; 
   return (
     <section className="rounded-lg border border-border bg-white p-4 shadow-soft">
       <div className="grid gap-3 lg:grid-cols-[1fr_1fr]">
-        <EssentialsCard label="Current Goal" value={context.goal} icon={<Target className="h-4 w-4" />} href="/knows-you" />
+        <EssentialsCard label="Current Goal" value={context.goal} icon={<Target className="h-4 w-4" />} href="/memory" />
         <EssentialsCard label="Current Focus" value={context.workingOn} icon={<FolderKanban className="h-4 w-4" />} href={context.workingHref} />
       </div>
       <div className="mt-3 grid gap-3 lg:grid-cols-[1fr_1.2fr]">
-        <EssentialsCard label="Biggest Blocker" value={context.blocker} icon={<CircleHelp className="h-4 w-4" />} href="/knows-you" />
+        <EssentialsCard label="Biggest Blocker" value={context.blocker} icon={<CircleHelp className="h-4 w-4" />} href="/memory" />
         <EssentialsCard label="Recommended Next Action" value={context.nextStep} icon={<ArrowRight className="h-4 w-4" />} href={context.nextHref} strong />
       </div>
       <div className="mt-4 border-t border-border pt-4">
@@ -443,7 +443,7 @@ function AgentSupportPanel({ context, projects }: { context: AgentContext; proje
         </div>
       </section>
 
-      <Link href="/knows-you" className="flex items-center justify-between rounded-lg border border-border bg-white p-4 text-sm font-medium text-stone-950 shadow-soft hover:bg-stone-50">
+      <Link href="/memory" className="flex items-center justify-between rounded-lg border border-border bg-white p-4 text-sm font-medium text-stone-950 shadow-soft hover:bg-stone-50">
         Review what Synzept knows
         <ArrowRight className="h-4 w-4" />
       </Link>

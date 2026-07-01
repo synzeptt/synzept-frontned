@@ -60,6 +60,9 @@ class _Session:
                 self.projects[item.id] = item
         self.added = []
 
+    async def refresh(self, item):
+        item.updated_at = item.updated_at or datetime.now(timezone.utc)
+
     async def execute(self, statement):
         entity = statement.column_descriptions[0]["entity"]
         params = statement.compile().params
@@ -238,6 +241,33 @@ async def test_move_conversation_to_project_updates_project_link():
 
     assert cleared is not None
     assert conversation.project_id is None
+
+
+@pytest.mark.asyncio
+async def test_duplicate_conversation_copies_messages_and_project():
+    session = _Session()
+    user_id = uuid4()
+    project = Project(id=uuid4(), user_id=user_id, name="Research", deleted_at=None)
+    conversation = _conversation(user_id, title="Original", project_id=project.id, summary="A useful thread")
+    session.projects[project.id] = project
+    session.conversations[conversation.id] = conversation
+
+    first = await MessageService(session).create(user_id, conversation.id, "user", "hello", metadata={"source": "test"})
+    second = await MessageService(session).create(user_id, conversation.id, "assistant", "hi")
+    first.created_at = datetime.now(timezone.utc) - timedelta(minutes=1)
+
+    duplicate = await ConversationService(session).duplicate(user_id, conversation.id)
+
+    assert duplicate is not None
+    messages = await MessageService(session).list(user_id, duplicate.id)
+    assert duplicate.id != conversation.id
+    assert duplicate.project_id == project.id
+    assert duplicate.title == "Original copy"
+    assert [message.content for message in messages] == ["hello", "hi"]
+    assert messages[0].metadata_ == {"source": "test"}
+    assert messages[0].conversation_id == duplicate.id
+    assert messages[1].conversation_id == duplicate.id
+    assert second.conversation_id == conversation.id
 
 
 @pytest.mark.asyncio

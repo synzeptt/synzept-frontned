@@ -117,8 +117,8 @@ export default function PricingPage() {
               price="₹399"
               cadence="per month"
               features={proFeatures}
-              cta="Upgrade To Pro"
-              href="/billing"
+              cta="Sign In To Upgrade"
+              href="/login"
               featured
             />
           </div>
@@ -156,8 +156,8 @@ export default function PricingPage() {
             </p>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row lg:justify-end">
-            <TrackedLink href="/billing" eventType="upgrade_clicked" surface="pricing" metadata={{ placement: "bottom_cta" }} className={buttonVariants({ size: "lg", className: "gap-2" })}>
-              Upgrade To Pro
+            <TrackedLink href="/login" eventType="upgrade_clicked" surface="pricing" metadata={{ placement: "bottom_cta" }} className={buttonVariants({ size: "lg", className: "gap-2" })}>
+              Sign In To Upgrade
               <ArrowRight className="h-4 w-4" />
             </TrackedLink>
             <Link href="/signup" className={buttonVariants({ variant: "outline", size: "lg" })}>

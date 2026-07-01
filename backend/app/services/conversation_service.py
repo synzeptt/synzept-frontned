@@ -5,6 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.conversation import Conversation
+from app.models.message import Message
 from app.models.project import Project
 
 
@@ -86,7 +87,42 @@ class ConversationService:
             return None
         conversation.title = title
         await self.session.flush()
+        await self.session.refresh(conversation)
         return conversation
+
+    async def duplicate(self, user_id: UUID, conversation_id: UUID) -> Conversation | None:
+        conversation = await self.get(user_id, conversation_id)
+        if not conversation:
+            return None
+
+        duplicate = Conversation(
+            user_id=user_id,
+            project_id=conversation.project_id,
+            title=f"{conversation.title or 'Untitled conversation'} copy",
+            summary=conversation.summary,
+            conversation_type=conversation.conversation_type,
+        )
+        self.session.add(duplicate)
+        await self.session.flush()
+
+        result = await self.session.execute(
+            select(Message).where(Message.conversation_id == conversation_id).order_by(Message.created_at.asc())
+        )
+        for message in result.scalars().all():
+            self.session.add(
+                Message(
+                    conversation_id=duplicate.id,
+                    role=message.role,
+                    content=message.content,
+                    token_count=message.token_count,
+                    provider_name=message.provider_name,
+                    model_name=message.model_name,
+                    metadata_=message.metadata_ or {},
+                )
+            )
+        await self.session.flush()
+        await self.session.refresh(duplicate)
+        return duplicate
 
     async def move_to_project(
         self,
@@ -101,6 +137,7 @@ class ConversationService:
             return None
         conversation.project_id = project_id
         await self.session.flush()
+        await self.session.refresh(conversation)
         return conversation
 
     async def archive(self, user_id: UUID, conversation_id: UUID) -> Conversation | None:
@@ -110,6 +147,7 @@ class ConversationService:
         conversation.archived_at = datetime.now(timezone.utc)
         conversation.is_active = False
         await self.session.flush()
+        await self.session.refresh(conversation)
         return conversation
 
     async def update_summary(self, user_id: UUID, conversation_id: UUID, summary: str | None) -> Conversation | None:
@@ -118,6 +156,7 @@ class ConversationService:
             return None
         conversation.summary = summary
         await self.session.flush()
+        await self.session.refresh(conversation)
         return conversation
 
     async def delete(self, user_id: UUID, conversation_id: UUID) -> Conversation | None:
@@ -127,6 +166,7 @@ class ConversationService:
         conversation.deleted_at = datetime.now(timezone.utc)
         conversation.is_active = False
         await self.session.flush()
+        await self.session.refresh(conversation)
         return conversation
 
     async def pin(self, user_id: UUID, conversation_id: UUID, pinned: bool) -> Conversation | None:
@@ -135,6 +175,7 @@ class ConversationService:
             return None
         conversation.pinned = pinned
         await self.session.flush()
+        await self.session.refresh(conversation)
         return conversation
 
     async def _user_owns_project(self, user_id: UUID, project_id: UUID) -> bool:

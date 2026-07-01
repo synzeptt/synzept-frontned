@@ -15,6 +15,7 @@ def _service() -> BillingService:
         razorpay_key_id="rzp_live_testkey",
         razorpay_key_secret="live-secret",
         pro_monthly_price_inr=399,
+        pro_yearly_price_inr=3999,
     )
     return service
 
@@ -44,6 +45,8 @@ def test_razorpay_ready_requires_live_key() -> None:
 def test_checkout_create_accepts_plan_type_aliases() -> None:
     assert CheckoutCreateIn.model_validate({"planType": "pro"}).planType == "pro"
     assert CheckoutCreateIn.model_validate({"plan_type": "pro"}).planType == "pro"
+    assert CheckoutCreateIn.model_validate({"planType": "pro", "billingCycle": "yearly"}).billingCycle == "yearly"
+    assert CheckoutCreateIn.model_validate({"plan_type": "pro", "billing_cycle": "monthly"}).billingCycle == "monthly"
 
 
 def test_payment_verify_accepts_razorpay_standard_payload() -> None:
