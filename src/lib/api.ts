@@ -1,13 +1,8 @@
 const configuredApiBase = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
-const LOCAL_API_BASE = "http://localhost:8000";
 
 function apiBase(): string {
-  if (
-    typeof window !== "undefined" &&
-    /^localhost$|^127\.0\.0\.1$/.test(window.location.hostname) &&
-    (!configuredApiBase || !/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(configuredApiBase))
-  ) {
-    return LOCAL_API_BASE;
+  if (!configuredApiBase) {
+    throw new Error("NEXT_PUBLIC_API_URL is not configured.");
   }
   return configuredApiBase;
 }
@@ -18,9 +13,6 @@ const REFRESH_TOKEN_MAX_AGE_SECONDS = 60 * 60 * 24 * 7;
 
 function backendUrl(path: string): string {
   const base = apiBase();
-  if (!base) {
-    throw new Error("Synzept is missing its backend URL. Set NEXT_PUBLIC_API_URL and redeploy.");
-  }
   return `${base}${path}`;
 }
 
