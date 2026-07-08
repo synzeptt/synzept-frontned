@@ -1,6 +1,9 @@
 .git
 .next
 node_modules
+apps
+frontend-v2
+frontend/src/app
 backend/venv
 backend/__pycache__
 backend/**/__pycache__

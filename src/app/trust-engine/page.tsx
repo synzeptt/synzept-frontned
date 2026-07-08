@@ -104,7 +104,7 @@ export default function TrustEnginePage() {
                   <div>
                     <p className="text-sm font-semibold">Based on</p>
                     <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-stone-600">
-                      {item.basedOn.map((entry) => <li key={entry}>{entry}</li>)}
+                      {[...item.supportingEvidence.map((entry) => entry.title), ...item.relatedDecisions].map((entry) => <li key={entry}>{entry}</li>)}
                     </ul>
                   </div>
                   <div>

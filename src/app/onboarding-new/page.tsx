@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { OnboardingLayout } from "@/components/onboarding/OnboardingLayout";
 import { WelcomeScreen } from "@/components/onboarding/WelcomeScreen";
 import { ProgressHeader } from "@/components/onboarding/ProgressHeader";
 import { OptionCard } from "@/components/onboarding/OptionCard";

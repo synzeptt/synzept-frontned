@@ -34,7 +34,6 @@ export default function DailyBriefPage() {
                 reason={highestPriority.reason}
                 impact={highestPriority.impact}
                 actionLabel={highestPriority.actionLabel}
-                onContinue={() => undefined}
               />
               <RecentChanges items={sinceLastVisit} />
             </div>
