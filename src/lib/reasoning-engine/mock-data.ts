@@ -1,0 +1,85 @@
+import type { ReasoningEngineMock } from "./types";
+
+export const reasoningEngineMock: ReasoningEngineMock = {
+  requestId: "reasoning-example-001",
+  generatedAt: "2026-07-08T11:00:00+05:30",
+  pipeline: [
+    { name: "Intent Analysis", component: "IntentAnalyzer", status: "completed", summary: "Classified the request as decision support.", confidence: 0.86 },
+    { name: "Context Retrieval", component: "ContextRetriever", status: "completed", summary: "Loaded current mission and Sprint 1 dataset context.", confidence: 0.9 },
+    { name: "Memory Retrieval", component: "MemoryRetriever", status: "completed", summary: "Found memory principles about review gates and LLM boundaries.", confidence: 0.95 },
+    { name: "Knowledge Graph Lookup", component: "KnowledgeRetriever", status: "completed", summary: "Matched reasoning-first and approval-boundary knowledge nodes.", confidence: 0.89 },
+    { name: "Decision History Lookup", component: "DecisionAnalyzer", status: "completed", summary: "Matched similar decisions about review before graph save.", confidence: 0.86 },
+    { name: "Evidence Collection", component: "EvidenceCollector", status: "completed", summary: "Collected six supporting evidence items.", confidence: 0.88 },
+    { name: "Risk Analysis", component: "RiskAnalyzer", status: "completed", summary: "Identified LLM overreach and premature recommendation risk.", confidence: 0.84 },
+    { name: "Opportunity Analysis", component: "OpportunityAnalyzer", status: "completed", summary: "Found reusable reasoning-contract opportunities.", confidence: 0.83 },
+    { name: "Planning", component: "Planner", status: "completed", summary: "Produced structured response plan before LLM handoff.", confidence: 0.88 },
+    { name: "Response Generation", component: "ResponseComposer", status: "completed", summary: "Prepared language-only handoff and draft response.", confidence: 0.87 },
+  ],
+  intent: {
+    intent: "decision_support",
+    objective: "Help choose a next step with evidence and risk awareness.",
+    urgency: "medium",
+    confidence: 0.86,
+    signals: ["should", "recommend"],
+  },
+  context: [
+    { id: "ctx-current-mission", type: "mission", title: "Decision Intelligence foundation", summary: "Synzept is building a reasoning-first layer that improves decisions before language generation.", relevance: 0.91, source: "workspace_home" },
+    { id: "ctx-sprint-1-dataset", type: "pipeline", title: "Sprint 1 Intelligence Dataset Pipeline", summary: "Conversations are converted into reviewable goals, decisions, and tasks before graph save.", relevance: 0.88, source: "intelligence_dataset" },
+  ],
+  memories: [
+    { id: "mem-llm-language-only", type: "memory", title: "LLM should generate language, not product decisions", summary: "Planning and recommendation selection should happen in structured reasoning services.", relevance: 0.96, source: "product_principle" },
+    { id: "mem-review-before-save", type: "memory", title: "Never auto-save high-impact knowledge", summary: "High-impact extracted goals and decisions require user confirmation before persistence.", relevance: 0.94, source: "memory_feed" },
+  ],
+  knowledge: [
+    { id: "kg-reasoning-first", type: "knowledge", title: "Reasoning-first architecture", summary: "Separate intent, retrieval, evidence, risk, opportunity, and planning before response composition.", relevance: 0.92, source: "knowledge_graph" },
+  ],
+  decisions: [
+    { id: "decision-review-before-graph-save", type: "decision", title: "Require review before graph save", summary: "Extracted high-impact knowledge must be approved before it becomes a graph node.", relevance: 0.89, source: "decision_history" },
+    { id: "decision-modular-extractors", type: "decision", title: "Use independent extractors", summary: "Goal, decision, and task extraction modules should be independently testable.", relevance: 0.82, source: "decision_history" },
+  ],
+  evidence: [
+    { id: "evidence-mem-llm-language-only", claim: "Planning and recommendation selection should happen in structured reasoning services.", source: "product_principle", strength: 0.96, supports: "mem-llm-language-only" },
+    { id: "evidence-kg-reasoning-first", claim: "Separate retrieval, evidence, risk, opportunity, and planning before response composition.", source: "knowledge_graph", strength: 0.92, supports: "kg-reasoning-first" },
+    { id: "evidence-decision-review", claim: "Extracted high-impact knowledge must be approved before graph save.", source: "decision_history", strength: 0.89, supports: "decision-review-before-graph-save" },
+  ],
+  risks: [
+    { id: "risk-llm-overreach", title: "LLM may invent product decisions without a plan", severity: "high", likelihood: 0.58, mitigation: "Pass a structured plan and guardrails into composition." },
+    { id: "risk-insufficient-context", title: "Recommendation may be premature if objective is underspecified", severity: "medium", likelihood: 0.24, mitigation: "Ask a clarifying question when plan confidence is low." },
+  ],
+  opportunities: [
+    { id: "opp-reasoning-contract", title: "Create a durable reasoning contract before LLM generation", expectedImpact: 0.88, rationale: "The plan can be tested independently and reused by future response surfaces." },
+  ],
+  plan: {
+    hasEnoughInformation: true,
+    clarificationNeeded: false,
+    clarificationQuestion: null,
+    relevantMemoryIds: ["mem-llm-language-only", "mem-review-before-save"],
+    similarDecisionIds: ["decision-review-before-graph-save", "decision-modular-extractors"],
+    evidenceIds: ["evidence-mem-llm-language-only", "evidence-kg-reasoning-first", "evidence-decision-review"],
+    risksToMention: ["risk-llm-overreach", "risk-insufficient-context"],
+    opportunitiesToMention: ["opp-reasoning-contract"],
+    recommendation: "Proceed with a structured answer and include the reasoning plan, evidence, risks, and one next action.",
+    responseStrategy: "reasoned_recommendation",
+    llmInstructions: ["Preserve the planner recommendation.", "Do not introduce unsupported decisions.", "Mention evidence and risks in plain language."],
+  },
+  llmHandoff: {
+    role: "language_generation_only",
+    structuredContext: { intent: "decision_support", memoryIds: ["mem-llm-language-only", "mem-review-before-save"] },
+    reasoningPlan: {
+      hasEnoughInformation: true,
+      clarificationNeeded: false,
+      clarificationQuestion: null,
+      relevantMemoryIds: ["mem-llm-language-only", "mem-review-before-save"],
+      similarDecisionIds: ["decision-review-before-graph-save", "decision-modular-extractors"],
+      evidenceIds: ["evidence-mem-llm-language-only", "evidence-kg-reasoning-first", "evidence-decision-review"],
+      risksToMention: ["risk-llm-overreach", "risk-insufficient-context"],
+      opportunitiesToMention: ["opp-reasoning-contract"],
+      recommendation: "Proceed with a structured answer and include the reasoning plan, evidence, risks, and one next action.",
+      responseStrategy: "reasoned_recommendation",
+      llmInstructions: ["Preserve the planner recommendation.", "Do not introduce unsupported decisions.", "Mention evidence and risks in plain language."],
+    },
+    supportingEvidence: [],
+    guardrails: ["LLM must not change planner recommendation.", "LLM must not claim access to production data.", "LLM must ask clarification if the plan requires it."],
+  },
+  composedResponse: "Recommendation: Proceed with a structured answer and include the reasoning plan, evidence, risks, and one next action.",
+};

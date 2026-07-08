@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "src/app/(os)/intelligence-dataset/page.tsx",
+    "src/components/intelligence-dataset/**/*.tsx",
+    "src/lib/intelligence-dataset/**/*.ts",
+    "src/components/ui/button.tsx",
+    "src/components/layout/page-frame.tsx"
+  ],
+  "exclude": ["node_modules"]
+}

@@ -1,6 +1,6 @@
 """Synzept Memory & Context Intelligence System."""
 
-__all__ = ["MemoryEngine", "ContextEngine", "MemoryRetrievalPipeline"]
+__all__ = ["MemoryEngine", "ContextEngine", "MemoryRetrievalPipeline", "MemoryIntelligenceEngine"]
 
 
 def __getattr__(name: str):
@@ -16,4 +16,8 @@ def __getattr__(name: str):
         from app.memory.pipeline import MemoryRetrievalPipeline
 
         return MemoryRetrievalPipeline
+    if name == "MemoryIntelligenceEngine":
+        from app.memory.intelligence_engine import MemoryIntelligenceEngine
+
+        return MemoryIntelligenceEngine
     raise AttributeError(name)

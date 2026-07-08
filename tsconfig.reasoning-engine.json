@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "src/app/(os)/reasoning-engine/page.tsx",
+    "src/components/reasoning-engine/**/*.tsx",
+    "src/lib/reasoning-engine/**/*.ts",
+    "src/components/layout/page-frame.tsx"
+  ],
+  "exclude": ["node_modules"]
+}

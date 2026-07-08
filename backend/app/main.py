@@ -16,9 +16,32 @@ from app.api import (
     context_engine_phase6,
     continuity_assistant_phase7,
     daily_brief_phase8,
+    decision_graph,
+    decision_intelligence,
+    decision_simulator,
+    evolution_engine,
     home,
+    intelligence_dataset,
+    intelligence_loop,
+    life_graph,
+    memory_feed,
+    opportunity,
+    action_center,
+    pkm,
+    privacy_intelligence,
+    reasoning_engine,
+    skills,
+    skill_marketplace,
+    synzept_protocol,
+    time_machine,
+    trust_engine,
+    workspace_os,
+    agent_runtime,
+    coach,
+    onboarding_wow,
     knows_you,
     learning_engine_phase4,
+    learning_evaluation,
     notifications,
     open_loops_engine,
     product_analytics,
@@ -121,14 +144,37 @@ app.include_router(knows_you.router)
 app.include_router(project_intelligence_phase2.router)
 app.include_router(timeline_phase3.router)
 app.include_router(learning_engine_phase4.router)
+app.include_router(learning_evaluation.router)
 app.include_router(relationship_graph_phase5.router)
 app.include_router(context_engine_phase6.router)
 app.include_router(daily_engine.router)
 app.include_router(continuity_assistant_phase7.router)
 app.include_router(daily_brief_phase8.router)
+app.include_router(decision_graph.router)
+app.include_router(decision_intelligence.router)
+app.include_router(decision_simulator.router)
 app.include_router(open_loops_engine.router)
 app.include_router(notifications.router)
 app.include_router(product_analytics.router)
+app.include_router(evolution_engine.router)
+app.include_router(intelligence_dataset.router)
+app.include_router(intelligence_loop.router)
+app.include_router(life_graph.router)
+app.include_router(memory_feed.router)
+app.include_router(opportunity.router)
+app.include_router(action_center.router)
+app.include_router(pkm.router)
+app.include_router(privacy_intelligence.router)
+app.include_router(reasoning_engine.router)
+app.include_router(skills.router)
+app.include_router(skill_marketplace.router)
+app.include_router(synzept_protocol.router)
+app.include_router(time_machine.router)
+app.include_router(trust_engine.router)
+app.include_router(workspace_os.router)
+app.include_router(agent_runtime.router)
+app.include_router(coach.router)
+app.include_router(onboarding_wow.router)
 
 
 @app.get("/health")

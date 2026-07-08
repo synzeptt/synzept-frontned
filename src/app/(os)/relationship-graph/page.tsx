@@ -1,30 +1,24 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { type PointerEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Activity, ArrowRight, GitBranch, Network, RefreshCw, Search } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { ProGate } from "@/components/pro/pro-gate";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { api, type GraphAnswer, type RelationshipEdge, type RelationshipGraph, type RelationshipInsight, type RelationshipNode } from "@/lib/api";
+import { api, type GraphAnswer, type RelationshipEdge, type RelationshipGraph, type RelationshipInsight, type RelationshipNode, type RelationshipNeighborhood } from "@/lib/api";
 import { cn } from "@/lib/cn";
 
 const nodeOrder = ["goal", "project", "task", "person", "decision", "open_loop", "knowledge", "conversation", "timeline_event", "note", "memory", "user"];
-const visualLayers = [
-  { label: "Goals", types: ["goal"] },
-  { label: "Projects", types: ["project"] },
-  { label: "Tasks", types: ["task"] },
-  { label: "People", types: ["person"] },
-  { label: "Decisions", types: ["decision"] },
-  { label: "Open Loops", types: ["open_loop"] },
-  { label: "Knowledge", types: ["knowledge", "memory", "note", "conversation"] },
-];
 
 export default function RelationshipGraphPage() {
   const [graph, setGraph] = useState<RelationshipGraph>({ nodes: [], edges: [] });
   const [insights, setInsights] = useState<RelationshipInsight[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filter, setFilter] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [neighborhood, setNeighborhood] = useState<RelationshipNeighborhood | null>(null);
+  const [loadingNeighborhood, setLoadingNeighborhood] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -35,8 +29,8 @@ export default function RelationshipGraphPage() {
   const nodeById = useMemo(() => new Map(graph.nodes.map((node) => [node.id, node])), [graph.nodes]);
   const selected = selectedId ? nodeById.get(selectedId) || null : graph.nodes[0] || null;
   const visibleNodes = useMemo(
-    () => graph.nodes.filter((node) => filter === "all" || node.nodeType === filter),
-    [filter, graph.nodes],
+    () => graph.nodes.filter((node) => (filter === "all" || node.nodeType === filter) && (!searchQuery.trim() || `${node.title} ${node.description}`.toLowerCase().includes(searchQuery.toLowerCase()))),
+    [filter, graph.nodes, searchQuery],
   );
   const relatedEdges = useMemo(
     () => graph.edges.filter((edge) => selected && (edge.sourceNodeId === selected.id || edge.targetNodeId === selected.id)),
@@ -55,6 +49,10 @@ export default function RelationshipGraphPage() {
     graph.nodes.forEach((node) => values.set(node.nodeType, (values.get(node.nodeType) || 0) + 1));
     return values;
   }, [graph.nodes]);
+  const neighborhoodNodeIds = useMemo(
+    () => new Set(neighborhood?.relatedNodes.map((node) => node.id) ?? []),
+    [neighborhood],
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -94,6 +92,26 @@ export default function RelationshipGraphPage() {
       setRefreshing(false);
     }
   }
+
+  async function loadNeighborhood(nodeId: string) {
+    setLoadingNeighborhood(true);
+    try {
+      setNeighborhood(await api.getRelationshipNeighborhood(nodeId));
+    } catch {
+      setMessage("Could not load node neighborhood.");
+      setNeighborhood(null);
+    } finally {
+      setLoadingNeighborhood(false);
+    }
+  }
+
+  useEffect(() => {
+    if (selectedId) {
+      loadNeighborhood(selectedId);
+    } else {
+      setNeighborhood(null);
+    }
+  }, [selectedId]);
 
   async function askGraph() {
     if (!question.trim()) return;
@@ -140,9 +158,25 @@ export default function RelationshipGraphPage() {
         </section>
 
         <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
-          <VisualGraph nodes={graph.nodes} edges={graph.edges} selectedId={selected?.id || null} onSelect={setSelectedId} />
+          <VisualGraph
+            nodes={graph.nodes}
+            edges={graph.edges}
+            selectedId={selected?.id || null}
+            neighborhoodNodeIds={neighborhoodNodeIds}
+            onSelect={setSelectedId}
+          />
           <section className="rounded-lg border border-border bg-white p-4 shadow-soft">
-            <p className="text-sm font-semibold text-stone-950">Ask the Graph</p>
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-semibold text-stone-950">Ask the Graph</p>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => selected?.id && loadNeighborhood(selected.id)}
+                disabled={!selected || loadingNeighborhood}
+              >
+                {loadingNeighborhood ? "Loading…" : "Expand neighbors"}
+              </Button>
+            </div>
             <div className="mt-3 space-y-2">
               <input
                 value={question}
@@ -187,26 +221,37 @@ export default function RelationshipGraphPage() {
               <p className="text-sm font-semibold text-stone-950">Connected Entities</p>
               <Badge variant="muted">{visibleNodes.length}</Badge>
             </div>
-            <div className="mt-3 grid gap-2 md:grid-cols-2">
-              {loading && <p className="text-sm text-muted">Loading graph...</p>}
-              {!loading && visibleNodes.map((node) => (
-                <button
-                  key={node.id}
-                  type="button"
-                  onClick={() => setSelectedId(node.id)}
-                  className={cn(
-                    "min-h-24 rounded-md border px-3 py-3 text-left transition",
-                    selected?.id === node.id ? "border-stone-900 bg-stone-50" : "border-stone-200 bg-white hover:bg-stone-50",
-                  )}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="line-clamp-2 text-sm font-medium text-stone-950">{node.title}</p>
-                    <Badge variant={node.nodeType === "open_loop" || node.nodeType === "decision" ? "accent" : "muted"}>{labelForType(node.nodeType)}</Badge>
-                  </div>
-                  <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted">{node.description || "No description captured."}</p>
-                </button>
-              ))}
-              {!loading && !visibleNodes.length && <p className="text-sm text-muted">Refresh the graph after creating workspace items.</p>}
+            <div className="mt-3 space-y-3">
+              <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+                <input
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  className="h-10 w-full rounded-md border border-border bg-white px-3 text-sm outline-none focus:border-accent/40 focus:ring-2 focus:ring-accent/10"
+                  placeholder="Search nodes by title or description"
+                />
+                <Button type="button" variant="outline" onClick={() => setSearchQuery("")}>Clear</Button>
+              </div>
+              <div className="grid gap-2 md:grid-cols-2">
+                {loading && <p className="text-sm text-muted">Loading graph...</p>}
+                {!loading && visibleNodes.map((node) => (
+                  <button
+                    key={node.id}
+                    type="button"
+                    onClick={() => setSelectedId(node.id)}
+                    className={cn(
+                      "min-h-24 rounded-md border px-3 py-3 text-left transition",
+                      selected?.id === node.id ? "border-stone-900 bg-stone-50" : "border-stone-200 bg-white hover:bg-stone-50",
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="line-clamp-2 text-sm font-medium text-stone-950">{node.title}</p>
+                      <Badge variant={node.nodeType === "open_loop" || node.nodeType === "decision" ? "accent" : "muted"}>{labelForType(node.nodeType)}</Badge>
+                    </div>
+                    <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted">{node.description || "No description captured."}</p>
+                  </button>
+                ))}
+                {!loading && !visibleNodes.length && <p className="text-sm text-muted">Refresh the graph after creating workspace items.</p>}
+              </div>
             </div>
           </div>
 
@@ -281,61 +326,167 @@ function VisualGraph({
   nodes,
   edges,
   selectedId,
+  neighborhoodNodeIds,
   onSelect,
 }: {
   nodes: RelationshipNode[];
   edges: RelationshipEdge[];
   selectedId: string | null;
+  neighborhoodNodeIds: Set<string>;
   onSelect: (id: string) => void;
 }) {
-  const edgeCounts = useMemo(() => {
-    const counts = new Map<string, number>();
-    edges.forEach((edge) => {
-      counts.set(edge.sourceNodeId, (counts.get(edge.sourceNodeId) || 0) + 1);
-      counts.set(edge.targetNodeId, (counts.get(edge.targetNodeId) || 0) + 1);
+  const canvasRef = useRef<HTMLDivElement | null>(null);
+  const dragStart = useRef<{ x: number; y: number } | null>(null);
+  const [scale, setScale] = useState(1);
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+
+  const layout = useMemo(() => {
+    const columns = nodeOrder.filter((type) => nodes.some((node) => node.nodeType === type));
+    const positions = new Map<string, { x: number; y: number }>();
+    columns.forEach((type, columnIndex) => {
+      const items = nodes
+        .filter((node) => node.nodeType === type)
+        .sort((a, b) => a.title.localeCompare(b.title));
+      items.forEach((node, rowIndex) => {
+        positions.set(node.id, {
+          x: columnIndex * 260 + 120,
+          y: rowIndex * 110 + 90,
+        });
+      });
     });
-    return counts;
-  }, [edges]);
+    const width = Math.max(960, columns.length * 260 + 160);
+    const height = Math.max(420, Math.max(...Array.from(positions.values()).map((pos) => pos.y + 120), 0));
+    return { positions, width, height, columns };
+  }, [nodes]);
+
+  const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    dragStart.current = { x: event.clientX, y: event.clientY };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const handlePointerMove = (event: PointerEvent<HTMLDivElement>) => {
+    if (!dragStart.current) {
+      return;
+    }
+    const deltaX = event.clientX - dragStart.current.x;
+    const deltaY = event.clientY - dragStart.current.y;
+    dragStart.current = { x: event.clientX, y: event.clientY };
+    setOffset((previous) => ({ x: previous.x + deltaX, y: previous.y + deltaY }));
+  };
+
+  const handlePointerUp = (event: PointerEvent<HTMLDivElement>) => {
+    dragStart.current = null;
+    event.currentTarget.releasePointerCapture(event.pointerId);
+  };
+
+  const handleWheel = (event: React.WheelEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const delta = -event.deltaY / 500;
+    setScale((current) => {
+      const next = Math.min(2.2, Math.max(0.55, current * (1 + delta)));
+      return Number(next.toFixed(3));
+    });
+  };
+
+  const resetView = () => {
+    setScale(1);
+    setOffset({ x: 0, y: 0 });
+  };
+
+  const selectedNode = selectedId ? nodes.find((node) => node.id === selectedId) : null;
 
   return (
     <section className="overflow-hidden rounded-lg border border-border bg-white p-4 shadow-soft">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-sm font-semibold text-stone-950">Context Graph</p>
-        <Badge variant="muted">Goal to knowledge path</Badge>
-      </div>
-      <div className="mt-4 overflow-x-auto">
-        <div className="grid min-w-[920px] grid-cols-7 gap-3">
-          {visualLayers.map((layer, index) => {
-            const layerNodes = nodes
-              .filter((node) => layer.types.includes(node.nodeType))
-              .sort((a, b) => (edgeCounts.get(b.id) || 0) - (edgeCounts.get(a.id) || 0))
-              .slice(0, 5);
-            return (
-              <div key={layer.label} className="relative">
-                {index < visualLayers.length - 1 && <div className="absolute left-[calc(100%+0.15rem)] top-10 hidden h-px w-3 bg-stone-200 lg:block" />}
-                <p className="mb-2 text-xs font-medium uppercase tracking-[0.12em] text-muted">{layer.label}</p>
-                <div className="space-y-2">
-                  {layerNodes.map((node) => (
-                    <button
-                      key={node.id}
-                      type="button"
-                      onClick={() => onSelect(node.id)}
-                      className={cn(
-                        "min-h-16 w-full rounded-md border px-2 py-2 text-left text-xs transition",
-                        selectedId === node.id ? "border-stone-900 bg-stone-100" : "border-stone-200 bg-stone-50 hover:bg-stone-100",
-                      )}
-                    >
-                      <span className="line-clamp-2 font-medium text-stone-950">{node.title}</span>
-                      <span className="mt-1 block text-[11px] text-muted">{edgeCounts.get(node.id) || 0} links</span>
-                    </button>
-                  ))}
-                  {!layerNodes.length && <div className="min-h-16 rounded-md border border-dashed border-stone-200 px-2 py-2 text-xs leading-5 text-muted">No {layer.label.toLowerCase()} yet</div>}
-                </div>
-              </div>
-            );
-          })}
+        <div>
+          <p className="text-sm font-semibold text-stone-950">Life Graph</p>
+          <p className="text-xs text-muted">Drag to pan, scroll to zoom, click a node to focus.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={resetView}>Reset</Button>
+          <Badge variant="muted">{nodes.length} entities</Badge>
         </div>
       </div>
+      <div
+        ref={canvasRef}
+        className="mt-4 min-h-[520px] overflow-hidden rounded-lg border border-stone-200 bg-stone-50 shadow-inner"
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerLeave={handlePointerUp}
+        onWheel={handleWheel}
+      >
+        <svg width="100%" height="520" viewBox={`0 0 ${layout.width} ${layout.height}`} className="block">
+          <defs>
+            <marker id="arrow" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto" markerUnits="strokeWidth">
+              <path d="M0,0 L6,3 L0,6" fill="#94a3b8" />
+            </marker>
+          </defs>
+          <g transform={`translate(${offset.x} ${offset.y}) scale(${scale})`}>
+            {layout.columns.map((type, index) => (
+              <g key={type}>
+                <text x={index * 260 + 120} y={30} textAnchor="middle" className="text-xs font-semibold fill-slate-500">
+                  {labelForType(type)}
+                </text>
+              </g>
+            ))}
+            {edges.map((edge) => {
+              const source = layout.positions.get(edge.sourceNodeId);
+              const target = layout.positions.get(edge.targetNodeId);
+              if (!source || !target) return null;
+              const isHighlighted = selectedId && (edge.sourceNodeId === selectedId || edge.targetNodeId === selectedId);
+              return (
+                <line
+                  key={edge.id}
+                  x1={source.x}
+                  y1={source.y}
+                  x2={target.x}
+                  y2={target.y}
+                  stroke={isHighlighted ? "#0f766e" : "#94a3b8"}
+                  strokeWidth={isHighlighted ? 2.3 : 1.3}
+                  opacity={isHighlighted ? 0.9 : 0.45}
+                  markerEnd="url(#arrow)"
+                />
+              );
+            })}
+            {nodes.map((node) => {
+              const position = layout.positions.get(node.id);
+              if (!position) return null;
+              const isSelected = node.id === selectedId;
+              const isNeighbor = neighborhoodNodeIds.has(node.id);
+              const fill = isSelected ? "#f8fafc" : isNeighbor ? "#f1f5f9" : "#ffffff";
+              const stroke = isSelected ? "#0f766e" : isNeighbor ? "#94a3b8" : "#cbd5e1";
+              return (
+                <g key={node.id} className="cursor-pointer" onClick={() => onSelect(node.id)}>
+                  <rect
+                    x={position.x - 90}
+                    y={position.y - 26}
+                    width={180}
+                    height={52}
+                    rx={14}
+                    fill={fill}
+                    stroke={stroke}
+                    strokeWidth={isSelected ? 2.5 : 1.5}
+                  />
+                  <text x={position.x} y={position.y - 4} textAnchor="middle" className="text-xs font-semibold fill-slate-950">
+                    {node.title.length > 25 ? `${node.title.slice(0, 24)}…` : node.title}
+                  </text>
+                  <text x={position.x} y={position.y + 14} textAnchor="middle" className="text-[11px] fill-slate-600">
+                    {labelForType(node.nodeType)}
+                  </text>
+                </g>
+              );
+            })}
+          </g>
+        </svg>
+      </div>
+      {selectedNode && (
+        <div className="mt-4 rounded-lg border border-border bg-stone-50 p-4 text-sm text-stone-700">
+          <p className="font-semibold text-stone-950">Focused entity</p>
+          <p className="mt-2 text-sm font-medium text-stone-900">{selectedNode.title}</p>
+          <p className="mt-1 text-xs leading-5 text-muted">{selectedNode.description || "No description available."}</p>
+        </div>
+      )}
     </section>
   );
 }

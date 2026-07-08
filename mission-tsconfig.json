@@ -1,0 +1,41 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "lib": ["dom", "dom.iterable", "es2020"],
+    "allowJs": false,
+    "skipLibCheck": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "react-jsx",
+    "incremental": false,
+    "ignoreDeprecations": "6.0",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"],
+      "@frontend/*": ["frontend/*"]
+    },
+    "module": "esnext"
+  },
+  "include": [
+    "src/app/(os)/mission/page.tsx",
+    "frontend/app/mission-page.tsx",
+    "frontend/components/mission/mission-layout.tsx",
+    "frontend/components/mission/mission-header.tsx",
+    "frontend/components/mission/mission-progress.tsx",
+    "frontend/components/mission/mission-health.tsx",
+    "frontend/components/mission/mission-timeline.tsx",
+    "frontend/components/mission/mission-projects.tsx",
+    "frontend/components/mission/mission-goals.tsx",
+    "frontend/components/mission/mission-open-loops.tsx",
+    "frontend/components/mission/mission-insights.tsx",
+    "frontend/components/mission/mission-recommendations.tsx",
+    "src/components/ui/progress.tsx",
+    "src/lib/sample-data.ts",
+    "src/lib/types.ts"
+  ]
+}

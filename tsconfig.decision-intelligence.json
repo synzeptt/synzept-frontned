@@ -1,0 +1,23 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "incremental": false
+  },
+  "include": [
+    "src/lib/decision-intelligence/**/*.ts",
+    "src/lib/decision-graph/**/*.ts",
+    "src/lib/decision-simulator/**/*.ts",
+    "src/components/decision-intelligence/**/*.tsx",
+    "src/components/decision-graph/**/*.tsx",
+    "src/components/decision-simulator/**/*.tsx",
+    "src/app/(os)/decisions/**/*.tsx",
+    "frontend/components/layout/page-frame.tsx",
+    "src/components/ui/**/*.tsx",
+    "src/lib/cn.ts",
+    "src/lib/utils.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "apps"
+  ]
+}

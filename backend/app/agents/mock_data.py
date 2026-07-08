@@ -1,0 +1,28 @@
+MOCK_AGENTS = [
+    {
+        "id": "agent-launch",
+        "name": "Launch Agent",
+        "objective": "Prepare the next beta launch without over-scoping.",
+        "currentStep": "Review milestones and dependencies",
+        "status": "Executing",
+        "confidence": 0.87,
+        "health": "Healthy",
+        "lastActivity": "10 min ago",
+        "upcomingActions": ["Draft summary", "Schedule review", "Create tasks"],
+        "requiresApproval": False,
+        "milestones": ["Confirm launch scope", "Prepare evidence deck", "Align stakeholders"],
+    },
+    {
+        "id": "agent-growth",
+        "name": "Growth Agent",
+        "objective": "Improve weekly reflection rituals and follow-through.",
+        "currentStep": "Monitor momentum and interruption patterns",
+        "status": "Monitoring",
+        "confidence": 0.74,
+        "health": "Needs attention",
+        "lastActivity": "35 min ago",
+        "upcomingActions": ["Recommend a shorter review ritual", "Surface blockers"],
+        "requiresApproval": True,
+        "milestones": ["Build habit loop", "Review weekly cadence", "Surface delays"],
+    },
+]

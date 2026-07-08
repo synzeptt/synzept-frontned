@@ -4,12 +4,13 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { Bell, BookOpen, ChevronDown, ChevronUp, Home, Menu, MessageSquare, Settings, X } from "lucide-react";
+import { Bell, BookOpen, Bot, CalendarDays, ChevronDown, ChevronUp, FolderKanban, Home, Menu, Search, Settings, Target, X } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { CopyrightLine } from "@/components/copyright-line";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { UsageTracker } from "@/components/analytics/usage-tracker";
 import { FeedbackButton } from "@/components/feedback/feedback-button";
+import { CommandBar } from "@/components/workspace-os/CommandBar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar } from "@/components/ui/avatar";
 import { UpgradeCta } from "@/components/pro/upgrade-cta";
@@ -19,9 +20,13 @@ import { cn } from "@/lib/cn";
 import { useWorkspaceUIStore } from "@frontend/store/workspace-ui";
 
 const navItems = [
-  { href: "/dashboard", label: "Dashboard", icon: Home },
-  { href: "/chat", label: "Chat", icon: MessageSquare },
-  { href: "/memory", label: "Synzept Knows You", icon: BookOpen },
+  { href: "/dashboard", label: "Home", icon: Home },
+  { href: "/mission", label: "Missions", icon: Target },
+  { href: "/memory", label: "Knowledge", icon: BookOpen },
+  { href: "/projects", label: "Projects", icon: FolderKanban },
+  { href: "/agents", label: "Agents", icon: Bot },
+  { href: "/daily-brief", label: "Daily OS", icon: CalendarDays },
+  { href: "/search", label: "Search", icon: Search },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
@@ -181,6 +186,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
         onRead={(id) => void api.markNotificationRead(id).then(setDigest).catch(() => null)}
       />
       <FeedbackButton />
+      <CommandBar />
       <UsageTracker />
       <MobileNav />
     </div>

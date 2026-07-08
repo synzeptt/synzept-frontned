@@ -1,5 +1,3 @@
-import type { OpenLoopEngineItem } from "@/lib/api";
-
 const today = new Date().toISOString();
 const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
@@ -97,7 +95,7 @@ export const sampleDailyBrief = {
   },
 };
 
-export const sampleOpenLoops: OpenLoopEngineItem[] = [
+export const sampleOpenLoops = [
   {
     id: "sample-loop-onboarding-copy",
     source: "task",
@@ -224,4 +222,114 @@ export const sampleOnboardingExamples = {
   goals: ["Launch Synzept Pro", "Improve onboarding", "Ship Android APK"],
   priorities: ["Verify checkout", "Create starter examples", "Review open loops"],
   firstNote: "Remember: Synzept is most useful when each project has a current focus, open loops, decisions, and one recommended next step.",
+};
+
+export const sampleMission = {
+  id: "mission-launch-synzept",
+  title: "Launch Synzept as a Personal Operating System",
+  description:
+    "Build a mission-driven continuity system that helps users organize work, memory, and intelligence around long-term outcomes.",
+  status: "In progress",
+  progress: 64,
+  startDate: "2026-04-01",
+  targetDate: "2026-09-30",
+  priority: "High",
+  healthScore: 78,
+  momentumScore: 84,
+  projects: [
+    {
+      id: "sample-launch-plan",
+      name: "Product Launch Plan",
+      description: "Coordinate pricing, messaging, and activation for Synzept Pro.",
+      status: "active",
+      currentFocus: "Verify the upgrade flow and customer onboarding sequence.",
+      recommendedNextStep: "Test Razorpay checkout and validate Pro activation flows.",
+    },
+    {
+      id: "sample-onboarding-redesign",
+      name: "Onboarding Redesign",
+      description: "Create an experience that makes the first Synzept session clear and valuable.",
+      status: "active",
+      currentFocus: "Turn blank state into a meaningful starter workspace.",
+      recommendedNextStep: "Add mission, goal, and open loop templates for new users.",
+    },
+  ],
+  goals: [
+    {
+      id: "goal-launch-ready",
+      title: "Ship a launch-ready productivity workspace",
+      description: "Deliver a fully integrated Mission, Project, and Daily Brief experience.",
+      status: "on track",
+    },
+    {
+      id: "goal-user-retention",
+      title: "Increase new-user return rate",
+      description: "Help users return by surfacing a clear mission, current priorities, and next actions.",
+      status: "at risk",
+    },
+  ],
+  openLoops: [
+    {
+      id: "open-loop-billing-copy",
+      title: "Finalize Pro success message",
+      description: "Ensure users understand that payment unlocks continuous mission context.",
+      projectName: "Product Launch Plan",
+      priority: "High",
+    },
+    {
+      id: "open-loop-android-oauth",
+      title: "Resolve Android Google sign-in issue",
+      description: "Confirm OAuth SHA fingerprints so the mobile mission workspace can sign in.",
+      projectName: "Product Launch Plan",
+      priority: "Medium",
+    },
+  ],
+  timeline: [
+    {
+      id: "timeline-launch-concept",
+      title: "Mission model defined",
+      detail: "Completed the first Mission system design for goals, projects, and open loops.",
+      date: "2026-05-12",
+    },
+    {
+      id: "timeline-onboarding-prototype",
+      title: "Onboarding mission prototype shipped",
+      detail: "Added mission-backed starter templates to the first-run experience.",
+      date: "2026-06-04",
+    },
+    {
+      id: "timeline-billing-review",
+      title: "Billing flow reviewed",
+      detail: "Validated retention messaging for Pro users and mission continuity touchpoints.",
+      date: "2026-06-28",
+    },
+  ],
+  insights: [
+    {
+      id: "insight-focus-drift",
+      title: "Focus drift detected",
+      detail: "Mission momentum is strongest when a project has both focus and next step defined.",
+      confidence: 0.92,
+    },
+    {
+      id: "insight-open-loop-risk",
+      title: "High-risk open loop",
+      detail: "The Android OAuth blocker is reducing mission health until resolved.",
+      confidence: 0.86,
+    },
+  ],
+  recommendations: [
+    {
+      id: "recommendation-add-mission-goal",
+      title: "Add a mission-level goal for user retention",
+      detail: "Capture one outcome tied to daily return and progress through core workflows.",
+      source: "Reasoning Engine",
+    },
+    {
+      id: "recommendation-review-open-loop",
+      title: "Resolve the billing success copy open loop",
+      detail: "Clarity here will improve Pro activation and mission conversion.",
+      source: "Knowledge Graph",
+    },
+  ],
 };

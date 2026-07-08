@@ -33,8 +33,10 @@ async def _memory_post_response(payload: dict) -> None:
             except ValueError:
                 embeddings = None
 
-            service = MemoryService(session, embeddings=embeddings)
-            memories = await service.process_conversation(
+            from app.memory.intelligence_engine import MemoryIntelligenceEngine
+
+            engine = MemoryIntelligenceEngine(session)
+            await engine.process_conversation(
                 user_id=UUID(payload["user_id"]),
                 turns=[
                     ConversationTurn(role="user", content=payload["user_message"]),
@@ -43,12 +45,6 @@ async def _memory_post_response(payload: dict) -> None:
                 conversation_id=UUID(payload["conversation_id"]),
                 project_id=UUID(payload["project_id"]) if payload.get("project_id") else None,
             )
-            from app.models.user import User
-            from app.services.understanding_engine_service import UnderstandingEngineService
-
-            user = await session.get(User, UUID(payload["user_id"]))
-            if user:
-                await UnderstandingEngineService(session).refresh_from_memories(user, memories)
             await session.commit()
         except Exception:
             await session.rollback()

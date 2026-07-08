@@ -1,0 +1,81 @@
+MOCK_EVOLUTION_DATA = {
+    "feature_usage": [
+        {"feature": "Daily Brief", "adoption": 0.91, "engagement": 0.88, "signal": "high"},
+        {"feature": "Open Loops", "adoption": 0.82, "engagement": 0.76, "signal": "high"},
+        {"feature": "Projects", "adoption": 0.74, "engagement": 0.7, "signal": "medium"},
+        {"feature": "Memories", "adoption": 0.68, "engagement": 0.64, "signal": "medium"},
+        {"feature": "Search", "adoption": 0.47, "engagement": 0.41, "signal": "low"},
+        {"feature": "Chat", "adoption": 0.38, "engagement": 0.36, "signal": "low"},
+    ],
+    "onboarding": {
+        "completion_rate": 0.63,
+        "steps": [
+            {"step": "welcome", "completion": 0.94, "drop_off": 0.06},
+            {"step": "profile", "completion": 0.81, "drop_off": 0.13},
+            {"step": "workspace", "completion": 0.69, "drop_off": 0.12},
+            {"step": "memory", "completion": 0.63, "drop_off": 0.06},
+        ],
+    },
+    "retention": {
+        "retention_rate": 0.41,
+        "returning_users": 184,
+        "weekly_active_users": 312,
+        "trend": "improving",
+        "cohort_notes": [
+            "Week-1 returners are strongest after the Daily Brief workflow is introduced.",
+            "Users who complete memory setup return more often than those who skip it.",
+        ],
+    },
+    "insights": [
+        {
+            "title": "Daily Brief drives activation",
+            "summary": "Users who reach the Daily Brief complete onboarding at a noticeably higher rate and return more often.",
+            "evidence": ["91% adoption of Daily Brief", "63% onboarding completion rate", "41% retention for the current cohort"],
+            "confidence": "high",
+            "impact": "high",
+            "source": "feature_usage",
+        },
+        {
+            "title": "Workspace setup is the main drop-off point",
+            "summary": "The workspace step is creating the largest friction spike in onboarding.",
+            "evidence": ["69% completion at workspace step", "12% drop-off between profile and workspace", "Users skip setup when the value is not obvious"],
+            "confidence": "high",
+            "impact": "high",
+            "source": "onboarding",
+        },
+        {
+            "title": "Search and chat remain underused",
+            "summary": "These capabilities are present but not surfacing early enough to become habit.",
+            "evidence": ["47% search adoption", "38% chat adoption", "Both trails Daily Brief and Open Loops"],
+            "confidence": "medium",
+            "impact": "medium",
+            "source": "feature_usage",
+        },
+    ],
+    "recommendations": [
+        {
+            "title": "Surface Daily Brief earlier",
+            "summary": "Introduce the Daily Brief before the later setup stages so users experience value immediately.",
+            "rationale": "This is the strongest activation lever and should raise onboarding completion.",
+            "estimatedImpact": "high",
+            "priority": "P1",
+            "signal": "daily_brief_activation",
+        },
+        {
+            "title": "Simplify workspace setup",
+            "summary": "Reduce the number of setup choices and make the first project creation one-click.",
+            "rationale": "This addresses the largest onboarding drop-off and can lift completion quickly.",
+            "estimatedImpact": "high",
+            "priority": "P1",
+            "signal": "onboarding_dropoff",
+        },
+        {
+            "title": "Improve search discoverability",
+            "summary": "Add contextual prompts that suggest search when users begin to look for past work.",
+            "rationale": "Search and chat are valuable but currently remain hidden from the main flow.",
+            "estimatedImpact": "medium",
+            "priority": "P2",
+            "signal": "feature_discovery",
+        },
+    ],
+}

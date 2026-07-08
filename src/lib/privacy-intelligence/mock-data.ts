@@ -1,0 +1,66 @@
+import type { PrivacyIntelligenceData } from "./types";
+
+export const privacyIntelligenceMock: PrivacyIntelligenceData = {
+  generatedAt: "2026-07-07T18:40:00+05:30",
+  architectureLayers: {
+    personalIntelligence: ["User memories", "Decision history", "Goals", "Missions", "Knowledge graph"],
+    globalIntelligence: ["Aggregated success patterns", "Common decision sequences", "Outcome statistics", "Anonymous trend analysis"],
+  },
+  contributionSettings: {
+    optedIn: true,
+    mode: "anonymous_patterns",
+    lastUpdatedAt: "2026-07-07T18:30:00+05:30",
+    anonymizationLevel: "k-anonymous aggregate, no raw text, no identifiers",
+    localOnlySignals: ["Private memories", "Raw conversations", "Named people", "Exact project notes"],
+    sharedAggregateSignals: ["Decision sequence category", "Outcome success bucket", "Risk preference band", "Time-to-review bucket"],
+  },
+  globalPatterns: [
+    { id: "global-pattern-review-before-action", patternType: "success_pattern", title: "Brief review before high-impact decisions improves outcomes", summary: "Across anonymous decision records, users who reviewed evidence before acting had better follow-through.", sampleSize: 1840, anonymization: "Aggregated counts only; no user text or IDs.", confidence: 0.82, outcomeLift: 18 },
+    { id: "global-pattern-approval-trust", patternType: "trust_pattern", title: "Explicit approval increases agent adoption", summary: "Anonymous agent workflows with visible approval gates had higher repeated use than auto-action flows.", sampleSize: 1260, anonymization: "Differentially private event buckets.", confidence: 0.78, outcomeLift: 14 },
+    { id: "global-pattern-overload-risk", patternType: "failure_pattern", title: "Overloaded daily surfaces reduce retention", summary: "Workspace surfaces with too many simultaneous prompts saw more ignored recommendations.", sampleSize: 2190, anonymization: "Thresholded aggregate metrics; no individual feed data.", confidence: 0.8, outcomeLift: -16 },
+  ],
+  recommendations: [
+    {
+      id: "privacy-rec-keep-review-ritual",
+      title: "Keep a short review step before major architecture decisions",
+      recommendation: "Before committing, review the Decision Graph evidence and one past outcome.",
+      personalEvidence: [
+        { id: "personal-decision-mock-first", type: "decision_outcome", title: "Mock-first decision had strong outcome accuracy", summary: "Your mock-first approach produced useful systems without production data exposure.", confidence: 0.86 },
+        { id: "personal-dna-boundaries", type: "decision_dna", title: "Strong boundary setting is a recurring strength", summary: "Your best decisions define privacy, approval, and service boundaries early.", confidence: 0.84 },
+      ],
+      globalPatterns: [
+        { id: "global-pattern-review-before-action", patternType: "success_pattern", title: "Brief review before high-impact decisions improves outcomes", summary: "Across anonymous decision records, users who reviewed evidence before acting had better follow-through.", sampleSize: 1840, anonymization: "Aggregated counts only; no user text or IDs.", confidence: 0.82, outcomeLift: 18 },
+      ],
+      reasoning: "Your personal history and anonymized aggregate patterns both point toward evidence review as a high-leverage habit.",
+      privacyExplanation: "Personal evidence stays local. The global pattern is aggregate-only and cannot reveal another user's memories or decisions.",
+      confidence: 0.84,
+      expectedImpact: 88,
+    },
+    {
+      id: "privacy-rec-approval-gates",
+      title: "Keep explicit approval gates for agent actions",
+      recommendation: "Require user approval before agents change workspace state or contact people.",
+      personalEvidence: [
+        { id: "personal-decision-approval-layer", type: "decision", title: "Approval layer decision", summary: "You already chose explicit approval as the trust boundary for agents.", confidence: 0.82 },
+      ],
+      globalPatterns: [
+        { id: "global-pattern-approval-trust", patternType: "trust_pattern", title: "Explicit approval increases agent adoption", summary: "Anonymous agent workflows with visible approval gates had higher repeated use than auto-action flows.", sampleSize: 1260, anonymization: "Differentially private event buckets.", confidence: 0.78, outcomeLift: 14 },
+      ],
+      reasoning: "The recommendation combines your trust boundary with anonymized evidence that approval gates improve adoption.",
+      privacyExplanation: "Global evidence is a trend bucket; it contains no action text, contact names, or individual workflows.",
+      confidence: 0.8,
+      expectedImpact: 84,
+    },
+  ],
+  auditTrail: [
+    { id: "audit-001", event: "Aggregate pattern generated", description: "Converted decision review outcomes into success buckets after threshold checks.", timestamp: "2026-07-07T18:10:00+05:30", dataBoundary: "global_aggregate_only" },
+    { id: "audit-002", event: "Recommendation explanation rendered", description: "Separated local personal evidence from anonymized global pattern evidence.", timestamp: "2026-07-07T18:35:00+05:30", dataBoundary: "personal_local_plus_global_aggregate" },
+  ],
+  privacyGuarantees: [
+    "Raw memories and conversations never enter global intelligence.",
+    "Named people and exact project text stay local.",
+    "Global patterns are thresholded aggregates only.",
+    "Recommendations must label personal evidence separately from generalized community patterns.",
+    "Users can opt out of anonymous contribution.",
+  ],
+};

@@ -1,0 +1,19 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "incremental": false
+  },
+  "include": [
+    "src/lib/privacy-intelligence/**/*.ts",
+    "src/components/privacy-intelligence/**/*.tsx",
+    "src/app/(os)/privacy-network/**/*.tsx",
+    "frontend/components/layout/page-frame.tsx",
+    "src/components/ui/**/*.tsx",
+    "src/lib/cn.ts",
+    "src/lib/utils.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "apps"
+  ]
+}

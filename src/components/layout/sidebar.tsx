@@ -2,16 +2,20 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, LayoutDashboard, MessageSquare, Settings } from "lucide-react";
+import { BookOpen, Bot, CalendarDays, FolderKanban, Home, Search, Settings, Target } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { UpgradeCta } from "@/components/pro/upgrade-cta";
 import { cn } from "@/lib/cn";
 import { useAuthStore } from "@/stores/auth";
 
 const links = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/chat", label: "Chat", icon: MessageSquare },
-  { href: "/memory", label: "Synzept Knows You", icon: BookOpen },
+  { href: "/dashboard", label: "Home", icon: Home },
+  { href: "/mission", label: "Missions", icon: Target },
+  { href: "/memory", label: "Knowledge", icon: BookOpen },
+  { href: "/projects", label: "Projects", icon: FolderKanban },
+  { href: "/agents", label: "Agents", icon: Bot },
+  { href: "/daily-brief", label: "Daily OS", icon: CalendarDays },
+  { href: "/search", label: "Search", icon: Search },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 

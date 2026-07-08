@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "src/app/(os)/learning-evaluation/page.tsx",
+    "src/components/learning-evaluation/**/*.tsx",
+    "src/lib/learning-evaluation/**/*.ts",
+    "src/components/ui/button.tsx",
+    "src/components/layout/page-frame.tsx"
+  ],
+  "exclude": ["node_modules"]
+}

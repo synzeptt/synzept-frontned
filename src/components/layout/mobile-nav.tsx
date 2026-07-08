@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, Home, MessageSquare, Settings } from "lucide-react";
+import { Bot, Home, Search, Settings } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 const links = [
-  { href: "/dashboard", label: "Dashboard", icon: Home },
-  { href: "/chat", label: "Chat", icon: MessageSquare },
-  { href: "/memory", label: "Knows You", icon: BookOpen },
+  { href: "/dashboard", label: "Home", icon: Home },
+  { href: "/search", label: "Search", icon: Search },
+  { href: "/agents", label: "Agents", icon: Bot },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 

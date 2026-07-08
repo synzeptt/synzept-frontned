@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "src/app/(os)/protocol/page.tsx",
+    "src/components/synzept-protocol/**/*.tsx",
+    "src/lib/synzept-protocol/**/*.ts",
+    "src/components/ui/button.tsx",
+    "src/components/layout/page-frame.tsx"
+  ],
+  "exclude": ["node_modules"]
+}
