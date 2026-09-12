@@ -237,7 +237,6 @@ export default function OnboardingNewPage() {
           role={role}
           goals={goals}
           projects={projects}
-          preferences={preferences}
           timeOfDay={timeOfDay}
           planningStyle={planningStyle}
           onEdit={() => setStep("role")}
