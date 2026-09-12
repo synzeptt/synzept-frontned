@@ -1,11 +1,10 @@
-import type { OnboardingProject, OnboardingPreference, OnboardingGoal, OnboardingPlanningStyle, OnboardingRole, OnboardingTimeOfDay } from "@/types/onboarding";
+import type { OnboardingProject, OnboardingGoal, OnboardingPlanningStyle, OnboardingRole, OnboardingTimeOfDay } from "@/types/onboarding";
 import { Button } from "@/components/ui/button";
 
 export type SummaryScreenProps = {
   role?: OnboardingRole;
   goals: OnboardingGoal[];
   projects: OnboardingProject[];
-  preferences: OnboardingPreference[];
   timeOfDay?: OnboardingTimeOfDay;
   planningStyle?: OnboardingPlanningStyle;
   onEdit: () => void;
@@ -21,7 +20,7 @@ function ItemRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-export function SummaryScreen({ role, goals, projects, preferences, timeOfDay, planningStyle, onEdit, onComplete }: SummaryScreenProps) {
+export function SummaryScreen({ role, goals, projects, timeOfDay, planningStyle, onEdit, onComplete }: SummaryScreenProps) {
   return (
     <section className="rounded-[32px] border border-stone-200 bg-white px-6 py-8 shadow-soft sm:px-8 sm:py-10">
       <div className="space-y-4">

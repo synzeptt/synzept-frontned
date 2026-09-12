@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { GitBranch, Network, Route, Search } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { decisionGraphMock } from "@/lib/decision-graph/mock-data";
-import type { DecisionGraphEdge, DecisionGraphNode } from "@/lib/decision-graph/types";
+import type { DecisionGraphNode } from "@/lib/decision-graph/types";
 
 const nodeColors: Record<string, string> = {
   decision: "fill-stone-900",
