@@ -25,7 +25,7 @@ export function SummaryScreen({ role, goals, projects, preferences, timeOfDay, p
   return (
     <section className="rounded-[32px] border border-stone-200 bg-white px-6 py-8 shadow-soft sm:px-8 sm:py-10">
       <div className="space-y-4">
-        <p className="text-sm font-semibold uppercase tracking-[0.28em] text-stone-400">Here's what I learned</p>
+        <p className="text-sm font-semibold uppercase tracking-[0.28em] text-stone-400">Here&apos;s what I learned</p>
         <h2 className="text-3xl font-semibold tracking-tight text-stone-950">A personalized workspace is almost ready.</h2>
         <div className="grid gap-4 sm:grid-cols-2">
           <ItemRow label="Role" value={role ?? "Not selected"} />
