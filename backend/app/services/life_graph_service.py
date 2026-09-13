@@ -114,6 +114,8 @@ class LifeGraphService:
             filtered = [entity for entity in filtered if entity["type"].lower() == entity_type.lower()]
         if normalized:
             filtered = [entity for entity in filtered if normalized in entity["title"].lower() or normalized in entity["summary"].lower()]
+        if not filtered and normalized and entity_type:
+            filtered = [entity for entity in self.entities if normalized in entity["title"].lower() or normalized in entity["summary"].lower()]
         return filtered[:8]
 
     def _entity(self, entity_id: str) -> dict[str, Any] | None:
