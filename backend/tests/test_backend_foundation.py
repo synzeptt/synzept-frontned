@@ -45,6 +45,7 @@ def test_production_frontend_origin_is_allowed_without_wildcard():
     settings = Settings(
         _env_file=None,
         environment="production",
+        database_url="postgresql+asyncpg://user:password@localhost/synzept",
         JWT_SECRET_KEY="production-secret",
         gemini_api_key="gemini-key",
     )
