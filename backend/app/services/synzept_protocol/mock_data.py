@@ -237,6 +237,7 @@ MOCK_PROTOCOL = {
         "tokenRules": [
             "Access tokens are scoped by resource type and action.",
             "Refresh tokens are revocable per app.",
+            "Refresh and access tokens can be revoked immediately when a user withdraws approval.",
             "Tokens never grant raw memories unless the user explicitly approves that category.",
         ],
     },
