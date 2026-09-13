@@ -19,10 +19,10 @@ from app.services.time_machine_mock_data import (
 class TimeMachineService:
     def __init__(self) -> None:
         self.timeline_events = MOCK_TIMELINE_EVENTS
-        self.turning_points = MOCK_TURNING_POINTS
-        self.reflections = MOCK_REFLECTIONS
-        self.comparisons = MOCK_COMPARISONS
-        self.search_results = MOCK_SEARCH_RESULTS
+        self._turning_points = MOCK_TURNING_POINTS
+        self._reflections = MOCK_REFLECTIONS
+        self._comparisons = MOCK_COMPARISONS
+        self._search_results = MOCK_SEARCH_RESULTS
 
     def journey(self, kind: str | None = None, query: str = "") -> list[TimeMachineTimelineEntryOut]:
         items = self.timeline_events
@@ -34,17 +34,17 @@ class TimeMachineService:
         return [TimeMachineTimelineEntryOut(**entry) for entry in items]
 
     def turning_points(self) -> list[TimeMachineTurningPointOut]:
-        return [TimeMachineTurningPointOut(**entry) for entry in self.turning_points]
+        return [TimeMachineTurningPointOut(**entry) for entry in self._turning_points]
 
     def reflections(self) -> list[TimeMachineReflectionOut]:
-        return [TimeMachineReflectionOut(**entry) for entry in self.reflections]
+        return [TimeMachineReflectionOut(**entry) for entry in self._reflections]
 
     def compare(self) -> list[TimeMachineComparisonOut]:
-        return [TimeMachineComparisonOut(**entry) for entry in self.comparisons]
+        return [TimeMachineComparisonOut(**entry) for entry in self._comparisons]
 
     def search(self, query: str = "") -> list[TimeMachineSearchResultOut]:
         if not query:
-            return [TimeMachineSearchResultOut(**entry) for entry in self.search_results]
+            return [TimeMachineSearchResultOut(**entry) for entry in self._search_results]
         needle = query.lower()
-        filtered = [entry for entry in self.search_results if needle in entry["title"].lower() or needle in entry["snippet"].lower()]
+        filtered = [entry for entry in self._search_results if needle in entry["title"].lower() or needle in entry["snippet"].lower()]
         return [TimeMachineSearchResultOut(**entry) for entry in filtered]
