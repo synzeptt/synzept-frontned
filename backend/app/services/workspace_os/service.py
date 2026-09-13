@@ -14,6 +14,12 @@ from app.services.workspace_os.mock_data import MOCK_WORKSPACE_OS
 class WorkspaceOSService:
     def __init__(self, data: dict[str, Any] | None = None) -> None:
         self.data = deepcopy(data or MOCK_WORKSPACE_OS)
+        self._normalize_snapshot_data()
+
+    def _normalize_snapshot_data(self) -> None:
+        home = self.data.get("home") or {}
+        if not self.data.get("agents") and home.get("activeAgents"):
+            self.data["agents"] = deepcopy(home["activeAgents"])
 
     def snapshot(self) -> WorkspaceOSOut:
         return WorkspaceOSOut(**self.data)
