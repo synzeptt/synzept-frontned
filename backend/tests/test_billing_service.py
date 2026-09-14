@@ -49,6 +49,15 @@ def test_checkout_create_accepts_plan_type_aliases() -> None:
     assert CheckoutCreateIn.model_validate({"plan_type": "pro", "billing_cycle": "monthly"}).billingCycle == "monthly"
 
 
+def test_plans_include_yearly_price_and_savings() -> None:
+    plans = _service().plans()
+
+    yearly_plan = next(plan for plan in plans if plan["billingCycle"] == "yearly")
+
+    assert yearly_plan["priceInr"] == 3999
+    assert yearly_plan["savings"] == "Save ₹789"
+
+
 def test_payment_verify_accepts_razorpay_standard_payload() -> None:
     checkout_id = uuid4()
 

@@ -229,6 +229,7 @@ class Settings(BaseSettings):
     razorpay_webhook_secret: str = ""
     razorpay_pro_plan_id: str = ""
     pro_monthly_price_inr: int = 499
+    pro_yearly_price_inr: int = 4999
     founder_analytics_emails: str = ""
 
     @property
