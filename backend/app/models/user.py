@@ -46,6 +46,7 @@ class User(Base, TimestampMixin, SoftDeleteMixin):
     graph_edges = relationship("GraphEdge", back_populates="user", cascade="all, delete-orphan")
     subscription = relationship("Subscription", back_populates="user", uselist=False, cascade="all, delete-orphan")
     notifications = relationship("Notification", back_populates="user", cascade="all, delete-orphan")
+    confirmations = relationship("Confirmation", back_populates="user", cascade="all, delete-orphan")
 
     @property
     def hashed_password(self) -> str | None:

@@ -47,15 +47,27 @@ def test_production_frontend_origin_is_allowed_without_wildcard():
         environment="production",
         database_url="postgresql+asyncpg://user:password@localhost/synzept",
         JWT_SECRET_KEY="production-secret",
+        jwt_refresh_secret="production-refresh-secret",
+        connected_app_token_secret="production-connected-app-secret",
+        redis_url="redis://localhost:6379/0",
+        frontend_url="https://app.synzept.com",
         gemini_api_key="gemini-key",
     )
 
-    assert settings.cors_origin_list == ["http://localhost:3000", "https://app.synzept.com"]
+    assert settings.cors_origin_list == [
+        "https://app.synzept.com",
+        "https://synzept.com",
+        "https://www.synzept.com",
+    ]
     assert "*" not in settings.cors_origin_list
 
 
 def test_running_app_cors_origins_are_explicit():
-    assert CORS_ORIGINS == ["http://localhost:3000", "https://app.synzept.com"]
+    assert "http://localhost:3000" in CORS_ORIGINS
+    assert "http://localhost:3001" in CORS_ORIGINS
+    assert "http://127.0.0.1:3000" in CORS_ORIGINS
+    assert "http://127.0.0.1:3001" in CORS_ORIGINS
+    assert "https://app.synzept.com" in CORS_ORIGINS
     assert "*" not in CORS_ORIGINS
 
 

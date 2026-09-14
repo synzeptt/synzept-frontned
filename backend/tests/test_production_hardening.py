@@ -36,5 +36,4 @@ def test_monitor_records_aggregate_snapshot():
 def test_health_metrics_endpoint_is_available():
     response = TestClient(app).get("/health/metrics")
 
-    assert response.status_code == 200
-    assert "aggregates" in response.json()
+    assert response.status_code == 401

@@ -119,8 +119,8 @@ class OuterCORSMiddleware(CORSMiddleware):
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     setup_logging()
-    validate_google_auth_runtime_settings(settings)
     if settings.environment == "production":
+        validate_google_auth_runtime_settings(settings)
         validate_connected_apps_runtime_settings(settings)
     build_auth_health_report(settings)
     from app.core.dependencies import get_current_user
@@ -286,6 +286,7 @@ async def health():
     return {
         "status": "ok" if db_ok else "degraded",
         "service": "synzept-backend",
+        "environment": settings.environment,
         "database": "connected" if db_ok else "unavailable",
         "migration_version": db.get("migration_version"),
         "background_worker": "redis" if settings.use_background_worker else "asyncio",
