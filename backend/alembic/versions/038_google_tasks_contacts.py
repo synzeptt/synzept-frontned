@@ -1,7 +1,7 @@
 """add read-only Google Tasks and Contacts records
 
 Revision ID: 038_google_tasks_contacts
-Revises: 037_conversation_schema_repair
+Revises: 037_connected_apps
 """
 
 from alembic import op
@@ -10,7 +10,7 @@ from sqlalchemy.dialects import postgresql
 
 
 revision = "038_google_tasks_contacts"
-down_revision = "037_conversation_schema_repair"
+down_revision = "037_connected_apps"
 branch_labels = None
 depends_on = None
 
