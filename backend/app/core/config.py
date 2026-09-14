@@ -234,11 +234,11 @@ class Settings(BaseSettings):
 
     @property
     def google_client_id(self) -> str:
-        return self.google_connected_apps_client_id
+        return self.google_auth_client_id
 
     @google_client_id.setter
     def google_client_id(self, value: str) -> None:
-        self.google_connected_apps_client_id = value
+        self.google_auth_client_id = value
 
     @property
     def google_client_secret(self) -> str:
