@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from app.api.v2 import (
+    actions,
     agent_memory,
     autonomous_workspace,
     continuity_assistant,
@@ -30,3 +31,4 @@ api_router.include_router(goals.router, tags=["goals"])
 api_router.include_router(workspace.router, tags=["workspace"])
 api_router.include_router(proactive_intelligence.router, tags=["proactive-intelligence"])
 api_router.include_router(memory.router, tags=["memory"])
+api_router.include_router(actions.router, tags=["actions"])
