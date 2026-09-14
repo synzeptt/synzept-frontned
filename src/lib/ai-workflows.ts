@@ -1,4 +1,4 @@
-import { api } from "@/lib/api";
+import { api, type CalendarContext, type Dashboard, type Goal, type MemoryTrustRecord, type Note, type Project } from "@/lib/api";
 
 export type WorkflowPlan = {
   workflowType: string;
@@ -41,7 +41,7 @@ export async function executeWorkflowAction(actionId: string, request: string): 
       api.relevantUnderstanding(request, undefined, 3).catch(() => []),
     ]);
 
-    const context = buildContextSnapshot({ dashboard: dashboard as any, goals: goals as any[], projects: projects as any[], notes: notes as any[], calendar: calendar as any, understanding: understanding as any[] });
+    const context = buildContextSnapshot({ dashboard, goals, projects, notes, calendar, understanding });
     const noteBody = buildWorkflowContent(plan.workflowType, request, context);
     const taskDescription = buildTaskDescription(plan.workflowType, request, context);
 
@@ -257,7 +257,7 @@ function buildWorkflowPlan(request: string, actionId = "default"): WorkflowPlan 
   };
 }
 
-function buildContextSnapshot({ dashboard, goals, projects, notes, calendar, understanding }: { dashboard: any; goals: any[]; projects: any[]; notes: any[]; calendar: any; understanding: any[] }) {
+function buildContextSnapshot({ dashboard, goals, projects, notes, calendar, understanding }: { dashboard: Dashboard | null; goals: Goal[]; projects: Project[]; notes: Note[]; calendar: CalendarContext | null; understanding: MemoryTrustRecord[] }) {
   const mission = firstString(dashboard?.personal_os?.current_mission) || firstString(dashboard?.personal_os?.suggested_next_action?.title) || "your current priorities";
   const focus = firstString(dashboard?.daily?.focus_areas?.[0]) || firstString(dashboard?.personal_os?.current_focus) || "the highest-value work";
   const currentGoal = firstString(goals?.[0]?.title) || firstString(goals?.[0]?.description) || firstString(dashboard?.daily?.focus_areas?.[1]) || "your active goals";
@@ -265,15 +265,15 @@ function buildContextSnapshot({ dashboard, goals, projects, notes, calendar, und
   const recentNoteTopics = notes.slice(0, 3).map((note) => stripToWords(firstString(note?.title) || firstString(note?.content), 24)).filter(Boolean);
   const memorySignals = understanding.slice(0, 3).map((item) => stripToWords(firstString(item?.title) || firstString(item?.value) || firstString(item?.content), 24)).filter(Boolean);
   const calendarSignals = [
-    ...(calendar?.today || []).slice(0, 2).map((event: any) => firstString(event?.title)),
+    ...(calendar?.today || []).slice(0, 2).map((event) => firstString(event?.title)),
     ...(calendar?.conflicts || []).slice(0, 2),
   ].filter(Boolean);
   const recentActivity = [
-    ...(dashboard?.recent_activity || []).slice(0, 3).map((activity: any) => firstString(activity?.title || activity?.description || activity?.summary)),
+    ...(dashboard?.recent_activity || []).slice(0, 3).map((activity) => firstString(activity?.title || activity?.description || activity?.summary)),
     ...(dashboard?.memory_evolution || []).slice(0, 2),
   ].filter(Boolean);
   const priorities = [
-    ...(dashboard?.personal_os?.top_priorities || []).slice(0, 3).map((item: any) => firstString(item?.title || item?.summary || item?.description)),
+    ...(dashboard?.personal_os?.top_priorities || []).slice(0, 3).map((item) => firstString(item?.title || item?.summary || item?.description)),
     ...(dashboard?.daily?.focus_areas || []).slice(0, 2),
   ].filter(Boolean);
 
