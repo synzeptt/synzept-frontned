@@ -261,19 +261,19 @@ function buildContextSnapshot({ dashboard, goals, projects, notes, calendar, und
   const mission = firstString(dashboard?.personal_os?.current_mission) || firstString(dashboard?.personal_os?.suggested_next_action?.title) || "your current priorities";
   const focus = firstString(dashboard?.daily?.focus_areas?.[0]) || firstString(dashboard?.personal_os?.current_focus) || "the highest-value work";
   const currentGoal = firstString(goals?.[0]?.title) || firstString(goals?.[0]?.description) || firstString(dashboard?.daily?.focus_areas?.[1]) || "your active goals";
-  const currentProject = firstString(projects?.[0]?.name) || firstString(projects?.[0]?.title) || firstString(dashboard?.projects?.[0]?.name) || "your current projects";
+  const currentProject = firstString(projects?.[0]?.name) || firstString(dashboard?.projects?.[0]?.name) || "your current projects";
   const recentNoteTopics = notes.slice(0, 3).map((note) => stripToWords(firstString(note?.title) || firstString(note?.content), 24)).filter(Boolean);
-  const memorySignals = understanding.slice(0, 3).map((item) => stripToWords(firstString(item?.title) || firstString(item?.value) || firstString(item?.content), 24)).filter(Boolean);
+  const memorySignals = understanding.slice(0, 3).map((item) => stripToWords(firstString(item?.content), 24)).filter(Boolean);
   const calendarSignals = [
     ...(calendar?.today || []).slice(0, 2).map((event) => firstString(event?.title)),
     ...(calendar?.conflicts || []).slice(0, 2),
   ].filter(Boolean);
   const recentActivity = [
-    ...(dashboard?.recent_activity || []).slice(0, 3).map((activity) => firstString(activity?.title || activity?.description || activity?.summary)),
+    ...(dashboard?.recent_activity || []).slice(0, 3).map((activity) => firstString(activity?.title || activity?.description)),
     ...(dashboard?.memory_evolution || []).slice(0, 2),
   ].filter(Boolean);
   const priorities = [
-    ...(dashboard?.personal_os?.top_priorities || []).slice(0, 3).map((item) => firstString(item?.title || item?.summary || item?.description)),
+    ...(dashboard?.personal_os?.top_priorities || []).slice(0, 3).map((item) => firstString(item?.title || item?.detail)),
     ...(dashboard?.daily?.focus_areas || []).slice(0, 2),
   ].filter(Boolean);
 
