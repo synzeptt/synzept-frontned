@@ -38,7 +38,7 @@ export function ExecutionCard({ execution, isStreaming = false, pendingConfirmat
   if (!execution) return null;
 
   const metadata = execution.metadata || {};
-  const executionPlan = metadata.execution_plan as any || {};
+  const executionPlan = metadata.execution_plan as { steps?: ExecutionStep[] } | undefined;
   const steps = (executionPlan.steps || []) as ExecutionStep[];
   const currentStepIndex = steps.findIndex((s) => s.status === "running" || s.status === "pending");
   const currentStep = currentStepIndex >= 0 ? steps[currentStepIndex] : null;

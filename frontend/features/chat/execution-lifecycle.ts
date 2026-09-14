@@ -24,6 +24,12 @@ export const EXECUTION_STATUS = {
   CANCELLED: "cancelled",
 } as const;
 
+type ExecutionStatus = typeof EXECUTION_STATUS[keyof typeof EXECUTION_STATUS];
+
+function isExecutionStatus(status: string): status is ExecutionStatus {
+  return Object.values(EXECUTION_STATUS).includes(status as ExecutionStatus);
+}
+
 /**
  * Execution phase for clear UI grouping
  */
@@ -100,33 +106,33 @@ export function getExecutionDisplayStatus(status: string): ExecutionDisplayStatu
  * Determines if execution is in a terminal state
  */
 export function isExecutionTerminal(status: string): boolean {
-  return [
+  return isExecutionStatus(status) && ([
     EXECUTION_STATUS.COMPLETED,
     EXECUTION_STATUS.FAILED,
     EXECUTION_STATUS.CANCELLED,
-  ].includes(status as any);
+  ] as readonly ExecutionStatus[]).includes(status);
 }
 
 /**
  * Determines if execution is waiting for user input
  */
 export function isExecutionAwaitingInput(status: string): boolean {
-  return [
+  return isExecutionStatus(status) && ([
     EXECUTION_STATUS.WAITING_APPROVAL,
     EXECUTION_STATUS.AWAITING_CONFIRMATION,
-  ].includes(status as any);
+  ] as readonly ExecutionStatus[]).includes(status);
 }
 
 /**
  * Determines if execution is actively working
  */
 export function isExecutionActive(status: string): boolean {
-  return [
+  return isExecutionStatus(status) && ([
     EXECUTION_STATUS.PLANNING,
     EXECUTION_STATUS.QUEUED,
     EXECUTION_STATUS.RUNNING,
     EXECUTION_STATUS.EXECUTING,
-  ].includes(status as any);
+  ] as readonly ExecutionStatus[]).includes(status);
 }
 
 /**
@@ -273,7 +279,7 @@ export function canUserInteract(status: string): boolean {
  * Determines if user can retry execution
  */
 export function canUserRetry(status: string): boolean {
-  return [EXECUTION_STATUS.FAILED, EXECUTION_STATUS.CANCELLED].includes(status as any);
+  return isExecutionStatus(status) && ([EXECUTION_STATUS.FAILED, EXECUTION_STATUS.CANCELLED] as readonly ExecutionStatus[]).includes(status);
 }
 
 /**
