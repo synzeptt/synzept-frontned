@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.exceptions import AppError, UnauthorizedError
+from app.infrastructure.tracing import get_request_id
 from app.models.user import User
 from app.models.user_profile import UserProfile
 from app.schemas.auth import TokenResponse
@@ -17,6 +18,25 @@ from app.services.starter_workspace_service import StarterWorkspaceService
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
+
+
+def _google_verification_reason(exc: Exception) -> str:
+    message = str(exc).lower()
+    if "expired" in message:
+        return "expired_token"
+    if "audience" in message:
+        return "invalid_audience"
+    if "issuer" in message:
+        return "invalid_issuer"
+    return "invalid_token"
+
+
+def _log_google_rejection(reason: str) -> None:
+    logger.warning(
+        "Google OAuth rejected: reason=%s",
+        reason,
+        extra={"request_id": get_request_id(), "operation": "google_login"},
+    )
 
 
 class GoogleAuthService:
@@ -35,7 +55,7 @@ class GoogleAuthService:
                 settings.google_client_id,
             )
         except Exception as exc:
-            logger.warning("Google token verification failed: %s", exc)
+            _log_google_rejection(_google_verification_reason(exc))
             raise UnauthorizedError("Invalid Google token") from exc
 
         google_sub = payload.get("sub")
@@ -45,8 +65,10 @@ class GoogleAuthService:
         picture = payload.get("picture")
 
         if not google_sub or not email:
+            _log_google_rejection("other_validation_failure")
             raise UnauthorizedError("Google account missing email")
         if email_verified is not True:
+            _log_google_rejection("email_not_verified")
             raise UnauthorizedError("Google email is not verified")
 
         user = await self._find_user(google_sub, email)
@@ -79,6 +101,7 @@ class GoogleAuthService:
             await StarterWorkspaceService(self.session).ensure_for_user(user)
         else:
             if user.google_id and user.google_id != google_sub:
+                _log_google_rejection("account_mismatch")
                 raise UnauthorizedError("Google account does not match this email")
             if not user.google_id:
                 user.google_id = google_sub
@@ -90,6 +113,7 @@ class GoogleAuthService:
                 user.avatar_url = picture
             user.is_verified = True
             if not user.is_active:
+                _log_google_rejection("account_inactive")
                 raise UnauthorizedError("Account is inactive")
             await self._ensure_profile(user, name, picture)
 
