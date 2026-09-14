@@ -45,7 +45,10 @@ function notifyAuthStateCleared() {
   window.dispatchEvent(new Event(AUTH_STATE_CLEARED_EVENT));
 }
 
-function authHeaders(): Record<string, string> { return {}; }
+function authHeaders(): Record<string, string> {
+  const accessToken = getAccessToken();
+  return accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
+}
 
 function notifyApiError(path: string, method: string, status: number | string) {
   if (typeof window === "undefined" || path === "/api/v1/analytics/event") return;
@@ -72,17 +75,24 @@ export async function refreshAccessToken(): Promise<boolean> {
   if (refreshPromise) return refreshPromise;
 
   refreshPromise = (async () => {
+    const refreshToken = getRefreshToken();
+    if (!refreshToken) return false;
+
     let response: Response;
     try {
-      response = await fetch(backendUrl("/api/v1/auth/refresh"), {
+      response = await fetch(backendUrl("/api/v1/auth/refresh-token"), {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refresh_token: refreshToken }),
       });
     } catch {
       throw new Error("Synzept could not refresh the session because the server is unavailable.");
     }
     if (!response.ok) return false;
+    const tokens = (await response.json()) as { access_token?: string; refresh_token?: string };
+    if (!tokens.access_token || !tokens.refresh_token) return false;
+    setTokens(tokens.access_token, tokens.refresh_token);
     return true;
   })().finally(() => {
     refreshPromise = null;
