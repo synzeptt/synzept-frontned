@@ -108,6 +108,10 @@ jobs:
           git fetch --prune origin main
           git reset --hard "$GITHUB_SHA"
 
+          npm install
+          npm run build
+          sudo systemctl restart synzept-frontend.service
+
           cd backend
           if [ -f ".venv/bin/activate" ]; then
             . .venv/bin/activate
