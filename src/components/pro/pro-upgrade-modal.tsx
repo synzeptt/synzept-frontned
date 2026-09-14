@@ -2,10 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, CreditCard, Loader2, Sparkles, X } from "lucide-react";
+import { Sparkles, X } from "lucide-react";
 import { api, type BillingPlan, type CheckoutSession } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { useAuthStore } from "@/stores/auth";
+import { UpgradePlanSurface } from "./upgrade-plan-surface";
 
 declare global {
   interface Window {
@@ -16,21 +17,8 @@ declare global {
   }
 }
 
-type BillingCycle = "monthly" | "yearly";
+type BillingCycle = "monthly";
 type FlowState = "choosing" | "creating" | "checkout" | "success" | "failed";
-
-const features = [
-  "Synzept Agent",
-  "Synzept Knows You",
-  "Advanced Memory",
-  "Unlimited Projects",
-  "Priority Features",
-];
-
-const defaultPlans: PlanOption[] = [
-  { id: "monthly", name: "Monthly", price: 399, interval: "month" },
-  { id: "yearly", name: "Yearly", price: 3999, interval: "year", savings: "Save ₹789", recommended: true },
-];
 
 type PlanOption = {
   id: BillingCycle;
@@ -41,6 +29,16 @@ type PlanOption = {
   recommended?: boolean;
 };
 
+type UpgradePlanExperienceProps = {
+  inline?: boolean;
+  onClose?: () => void;
+  source?: string;
+};
+
+const defaultPlans: PlanOption[] = [
+  { id: "monthly", name: "Monthly", price: 499, interval: "month", recommended: true },
+];
+
 export function ProUpgradeModal({
   open,
   onOpenChange,
@@ -50,16 +48,27 @@ export function ProUpgradeModal({
   onOpenChange: (open: boolean) => void;
   source?: string;
 }) {
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-stone-950/35 px-4 py-6 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Upgrade to Synzept Pro">
+      <div className="relative max-h-[min(860px,calc(100dvh-2rem))] w-full max-w-5xl overflow-y-auto rounded-[32px] bg-white shadow-[0_28px_90px_rgba(28,25,23,0.22)] ring-1 ring-stone-200">
+        <UpgradePlanExperience inline={false} onClose={() => onOpenChange(false)} source={source} />
+      </div>
+    </div>
+  );
+}
+
+export function UpgradePlanExperience({ inline = false, onClose, source = "upgrade_cta" }: UpgradePlanExperienceProps) {
   const { user, refreshUser } = useAuthStore();
   const router = useRouter();
   const [state, setState] = useState<FlowState>("choosing");
-  const [selectedPlan, setSelectedPlan] = useState<BillingCycle>("yearly");
+  const [billingCycle] = useState<BillingCycle>("monthly");
   const [planOptions, setPlanOptions] = useState<PlanOption[]>(defaultPlans);
   const [message, setMessage] = useState<string | null>(null);
   const checkoutCompletedRef = useRef(false);
 
   useEffect(() => {
-    if (!open) return;
     api.getBilling()
       .then((overview) => {
         const proPlans = overview.plans
@@ -68,27 +77,25 @@ export function ProUpgradeModal({
         if (proPlans.length) setPlanOptions(sortPlans(proPlans));
       })
       .catch(() => undefined);
-  }, [open]);
+  }, []);
 
-  const activePlan = useMemo(() => planOptions.find((plan) => plan.id === selectedPlan) || planOptions[0] || defaultPlans[1], [planOptions, selectedPlan]);
-
-  if (!open) return null;
+  const activePlan = useMemo(() => planOptions.find((plan) => plan.id === billingCycle) || planOptions[0] || defaultPlans[0], [planOptions, billingCycle]);
+  const isBusy = state === "creating" || state === "checkout";
 
   const close = () => {
-    if (state === "creating" || state === "checkout") return;
+    if (isBusy) return;
     setState("choosing");
     setMessage(null);
-    onOpenChange(false);
+    onClose?.();
   };
 
-  const startCheckout = async (billingCycle: BillingCycle = selectedPlan) => {
-    setSelectedPlan(billingCycle);
+  const startCheckout = async (cycle: BillingCycle = billingCycle) => {
     setState("creating");
     setMessage(null);
     checkoutCompletedRef.current = false;
     try {
-      void api.trackEvent("upgrade_plan_selected", source, { billingCycle });
-      const checkout = await api.createCheckout("pro", billingCycle);
+      void api.trackEvent("upgrade_plan_selected", source, { billingCycle: cycle });
+      const checkout = await api.createCheckout("pro");
       setState("checkout");
       await openRazorpay(checkout, user?.email || "", user?.display_name || "");
     } catch (err) {
@@ -114,7 +121,7 @@ export function ProUpgradeModal({
       currency: checkout.currency,
       name: "Synzept",
       description: checkout.description,
-      order_id: checkout.orderId,
+      subscription_id: checkout.subscriptionId,
       prefill: { email, name },
       theme: { color: "#24231f" },
       handler: async (response: Record<string, string>) => {
@@ -124,14 +131,15 @@ export function ProUpgradeModal({
         try {
           await api.verifyPayment({
             checkoutId: checkout.checkoutId,
-            providerOrderId: response.razorpay_order_id,
+            providerSubscriptionId: response.razorpay_subscription_id,
             providerPaymentId: response.razorpay_payment_id,
             providerSignature: response.razorpay_signature,
           });
           await refreshUser();
-          void api.trackEvent("upgrade_completed", source, { billingCycle: checkout.billingCycle || selectedPlan });
+          window.dispatchEvent(new Event("synzept:billing-updated"));
+          void api.trackEvent("upgrade_completed", source, { billingCycle: "monthly" });
           window.setTimeout(() => {
-            onOpenChange(false);
+            onClose?.();
             setState("choosing");
             setMessage(null);
           }, 1400);
@@ -153,113 +161,58 @@ export function ProUpgradeModal({
     const razorpay = new window.Razorpay(options);
     razorpay.on?.("payment.failed", () => {
       checkoutCompletedRef.current = false;
-      setMessage("Payment wasn't completed.");
-      setState("failed");
+      void api.cancelCheckout(checkout.checkoutId).catch(() => undefined).finally(() => {
+        setMessage("Payment wasn't completed. No Pro access was activated.");
+        setState("failed");
+      });
     });
     razorpay.open();
   };
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-stone-950/35 px-4 py-6 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Upgrade to Synzept Pro">
-      <div className="relative max-h-[min(720px,calc(100dvh-2rem))] w-full max-w-3xl overflow-y-auto rounded-lg bg-white shadow-[0_28px_90px_rgba(28,25,23,0.22)] ring-1 ring-stone-200">
-        <button type="button" onClick={close} disabled={state === "creating" || state === "checkout"} className="absolute right-3 top-3 grid h-9 w-9 place-items-center rounded-lg text-stone-500 hover:bg-stone-100 disabled:opacity-40" aria-label="Close upgrade">
-          <X className="h-4 w-4" />
+    <div className={cn("w-full", inline ? "rounded-[32px] border border-stone-200/80 bg-[#fcfbf8] p-4 sm:p-8" : "rounded-[32px] border border-stone-200/80 bg-[#fcfbf8] p-5 sm:p-8")}>
+      {!inline ? (
+        <button type="button" onClick={close} disabled={isBusy} className="absolute right-4 top-4 grid h-10 w-10 place-items-center rounded-full text-stone-500 transition hover:bg-stone-100 disabled:opacity-40" aria-label="Close upgrade">
+          <X className="h-5 w-5" />
         </button>
+      ) : null}
 
-        {state === "success" ? (
-          <div className="grid min-h-[420px] place-items-center p-8 text-center">
-            <div>
-              <span className="mx-auto grid h-16 w-16 animate-pulse place-items-center rounded-full bg-emerald-50 text-emerald-700">
-                <Sparkles className="h-8 w-8" />
-              </span>
-              <h2 className="mt-5 text-3xl font-semibold text-stone-950">Welcome to Synzept Pro!</h2>
-              <p className="mt-3 text-sm leading-6 text-stone-600">{message || "Unlocking your workspace..."}</p>
-            </div>
+      {state === "success" ? (
+        <div className="grid min-h-[390px] place-items-center px-2 py-8 text-center">
+          <div>
+            <span className="mx-auto grid h-16 w-16 animate-pulse place-items-center rounded-full bg-emerald-50 text-emerald-700">
+              <Sparkles className="h-8 w-8" />
+            </span>
+            <h2 className="mt-5 text-3xl font-semibold text-stone-950">Welcome to Synzept Pro!</h2>
+            <p className="mt-3 text-sm leading-6 text-stone-600">{message || "Unlocking your workspace..."}</p>
           </div>
-        ) : (
-          <div className="p-5 sm:p-6">
-            <div className="max-w-2xl">
-              <p className="inline-flex items-center gap-2 rounded-full bg-[#eef4ef] px-3 py-1 text-xs font-semibold text-[#31563d]">
-                <Sparkles className="h-3.5 w-3.5" />
-                Synzept Pro
-              </p>
-              <h2 className="mt-4 text-3xl font-semibold tracking-tight text-stone-950">Choose a plan. Start checkout instantly.</h2>
-              <p className="mt-3 text-sm leading-6 text-stone-600">Unlock continuity, memory, unlimited projects, and priority features without leaving your workspace.</p>
-            </div>
-
-            {state === "failed" && (
-              <div className="mt-5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
-                <p className="text-sm font-semibold text-amber-950">Payment wasn&apos;t completed.</p>
-                <p className="mt-1 text-sm text-amber-800">{message || "You can try again with the same plan."}</p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <button type="button" onClick={() => startCheckout(selectedPlan)} className="inline-flex h-9 items-center justify-center rounded-lg bg-stone-950 px-3 text-sm font-semibold text-white hover:bg-stone-800">
-                    Try Again
-                  </button>
-                  <button type="button" onClick={close} className="inline-flex h-9 items-center justify-center rounded-lg border border-stone-200 bg-white px-3 text-sm font-medium text-stone-700 hover:bg-stone-50">
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            )}
-
-            <div className="mt-6 grid gap-3 md:grid-cols-2">
-              {planOptions.map((plan) => {
-                const active = activePlan.id === plan.id;
-                const busy = (state === "creating" || state === "checkout") && selectedPlan === plan.id;
-                return (
-                  <button
-                    key={plan.id}
-                    type="button"
-                    disabled={state === "creating" || state === "checkout"}
-                    onClick={() => startCheckout(plan.id)}
-                    className={cn(
-                      "relative rounded-lg border p-5 text-left transition hover:-translate-y-0.5 hover:shadow-[0_16px_45px_rgba(28,25,23,0.08)] disabled:translate-y-0 disabled:opacity-80",
-                      active ? "border-stone-950 bg-stone-950 text-white" : "border-stone-200 bg-white text-stone-950 hover:border-stone-300",
-                    )}
-                  >
-                    {plan.recommended ? (
-                      <span className={cn("absolute right-4 top-4 rounded-full px-2.5 py-1 text-xs font-semibold", active ? "bg-white text-stone-950" : "bg-[#eef4ef] text-[#31563d]")}>Recommended</span>
-                    ) : null}
-                    <p className={cn("text-sm font-semibold", active ? "text-stone-200" : "text-stone-500")}>{plan.name}</p>
-                    <div className="mt-4 flex items-end gap-2">
-                      <p className="text-4xl font-semibold">₹{plan.price}</p>
-                      <p className={cn("pb-1 text-sm", active ? "text-stone-300" : "text-stone-500")}>/{plan.interval}</p>
-                    </div>
-                    {plan.savings ? <p className={cn("mt-2 text-sm font-medium", active ? "text-emerald-200" : "text-[#31563d]")}>{plan.savings}</p> : <p className={cn("mt-2 text-sm", active ? "text-stone-300" : "text-stone-500")}>Flexible monthly billing</p>}
-                    <div className="mt-5 space-y-2">
-                      {features.slice(0, 4).map((feature) => (
-                        <p key={feature} className={cn("flex items-center gap-2 text-sm", active ? "text-stone-100" : "text-stone-700")}>
-                          <CheckCircle2 className={cn("h-4 w-4", active ? "text-emerald-200" : "text-[#3f5f4a]")} />
-                          {feature}
-                        </p>
-                      ))}
-                    </div>
-                    <span className={cn("mt-5 inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg text-sm font-semibold", active ? "bg-white text-stone-950" : "bg-stone-950 text-white")}>
-                      {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
-                      {busy ? "Opening Razorpay..." : "Select and Pay"}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-
-            <p className="mt-4 text-center text-xs text-stone-500">Secure checkout powered by Razorpay. Pro activates automatically after verification.</p>
-          </div>
-        )}
-      </div>
+        </div>
+      ) : (
+        <UpgradePlanSurface
+          billingCycle="monthly"
+          setBillingCycle={() => undefined}
+          activePlan={activePlan}
+          isBusy={isBusy}
+          state={state}
+          message={message}
+          onUpgrade={() => {
+            void startCheckout();
+          }}
+        />
+      )}
     </div>
   );
 }
 
 function toPlanOption(plan: BillingPlan): PlanOption {
-  const id: BillingCycle = plan.billingCycle === "yearly" || plan.interval === "year" ? "yearly" : "monthly";
+  const id: BillingCycle = "monthly";
   return {
     id,
-    name: id === "yearly" ? "Yearly" : "Monthly",
+    name: "Monthly",
     price: plan.priceInr,
     interval: plan.interval === "year" ? "year" : "month",
     savings: plan.savings || undefined,
-    recommended: id === "yearly",
+    recommended: true,
   };
 }
 

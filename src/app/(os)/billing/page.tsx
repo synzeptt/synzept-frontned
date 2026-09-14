@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CreditCard, Download, RefreshCw, ShieldCheck, Sparkles, X } from "lucide-react";
-import { PageHeader } from "@/components/layout/page-header";
+import Link from "next/link";
+import { CreditCard, Download, RefreshCw, ShieldCheck, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { api, type BillingOverview } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth";
+import { UpgradeCta } from "@/components/pro/upgrade-cta";
+import { Page, PageHeader, Row, Status, Metadata } from "@/components/design-system/workspace-primitives";
 
 export default function BillingPage() {
   const { refreshUser } = useAuthStore();
@@ -28,6 +30,9 @@ export default function BillingPage() {
 
   useEffect(() => {
     void load();
+    const refreshBilling = () => void load();
+    window.addEventListener("synzept:billing-updated", refreshBilling);
+    return () => window.removeEventListener("synzept:billing-updated", refreshBilling);
   }, []);
 
   const cancel = async () => {
@@ -54,28 +59,25 @@ export default function BillingPage() {
   const isPro = Boolean(plan?.isPro);
 
   return (
-    <div className="h-full overflow-y-auto">
-      <PageHeader label="Billing" title="Manage Synzept Pro" />
-      <div className="mx-auto max-w-5xl space-y-5 px-4 py-5 md:px-8">
-        {message && <p className="rounded-md border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700">{message}</p>}
+    <Page>
+      <div className="mx-auto max-w-3xl space-y-12 px-5 py-12 sm:px-8 sm:py-16">
+      <PageHeader eyebrow="System" title="Billing" description="A clear record of your plan and subscription status." />
+        {message && <p className="border-y border-stone-200 py-3 text-sm text-stone-700">{message}</p>}
 
-        <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
-          <div className="rounded-lg border border-border bg-white p-6 shadow-soft">
-            <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted">
-              <Sparkles className="h-3.5 w-3.5" />
-              Current Plan
-            </p>
-            <h2 className="mt-3 text-4xl font-semibold text-stone-950">{isPro ? "Synzept Pro" : "Free"}</h2>
+        <section>
+          <div className="border-y border-border/10 py-6">
+            <p className="synzept-eyebrow">Your plan</p>
+            <h2 className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-stone-950">{isPro ? "Pro" : "Free"}</h2>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-stone-600">
               {isPro
                 ? "Your Pro workspace is active. Manage renewal, transaction history, and subscription controls from this page."
                 : "You are currently on the Free plan. Upgrades now start directly from the Upgrade to Pro button in the app."}
             </p>
 
-            <div className="mt-6 grid gap-3 sm:grid-cols-3">
-              <StatusTile label="Plan" value={isPro ? "Pro" : "Free"} />
-              <StatusTile label="Renewal Date" value={isPro ? formatDate(plan?.renewalDate) : "Not scheduled"} />
-              <StatusTile label="Payment" value={plan?.paymentStatus || "none"} />
+            <div className="mt-6 divide-y divide-border/10 border-y border-border/10">
+              <Row><span className="text-sm text-stone-700">Plan</span><Status>{isPro ? "Pro" : "Free"}</Status></Row>
+              <Row><span className="text-sm text-stone-700">Renewal</span><Metadata>{isPro ? formatDate(plan?.renewalDate) : "Not scheduled"}</Metadata></Row>
+              <Row><span className="text-sm text-stone-700">Payment</span><Metadata>{plan?.paymentStatus || "None"}</Metadata></Row>
             </div>
 
             <div className="mt-6 flex flex-wrap gap-2">
@@ -83,6 +85,7 @@ export default function BillingPage() {
                 <CreditCard className="mr-1.5 h-4 w-4" />
                 Manage Subscription
               </Button>
+              {!isPro && <UpgradeCta />}
               <Button variant="outline" onClick={load} disabled={loading}>
                 <RefreshCw className="mr-1.5 h-4 w-4" />
                 Refresh
@@ -96,24 +99,29 @@ export default function BillingPage() {
             </div>
           </div>
 
-          <aside className="rounded-lg border border-border bg-white p-5 shadow-soft">
+          <aside className="mt-8 border-b border-border/10 pb-6">
             <p className="flex items-center gap-2 text-sm font-semibold text-stone-950">
               <ShieldCheck className="h-4 w-4 text-muted" />
               Billing Status
             </p>
-            <div className="mt-5 rounded-md bg-stone-50 px-3 py-3 text-sm text-stone-700">
+            <div className="mt-5 border-y border-border/10 py-3 text-sm text-stone-700">
               <p>Plan: {isPro ? "Pro" : "Free"}</p>
               <p className="mt-1">Subscription: {plan?.status || "inactive"}</p>
               <p className="mt-1">Renewal Date: {isPro ? formatDate(plan?.renewalDate) : "not scheduled"}</p>
               <p className="mt-1">Provider: {plan?.provider || "manual"}</p>
             </div>
             <p className="mt-4 text-xs leading-5 text-muted">
-              Checkout now happens directly from the Upgrade to Pro button. Billing is only for subscription management and history.
+              Payments are processed by Razorpay. Pro access is activated only after the server verifies the subscription payment.
+            </p>
+            <p className="mt-3 text-xs leading-5 text-muted">
+              <Link href="/refunds" className="underline hover:text-stone-950">Refund &amp; Cancellation</Link>
+              <span className="mx-2">·</span>
+              <Link href="/terms" className="underline hover:text-stone-950">Terms</Link>
             </p>
           </aside>
         </section>
 
-        <section className="rounded-lg border border-border bg-white p-5 shadow-soft">
+        <section>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-sm font-semibold text-stone-950">Transaction History</p>
@@ -138,16 +146,7 @@ export default function BillingPage() {
           </div>
         </section>
       </div>
-    </div>
-  );
-}
-
-function StatusTile({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border border-border bg-stone-50 p-3">
-      <p className="text-xs text-muted">{label}</p>
-      <p className="mt-1 text-sm font-semibold text-stone-950">{value}</p>
-    </div>
+    </Page>
   );
 }
 

@@ -111,7 +111,7 @@ export default function TrustPage() {
   );
 
   return (
-    <div className="h-full overflow-y-auto">
+    <div className="min-h-full">
       <PageHeader label="Trust" title="Trust & Transparency" />
       <div className="mx-auto max-w-7xl space-y-6 px-4 py-6 md:px-8">
         <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">

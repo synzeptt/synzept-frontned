@@ -6,116 +6,83 @@ function apiBase(): string {
   }
   return configuredApiBase;
 }
+export const AUTH_STATE_CLEARED_EVENT = "synzept:auth-cleared";
 const TOKEN_KEY = "synzept_access_token";
 const REFRESH_KEY = "synzept_refresh_token";
-const ACCESS_TOKEN_MAX_AGE_SECONDS = 60 * 30;
-const REFRESH_TOKEN_MAX_AGE_SECONDS = 60 * 60 * 24 * 7;
 
 function backendUrl(path: string): string {
   const base = apiBase();
   return `${base}${path}`;
 }
 
+export function clearTokens() {
+  try {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(REFRESH_KEY);
+  } catch {
+    // Storage may be unavailable during SSR or private browsing.
+  }
+  notifyAuthStateCleared();
+}
+
 export function getAccessToken(): string | null {
   if (typeof window === "undefined") return null;
-  return readStoredValue(TOKEN_KEY);
+  return localStorage.getItem(TOKEN_KEY);
 }
 
 export function getRefreshToken(): string | null {
   if (typeof window === "undefined") return null;
-  return readStoredValue(REFRESH_KEY);
+  return localStorage.getItem(REFRESH_KEY);
 }
 
 export function setTokens(access: string, refresh: string) {
-  writeStoredValue(TOKEN_KEY, access, ACCESS_TOKEN_MAX_AGE_SECONDS);
-  writeStoredValue(REFRESH_KEY, refresh, REFRESH_TOKEN_MAX_AGE_SECONDS);
+  localStorage.setItem(TOKEN_KEY, access);
+  localStorage.setItem(REFRESH_KEY, refresh);
 }
 
-export function clearTokens() {
-  removeStoredValue(TOKEN_KEY);
-  removeStoredValue(REFRESH_KEY);
+function notifyAuthStateCleared() {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event(AUTH_STATE_CLEARED_EVENT));
 }
 
-function readStoredValue(key: string): string | null {
-  const localValue = readLocalStorage(key);
-  if (localValue) return localValue;
-  const cookieValue = readCookie(key);
-  if (cookieValue) {
-    writeLocalStorage(key, cookieValue);
-    return cookieValue;
-  }
-  return null;
-}
+function authHeaders(): Record<string, string> { return {}; }
 
-function writeStoredValue(key: string, value: string, maxAgeSeconds: number) {
-  writeLocalStorage(key, value);
-  writeCookie(key, value, maxAgeSeconds);
-}
-
-function removeStoredValue(key: string) {
-  try {
-    localStorage.removeItem(key);
-  } catch {
-    /* ignore unavailable storage */
-  }
-  document.cookie = `${key}=; Max-Age=0; Path=/; SameSite=Lax; Secure`;
-}
-
-function readLocalStorage(key: string): string | null {
-  try {
-    return localStorage.getItem(key);
-  } catch {
-    return null;
-  }
-}
-
-function writeLocalStorage(key: string, value: string) {
-  try {
-    localStorage.setItem(key, value);
-  } catch {
-    /* cookie fallback remains available */
-  }
-}
-
-function readCookie(key: string): string | null {
-  const prefix = `${key}=`;
-  const cookie = document.cookie
-    .split("; ")
-    .find((item) => item.startsWith(prefix));
-  return cookie ? decodeURIComponent(cookie.slice(prefix.length)) : null;
-}
-
-function writeCookie(key: string, value: string, maxAgeSeconds: number) {
-  document.cookie = `${key}=${encodeURIComponent(value)}; Max-Age=${maxAgeSeconds}; Path=/; SameSite=Lax; Secure`;
-}
-
-function authHeaders(): Record<string, string> {
-  const token = getAccessToken();
-  return token ? { Authorization: `Bearer ${token}` } : {};
+function notifyApiError(path: string, method: string, status: number | string) {
+  if (typeof window === "undefined" || path === "/api/v1/analytics/event") return;
+  window.dispatchEvent(new CustomEvent("synzept:api-error", { detail: { path, method, status } }));
 }
 
 let refreshPromise: Promise<boolean> | null = null;
+const inFlightGetRequests = new Map<string, Promise<unknown>>();
+let calendarContextCache: { value: CalendarContext; expiresAt: number } | null = null;
+let calendarContextPromise: Promise<CalendarContext> | null = null;
+type ExecutionPollingListener = (execution: ActionExecution) => void;
+type ExecutionPollingEntry = {
+  listeners: Set<ExecutionPollingListener>;
+  errorListeners: Set<(error: unknown) => void>;
+  timer: number | null;
+  stopped: boolean;
+  errorStreak: number;
+};
+const executionPolling = new Map<string, ExecutionPollingEntry>();
+
+const TERMINAL_EXECUTION_STATUSES = new Set(["completed", "failed", "cancelled"]);
 
 export async function refreshAccessToken(): Promise<boolean> {
   if (refreshPromise) return refreshPromise;
 
   refreshPromise = (async () => {
-    const refresh = getRefreshToken();
-    if (!refresh) return false;
     let response: Response;
     try {
       response = await fetch(backendUrl("/api/v1/auth/refresh"), {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ refresh_token: refresh }),
       });
     } catch {
       throw new Error("Synzept could not refresh the session because the server is unavailable.");
     }
     if (!response.ok) return false;
-    const data = await response.json();
-    setTokens(data.access_token, data.refresh_token);
     return true;
   })().finally(() => {
     refreshPromise = null;
@@ -124,7 +91,28 @@ export async function refreshAccessToken(): Promise<boolean> {
   return refreshPromise;
 }
 
-export async function request<T>(path: string, options?: RequestInit, retry = true): Promise<T> {
+export function request<T>(path: string, options?: RequestInit, retry = true): Promise<T> {
+  const method = (options?.method || "GET").toUpperCase();
+  const canDeduplicate = method === "GET" && !options?.signal;
+  const key = canDeduplicate ? `${method}:${path}` : null;
+  if (key) {
+    const existing = inFlightGetRequests.get(key);
+    if (existing) return existing as Promise<T>;
+  }
+
+  const promise = requestOnce<T>(path, options, retry);
+  if (key) {
+    inFlightGetRequests.set(key, promise);
+    const clearRequest = () => {
+      if (inFlightGetRequests.get(key) === promise) inFlightGetRequests.delete(key);
+    };
+    void promise.then(clearRequest, clearRequest);
+  }
+  return promise;
+}
+
+async function requestOnce<T>(path: string, options?: RequestInit, retry = true): Promise<T> {
+  const method = (options?.method || "GET").toUpperCase();
   if (typeof navigator !== "undefined" && !navigator.onLine) {
     throw new Error("You appear to be offline. Your work is still here; reconnect and try again.");
   }
@@ -143,12 +131,13 @@ export async function request<T>(path: string, options?: RequestInit, retry = tr
   } catch (err) {
     if (err instanceof Error && err.name === "AbortError") throw err;
     logRequestFailure(path, err);
+    notifyApiError(path, method, "network");
     throw new Error("Synzept could not reach the backend. Your workspace is safe; please try again in a moment.");
   }
   if (response.status === 401 && retry) {
     try {
       const refreshed = await refreshAccessToken();
-      if (refreshed) return request<T>(path, options, false);
+      if (refreshed) return requestOnce<T>(path, options, false);
       clearTokens();
       throw new Error("Please sign in again to continue.");
     } catch (err) {
@@ -159,10 +148,68 @@ export async function request<T>(path: string, options?: RequestInit, retry = tr
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
     const msg = body.message || body.detail;
+    if (response.status === 429 && process.env.NODE_ENV !== "production" && typeof console !== "undefined") {
+      console.warn("[Synzept API] Rate limited request", { path, method, retry: false, message: msg });
+    }
     logAuthFailure(path, response.status, msg);
+    notifyApiError(path, method, response.status);
     throw new Error(typeof msg === "string" ? msg : Array.isArray(msg) ? msg[0]?.msg : "Synzept could not complete that request. Please try again.");
   }
+  if (response.status === 204) return {} as T;
   return response.json();
+}
+
+export function subscribeToActionExecution(
+  executionId: string,
+  listener: ExecutionPollingListener,
+  intervalMs = 3500,
+  onError?: (error: unknown) => void,
+): () => void {
+  let entry = executionPolling.get(executionId);
+  if (!entry) {
+    entry = { listeners: new Set(), errorListeners: new Set(), timer: null, stopped: false, errorStreak: 0 };
+    executionPolling.set(executionId, entry);
+
+    const poll = async () => {
+      const current = executionPolling.get(executionId);
+      if (!current || current.stopped) return;
+      try {
+        const execution = await api.getActionExecution(executionId);
+        const active = executionPolling.get(executionId);
+        if (!active || active.stopped) return;
+        active.errorStreak = 0;
+        active.listeners.forEach((subscriber) => subscriber(execution));
+        if (TERMINAL_EXECUTION_STATUSES.has(execution.status.toLowerCase())) {
+          active.stopped = true;
+          executionPolling.delete(executionId);
+          return;
+        }
+        active.timer = window.setTimeout(() => void poll(), intervalMs);
+      } catch (error) {
+        const active = executionPolling.get(executionId);
+        if (!active || active.stopped) return;
+        active.errorStreak += 1;
+        if (active.errorStreak >= 3) active.errorListeners.forEach((subscriber) => subscriber(error));
+        active.timer = window.setTimeout(() => void poll(), intervalMs);
+      }
+    };
+
+    void poll();
+  }
+
+  entry.listeners.add(listener);
+  if (onError) entry.errorListeners.add(onError);
+  return () => {
+    const current = executionPolling.get(executionId);
+    if (!current) return;
+    current.listeners.delete(listener);
+    if (onError) current.errorListeners.delete(onError);
+    if (current.listeners.size === 0) {
+      current.stopped = true;
+      if (current.timer !== null) window.clearTimeout(current.timer);
+      executionPolling.delete(executionId);
+    }
+  };
 }
 
 function logAuthFailure(path: string, status: number, detail: unknown) {
@@ -200,6 +247,36 @@ export type ChatMessage = {
   metadata?: { attachments?: AttachmentMetadata[] } | Record<string, unknown>;
 };
 
+export type ChatConfirmation = {
+  confirmation_id?: string;
+  id?: string;
+  risk_level?: string;
+  summary?: string;
+  human_readable_summary?: string;
+  tool_name?: string;
+  status?: string;
+  tool_arguments?: Record<string, unknown>;
+  created_at?: string;
+  expires_at?: string;
+};
+
+export type ChatResponse = {
+  conversation_id: string;
+  message_id: string;
+  reply: string;
+  intent?: string | null;
+  trust_context?: Record<string, unknown>;
+  suggestions?: Array<Record<string, unknown>>;
+  confirmation?: ChatConfirmation | null;
+};
+
+export type ConfirmationDecisionResponse = {
+  ok: boolean;
+  confirmation_id: string;
+  status: string;
+  message: string;
+};
+
 export type Conversation = {
   id: string;
   title: string | null;
@@ -216,12 +293,13 @@ export type Task = {
   id: string;
   title: string;
   description: string | null;
-  status: "todo" | "in_progress" | "completed" | "archived" | "pending" | "done";
+  status: "todo" | "in_progress" | "completed" | "archived" | "pending" | "done" | "queued" | "planning" | "researching" | "executing" | "waiting_approval" | "failed" | "cancelled" | "understanding" | string;
   priority: string;
   project_id: string | null;
   milestone_id?: string | null;
   due_at: string | null;
   created_at: string;
+  updated_at?: string;
 };
 
 export type Note = {
@@ -467,6 +545,22 @@ export type DailyBriefSnapshot = {
   upcomingPriorities: Array<Record<string, unknown>>;
   projectsNeedingAttention: Array<Record<string, unknown>>;
   contextToRemember: Array<Record<string, unknown>>;
+  todaysThread?: {
+    primaryRecommendation?: Record<string, unknown>;
+    secondaryRecommendation?: Record<string, unknown>;
+    whyItMattersToday?: string;
+    whatINoticed?: string;
+    supportingSources?: string[];
+    risksIfIgnored?: string[];
+    confidence?: number;
+    generatedAt?: string;
+    evidenceUsed?: Array<Record<string, unknown>>;
+    bestAvailableFocusWindow?: { minutes?: number };
+    opportunityCost?: string;
+    reason?: string;
+    decision?: string;
+    [key: string]: unknown;
+  };
   createdAt: string | null;
   updatedAt: string | null;
 };
@@ -583,6 +677,7 @@ export type MemoryTrustRecord = {
   archived_at: string | null;
   version: number;
   project_id: string | null;
+  metadata?: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
 };
@@ -628,6 +723,83 @@ export type WorkspaceSearchResult = {
   id: string;
   title: string;
   detail: string;
+  project_id: string | null;
+  goal_id: string | null;
+};
+
+export type WorkspaceActivity = {
+  id: string;
+  action: string;
+  title: string;
+  detail: string;
+  project_id: string | null;
+  goal_id: string | null;
+  task_id: string | null;
+  note_id: string | null;
+  created_at: string;
+};
+
+export type ConnectedApp = {
+  provider: string;
+  connected: boolean;
+  status: string;
+  lastSyncedAt: string | null;
+  lastErrorCode: string | null;
+  lastErrorMessage: string | null;
+  permissions: string[];
+  scopes: string[];
+  privacy: Record<string, string>;
+};
+
+export type CalendarContext = {
+  today: Array<Record<string, unknown>>;
+  tomorrow: Array<Record<string, unknown>>;
+  meetingLoadMinutes: number;
+  freeBlocks: Array<{ minutes: number; start?: string; end?: string; startAt?: string; endAt?: string; label?: string }>;
+  conflicts: string[];
+  recommendation: string;
+};
+
+export type CalendarWeeklyContext = {
+  events: number;
+  meetingLoadMinutes: number;
+  recurringEvents: number;
+  heavyMeetingDays: string[];
+  summary: string;
+};
+
+export type ActionExecution = {
+  id: string;
+  conversation_id: string | null;
+  project_id: string | null;
+  action_type: string;
+  title: string;
+  request: string;
+  status: string;
+  progress: number;
+  output: string | null;
+  error: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ActionExecutionPlan = {
+  id?: string;
+  intent: string;
+  estimated_minutes: number;
+  steps: Array<{ id?: string; title: string; status?: string; detail?: string; notes?: string[] }>;
+  approval_reason?: string | null;
+  activity?: string | null;
+  [key: string]: unknown;
+};
+
+export type ActionExecutionCreateRequest = {
+  request: string;
+  action_type?: string | null;
+  project_id?: string | null;
+  conversation_id?: string | null;
+  metadata?: Record<string, unknown>;
 };
 
 export type Workspace = {
@@ -644,7 +816,7 @@ export type Workspace = {
   };
   insights: WorkspaceInsight[];
   recommendations: NextAction[];
-  timeline: Array<{ id: string; action: string; title: string; detail: string; created_at: string }>;
+  timeline: WorkspaceActivity[];
 };
 
 export type IntelligenceItem = {
@@ -1158,7 +1330,7 @@ export type BillingPlan = {
   name: string;
   priceInr: number;
   interval: string;
-  billingCycle?: "monthly" | "yearly";
+  billingCycle?: "monthly";
   savings?: string | null;
   benefits: string[];
 };
@@ -1186,11 +1358,12 @@ export type CheckoutSession = {
   checkoutId: string;
   provider: "razorpay";
   keyId: string | null;
-  orderId: string;
+  orderId: string | null;
+  subscriptionId: string;
   amount: number;
   currency: string;
   planType: "pro";
-  billingCycle?: "monthly" | "yearly";
+  billingCycle?: "monthly";
   priceInr: number;
   description: string;
 };
@@ -1413,10 +1586,9 @@ export type FirstUsersLaunch = {
   first_users: FirstUserSession[];
 };
 
-export type AuthTokens = {
+export type AuthSession = {
   access_token: string;
   refresh_token: string;
-  token_type: string;
   onboarding_state?: string;
   display_name?: string | null;
 };
@@ -1466,21 +1638,29 @@ export type FirstRunIntelligenceInput = {
   generated_suggested_actions?: string[];
 };
 
+export function clearSynzeptContextCache(_key?: string) {
+  calendarContextCache = null;
+  calendarContextPromise = null;
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event("synzept:context-cache-cleared"));
+  }
+}
+
 export const api = {
   signup: (email: string, password: string) =>
-    request<AuthTokens>("/api/v1/auth/signup", {
+    request<AuthSession>("/api/v1/auth/signup", {
       method: "POST",
       body: JSON.stringify({ email, password }),
     }),
 
   signupWithInvite: (email: string, password: string, displayName?: string, inviteCode?: string) =>
-    request<AuthTokens>("/api/v1/auth/signup", {
+    request<AuthSession>("/api/v1/auth/signup", {
       method: "POST",
       body: JSON.stringify({ email, password, display_name: displayName, invite_code: inviteCode }),
     }),
 
   login: (email: string, password: string) =>
-    request<AuthTokens>("/api/v1/auth/login", {
+    request<AuthSession>("/api/v1/auth/login", {
       method: "POST",
       body: JSON.stringify({ email, password }),
     }),
@@ -1498,7 +1678,7 @@ export const api = {
     }),
 
   googleLogin: (idToken: string) =>
-    request<AuthTokens>("/api/v1/auth/google", {
+    request<AuthSession>("/api/v1/auth/google", {
       method: "POST",
       body: JSON.stringify({ id_token: idToken }),
     }),
@@ -1506,7 +1686,6 @@ export const api = {
   logout: () =>
     request<{ ok: boolean }>("/api/v1/auth/logout", {
       method: "POST",
-      body: JSON.stringify({ refresh_token: getRefreshToken() }),
     }).catch(() => ({ ok: true })),
 
   deleteAccount: (data: { password?: string; confirmation: string }) =>
@@ -1540,13 +1719,13 @@ export const api = {
 
   getBilling: () => request<BillingOverview>("/api/billing"),
 
-  createCheckout: (planType: "pro" = "pro", billingCycle: "monthly" | "yearly" = "monthly") =>
-    request<CheckoutSession>("/api/create-order", {
+  createCheckout: (planType: "pro" = "pro") =>
+    request<CheckoutSession>("/api/billing/checkout", {
       method: "POST",
-      body: JSON.stringify({ planType, billingCycle }),
+      body: JSON.stringify({ planType, billingCycle: "monthly" }),
     }),
 
-  verifyPayment: (data: { checkoutId: string; providerOrderId: string; providerPaymentId: string; providerSignature: string }) =>
+  verifyPayment: (data: { checkoutId: string; providerSubscriptionId: string; providerPaymentId: string; providerSignature: string }) =>
     request<SubscriptionStatus>("/api/verify-payment", {
       method: "POST",
       body: JSON.stringify(data),
@@ -1584,7 +1763,8 @@ export const api = {
     request<OnboardingStatus>("/api/v1/onboarding/welcome", { method: "POST" }),
 
   onboardingContext: (data: {
-    display_name: string;
+    display_name?: string;
+    context?: string;
     primary_role?: string;
     goals: string[];
     current_priorities: string[];
@@ -1596,6 +1776,15 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+
+  onboardingGoals: (data: { goals: string[] }) =>
+    request<OnboardingStatus>("/api/v1/onboarding/goals", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  onboardingSkipStep: (step: "context" | "apps") =>
+    request<OnboardingStatus>(`/api/v1/onboarding/step/${step}/skip`, { method: "POST" }),
 
   onboardingWorkspace: (data: {
     create_project?: boolean;
@@ -1646,6 +1835,46 @@ export const api = {
   onboardingSkip: () =>
     request<{ welcome_message: string }>("/api/v1/onboarding/skip", { method: "POST" }),
 
+  getGoogleCalendarStatus: () => request<ConnectedApp>("/api/connected-apps/google-calendar"),
+  getGoogleWorkspaceStatuses: () => request<ConnectedApp[]>("/api/connected-apps/google-workspace"),
+  getMicrosoft365Statuses: () => request<ConnectedApp[]>("/api/connected-apps/microsoft-365"),
+  getGitHubStatus: () => request<ConnectedApp>("/api/connected-apps/github"),
+  getSlackStatus: () => request<ConnectedApp>("/api/connected-apps/slack"),
+  getNotionStatus: () => request<ConnectedApp>("/api/connected-apps/notion"),
+  connectGoogleCalendar: () => request<{ authorizationUrl: string }>("/api/connected-apps/google-calendar/connect", { method: "POST" }),
+  connectGoogleWorkspaceService: (provider: string) => request<{ authorizationUrl: string }>(`/api/connected-apps/${provider}/connect`, { method: "POST" }),
+  syncGoogleCalendar: () => request<{ synced: number; updated: number; cancelled: number; observations: number; status: string }>("/api/connected-apps/google-calendar/sync", { method: "POST" }),
+  syncGoogleWorkspaceService: (provider: string) => request<{ synced: number; updated: number; cancelled: number; observations: number; status: string }>(`/api/connected-apps/${provider}/sync`, { method: "POST" }),
+  disconnectGoogleCalendar: () => request<ConnectedApp>("/api/connected-apps/google-calendar", { method: "DELETE" }),
+  disconnectGoogleWorkspaceService: (provider: string) => request<ConnectedApp>(`/api/connected-apps/${provider}`, { method: "DELETE" }),
+  getGoogleCalendarContext: () => {
+    if (calendarContextCache && calendarContextCache.expiresAt > Date.now()) return Promise.resolve(calendarContextCache.value);
+    if (calendarContextPromise) return calendarContextPromise;
+    calendarContextPromise = request<CalendarContext>("/api/connected-apps/google-calendar/context")
+      .then((value) => {
+        calendarContextCache = { value, expiresAt: Date.now() + 20_000 };
+        return value;
+      })
+      .finally(() => {
+        calendarContextPromise = null;
+      });
+    return calendarContextPromise;
+  },
+  getGoogleCalendarWeeklyContext: () => request<CalendarWeeklyContext>("/api/connected-apps/google-calendar/weekly-context"),
+  getMicrosoftCalendarContext: () => request<CalendarContext>("/api/connected-apps/microsoft-outlook-calendar/context"),
+  getMicrosoftCalendarWeeklyContext: () => request<CalendarWeeklyContext>("/api/connected-apps/microsoft-outlook-calendar/weekly-context"),
+  relevantUnderstanding: (query?: string, projectId?: string, limit = 8) => {
+    const params = new URLSearchParams();
+    if (query) params.set("query", query);
+    if (projectId) params.set("project_id", projectId);
+    if (limit) params.set("limit", String(limit));
+    const suffix = params.toString() ? `?${params.toString()}` : "";
+    return request<MemoryTrustRecord[]>(`/api/v2/memory/understanding/relevant${suffix}`);
+  },
+  getWorkspaceTimeline: (limit = 50) => request<WorkspaceActivity[]>(`/api/v2/workspace/timeline?limit=${limit}`),
+  actionArtifactUrl: (actionId: string, artifactId: string) => backendUrl(`/api/v2/actions/${encodeURIComponent(actionId)}/download/${encodeURIComponent(artifactId)}`),
+  approveMemoryCandidate: (memoryId: string) => request<{ ok: boolean }>(`/api/v2/memory/${memoryId}/approve`, { method: "POST" }),
+  rejectMemoryCandidate: (memoryId: string, reason?: string) => request<{ ok: boolean }>(`/api/v2/memory/${memoryId}/reject`, { method: "POST", body: JSON.stringify({ reason }) }),
   getDashboard: () => request<Dashboard>("/api/v1/dashboard"),
   getS1Context: () => request<S1Context>("/api/v1/s1/context"),
   getS1Home: () => request<S1Home>("/api/v1/s1/home"),
@@ -1678,6 +1907,17 @@ export const api = {
   explainMemoryMessage: (messageId: string) => request<MemoryExplain>(`/api/v2/memory/explain/${messageId}`),
   getWorkspace: () => request<Workspace>("/api/v2/workspace"),
   searchWorkspace: (q: string) => request<{ query: string; results: WorkspaceSearchResult[] }>(`/api/v2/workspace/search?q=${encodeURIComponent(q)}`),
+  listActionExecutions: () => request<ActionExecution[]>("/api/v2/actions"),
+  getActionExecution: (actionId: string) => request<ActionExecution>(`/api/v2/actions/${actionId}`),
+  subscribeToActionExecution: (actionId: string, listener: (execution: ActionExecution) => void, intervalMs?: number, onError?: (error: unknown) => void) =>
+    subscribeToActionExecution(actionId, listener, intervalMs, onError),
+  createActionExecution: (data: ActionExecutionCreateRequest) =>
+    request<ActionExecution>("/api/v2/actions", { method: "POST", body: JSON.stringify(data) }),
+  retryActionExecution: (actionId: string) => request<ActionExecution>(`/api/v2/actions/${actionId}/retry`, { method: "POST" }),
+  approveActionExecution: (actionId: string, draftIndices?: number[]) => request<ActionExecution>(`/api/v2/actions/${actionId}/approve`, { method: "POST", body: draftIndices ? JSON.stringify({ draft_indices: draftIndices }) : undefined }),
+  updateEmailDraft: (actionId: string, draftIndex: number, changes: { to?: string; subject?: string; suggested_reply?: string }) => request<ActionExecution>(`/api/v2/actions/${actionId}/email-draft`, { method: "PATCH", body: JSON.stringify({ draft_index: draftIndex, ...changes }) }),
+  rejectActionExecution: (actionId: string) => request<ActionExecution>(`/api/v2/actions/${actionId}/reject`, { method: "POST" }),
+  cancelActionExecution: (actionId: string) => request<ActionExecution>(`/api/v2/actions/${actionId}/cancel`, { method: "POST" }),
   getProactiveOverview: () => request<ProactiveOverview>("/api/v2/proactive-intelligence/overview"),
   getChiefOfStaff: () => request<ChiefOfStaff>("/api/v2/proactive-intelligence/chief-of-staff"),
   getFounderReport: () => request<FounderReport>("/api/v2/proactive-intelligence/founder-report"),
@@ -1763,11 +2003,21 @@ export const api = {
     }),
 
   trackEvent: (event_type: string, surface?: string, metadata?: Record<string, unknown>, value?: number) => {
-    if (!getAccessToken()) return Promise.resolve({ ok: false });
     return request<{ ok: boolean }>("/api/v1/analytics/event", {
       method: "POST",
       body: JSON.stringify({ event_type, surface, metadata: metadata ?? {}, value }),
     }).catch(() => ({ ok: false }));
+  },
+
+  trackEventOnce: (event_type: string, eventKey: string, surface?: string, metadata?: Record<string, unknown>, value?: number) => {
+    if (typeof window === "undefined") return Promise.resolve({ ok: false });
+    const key = `synzept-analytics:${event_type}:${eventKey}`;
+    if (sessionStorage.getItem(key)) return Promise.resolve({ ok: true });
+    sessionStorage.setItem(key, "1");
+    return api.trackEvent(event_type, surface, { ...metadata, event_id: key }, value).then((result) => {
+      if (!result.ok) sessionStorage.removeItem(key);
+      return result;
+    });
   },
 
   getUsefulnessMetrics: () => request<UsefulnessMetrics>("/api/v1/analytics/usefulness"),
@@ -1777,6 +2027,12 @@ export const api = {
   getMessages: (conversationId: string) =>
     request<Array<{ id: string; role: string; content: string; conversation_id: string; metadata?: Record<string, unknown> }>>(
       `/api/v1/conversations/${conversationId}/messages`,
+    ),
+
+  createConversationMessage: (conversationId: string, role: "user" | "assistant", content: string, metadata?: Record<string, unknown>) =>
+    request<{ id: string; role: string; content: string; conversation_id: string; metadata?: Record<string, unknown> }>(
+      `/api/v1/conversations/${conversationId}/messages`,
+      { method: "POST", body: JSON.stringify({ role, content, metadata }) },
     ),
 
   uploadAttachment: async (file: File, onProgress?: (progress: number) => void) => {
@@ -1831,10 +2087,16 @@ export const api = {
   },
 
   sendMessage: (message: string, conversationId?: string, projectId?: string, attachments?: AttachmentMetadata[]) =>
-    request<{ conversation_id: string; message_id: string; reply: string }>("/api/v1/chat", {
+    request<ChatResponse>("/api/v1/chat", {
       method: "POST",
       body: JSON.stringify({ message, conversation_id: conversationId, project_id: projectId, attachments }),
     }),
+
+  listPendingConfirmations: () => request<ChatConfirmation[]>("/api/v1/confirmations/pending"),
+  confirmConfirmation: (confirmationId: string) =>
+    request<ConfirmationDecisionResponse>(`/api/v1/confirmations/${confirmationId}/confirm`, { method: "POST" }),
+  rejectConfirmation: (confirmationId: string) =>
+    request<ConfirmationDecisionResponse>(`/api/v1/confirmations/${confirmationId}/reject`, { method: "POST" }),
 
   streamMessage: async function* (
     message: string,
@@ -1842,7 +2104,7 @@ export const api = {
     projectId?: string,
     attachmentsOrSignal?: AttachmentMetadata[] | AbortSignal,
     signal?: AbortSignal,
-  ): AsyncGenerator<{ type: string; content?: string; conversation_id?: string }> {
+  ): AsyncGenerator<{ type: string; content?: string; conversation_id?: string; route?: string; action_id?: string }> {
     const attachments = Array.isArray(attachmentsOrSignal) ? attachmentsOrSignal : undefined;
     const requestSignal = attachmentsOrSignal instanceof AbortSignal ? attachmentsOrSignal : signal;
     if (typeof navigator !== "undefined" && !navigator.onLine) {
@@ -1898,7 +2160,7 @@ export const api = {
           try {
             const data = JSON.parse(line.slice(6));
             if (eventType === "token") yield { type: "token", content: data.content };
-            else if (eventType === "meta") yield { type: "meta", conversation_id: data.conversation_id };
+            else if (eventType === "meta") yield { type: "meta", conversation_id: data.conversation_id, route: data.route, action_id: data.action_id };
             else if (eventType === "done") yield { type: "done", conversation_id: data.conversation_id };
             else if (eventType === "error") throw new Error(data.message || "Stream error");
           } catch (e) {

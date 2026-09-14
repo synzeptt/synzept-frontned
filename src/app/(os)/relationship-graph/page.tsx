@@ -127,11 +127,11 @@ export default function RelationshipGraphPage() {
   }
 
   return (
-    <div className="h-full overflow-y-auto">
+    <div className="min-h-full">
       <PageHeader label="Relationship Graph" title="What is connected and what matters?" />
 
       <ProGate feature="Relationship Graph" description="Relationship Graph is a Synzept Pro system that connects goals, projects, memories, decisions, conversations, notes, and timeline events to reveal what matters.">
-      <div className="mx-auto max-w-6xl space-y-5 px-4 py-5 md:px-8">
+      <div className="mx-auto max-w-6xl space-y-5 px-4 py-5 pb-8 md:px-8">
         {message && <p className="rounded-md border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700">{message}</p>}
 
         <section className="rounded-lg border border-border bg-white p-5 shadow-soft">

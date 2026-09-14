@@ -1,6 +1,7 @@
 from collections.abc import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
 
 from app.core.config import get_settings
 
@@ -12,6 +13,7 @@ engine_options = {
 }
 if settings.is_sqlite:
     engine_options["connect_args"] = {"check_same_thread": False}
+    engine_options["poolclass"] = NullPool
 else:
     engine_options["pool_size"] = settings.database_pool_size
     engine_options["max_overflow"] = settings.database_max_overflow
@@ -30,6 +32,11 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
             raise
 
 
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
+    async for session in get_db_session():
+        yield session
+
+
 async def initialize_local_database() -> None:
     if not settings.is_sqlite:
         return
@@ -42,6 +49,7 @@ async def initialize_local_database() -> None:
         await conn.run_sync(_ensure_local_goal_schema)
         await conn.run_sync(_ensure_local_workspace_schema)
         await conn.run_sync(_ensure_local_core_schema)
+        await conn.run_sync(_ensure_local_conversation_schema)
         await conn.run_sync(_ensure_local_knows_you_schema)
         await conn.run_sync(_ensure_local_project_intelligence_phase2_schema)
         await conn.run_sync(_ensure_local_timeline_phase3_schema)
@@ -53,13 +61,127 @@ async def initialize_local_database() -> None:
         await conn.run_sync(_ensure_local_chief_of_staff_schema)
         await conn.run_sync(_ensure_local_autonomous_workspace_schema)
         await conn.run_sync(_ensure_local_memory_trust_schema)
+        await conn.run_sync(_ensure_local_connected_apps_schema)
+        await conn.run_sync(_ensure_local_action_execution_schema)
+
+
+def _ensure_local_action_execution_schema(connection) -> None:
+    connection.exec_driver_sql(
+        """
+        CREATE TABLE IF NOT EXISTS action_executions (
+            id CHAR(36) NOT NULL PRIMARY KEY, user_id CHAR(36) NOT NULL,
+            conversation_id CHAR(36), project_id CHAR(36), action_type VARCHAR(60) NOT NULL,
+            title VARCHAR(300) NOT NULL, request TEXT NOT NULL, status VARCHAR(30) NOT NULL DEFAULT 'queued',
+            progress INTEGER NOT NULL DEFAULT 0, output TEXT, error TEXT, dedupe_key VARCHAR(180) NOT NULL,
+            metadata JSON NOT NULL DEFAULT '{}', created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT uq_action_execution_user_dedupe UNIQUE (user_id, dedupe_key)
+        )
+        """
+    )
+    for column in ("user_id", "conversation_id", "project_id", "action_type", "status"):
+        connection.exec_driver_sql(f"CREATE INDEX IF NOT EXISTS ix_action_executions_{column} ON action_executions ({column})")
 
 
 def _ensure_local_memory_schema(connection) -> None:
     """Apply additive SQLite compatibility changes for existing founder databases."""
     columns = {row[1] for row in connection.exec_driver_sql("PRAGMA table_info(memories)")}
-    if columns and "version" not in columns:
+    if not columns:
+        return
+    if "version" not in columns:
         connection.exec_driver_sql("ALTER TABLE memories ADD COLUMN version INTEGER NOT NULL DEFAULT 1")
+    if "confidence" not in columns:
+        connection.exec_driver_sql("ALTER TABLE memories ADD COLUMN confidence FLOAT NOT NULL DEFAULT 1")
+    if "source" not in columns:
+        connection.exec_driver_sql("ALTER TABLE memories ADD COLUMN source VARCHAR(80) NOT NULL DEFAULT 'system'")
+    if "summary" not in columns:
+        connection.exec_driver_sql("ALTER TABLE memories ADD COLUMN summary TEXT")
+    if "importance_score" not in columns:
+        connection.exec_driver_sql("ALTER TABLE memories ADD COLUMN importance_score FLOAT NOT NULL DEFAULT 0.5")
+    if "recency_score" not in columns:
+        connection.exec_driver_sql("ALTER TABLE memories ADD COLUMN recency_score FLOAT NOT NULL DEFAULT 1")
+    if "retrieval_count" not in columns:
+        connection.exec_driver_sql("ALTER TABLE memories ADD COLUMN retrieval_count INTEGER NOT NULL DEFAULT 0")
+    if "metadata" not in columns:
+        connection.exec_driver_sql("ALTER TABLE memories ADD COLUMN metadata JSON NOT NULL DEFAULT '{}'" )
+    if "pinned" not in columns:
+        connection.exec_driver_sql("ALTER TABLE memories ADD COLUMN pinned BOOLEAN NOT NULL DEFAULT 0")
+    if "archived_at" not in columns:
+        connection.exec_driver_sql("ALTER TABLE memories ADD COLUMN archived_at DATETIME")
+    if "category" not in columns:
+        connection.exec_driver_sql("ALTER TABLE memories ADD COLUMN category VARCHAR(50)")
+    if "content_hash" not in columns:
+        connection.exec_driver_sql("ALTER TABLE memories ADD COLUMN content_hash VARCHAR(64)")
+    if "last_accessed_at" not in columns:
+        connection.exec_driver_sql("ALTER TABLE memories ADD COLUMN last_accessed_at DATETIME")
+    if "embedding_id" not in columns:
+        connection.exec_driver_sql("ALTER TABLE memories ADD COLUMN embedding_id CHAR(36)")
+    if "memory_type" not in columns:
+        connection.exec_driver_sql("ALTER TABLE memories ADD COLUMN memory_type VARCHAR(50) NOT NULL DEFAULT 'work'")
+
+
+def _ensure_local_connected_apps_schema(connection) -> None:
+    connection.exec_driver_sql(
+        """
+        CREATE TABLE IF NOT EXISTS connected_app_accounts (
+            id CHAR(36) NOT NULL,
+            user_id CHAR(36) NOT NULL,
+            provider VARCHAR(80) NOT NULL,
+            status VARCHAR(40) NOT NULL DEFAULT 'not_connected',
+            scopes JSON NOT NULL DEFAULT '[]',
+            encrypted_refresh_token TEXT,
+            encrypted_access_token TEXT,
+            access_token_expires_at DATETIME,
+            sync_token TEXT,
+            last_synced_at DATETIME,
+            last_error_code VARCHAR(80),
+            last_error_message TEXT,
+            provider_account_id VARCHAR(240),
+            metadata JSON NOT NULL DEFAULT '{}',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            CONSTRAINT uq_connected_app_user_provider UNIQUE (user_id, provider),
+            FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE
+        )
+        """
+    )
+    connection.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_connected_app_accounts_user_id ON connected_app_accounts (user_id)")
+    connection.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_connected_app_accounts_provider ON connected_app_accounts (provider)")
+    connection.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_connected_app_accounts_status ON connected_app_accounts (status)")
+    connection.exec_driver_sql(
+        """
+        CREATE TABLE IF NOT EXISTS calendar_events (
+            id CHAR(36) NOT NULL,
+            user_id CHAR(36) NOT NULL,
+            connected_account_id CHAR(36) NOT NULL,
+            provider VARCHAR(80) NOT NULL,
+            provider_event_id VARCHAR(512) NOT NULL,
+            calendar_id VARCHAR(240) NOT NULL DEFAULT 'primary',
+            i_cal_uid VARCHAR(512),
+            recurring_event_id VARCHAR(512),
+            status VARCHAR(40) NOT NULL DEFAULT 'confirmed',
+            title VARCHAR(300) NOT NULL DEFAULT '',
+            description TEXT NOT NULL DEFAULT '',
+            location VARCHAR(300) NOT NULL DEFAULT '',
+            start_at DATETIME,
+            end_at DATETIME,
+            all_day BOOLEAN NOT NULL DEFAULT 0,
+            recurring BOOLEAN NOT NULL DEFAULT 0,
+            busy BOOLEAN NOT NULL DEFAULT 1,
+            html_link TEXT,
+            metadata JSON NOT NULL DEFAULT '{}',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            CONSTRAINT uq_calendar_events_provider_event UNIQUE (user_id, provider, provider_event_id),
+            FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE,
+            FOREIGN KEY(connected_account_id) REFERENCES connected_app_accounts (id) ON DELETE CASCADE
+        )
+        """
+    )
+    for column in ("user_id", "connected_account_id", "provider", "provider_event_id", "calendar_id", "i_cal_uid", "recurring_event_id", "status", "start_at", "end_at", "recurring"):
+        connection.exec_driver_sql(f"CREATE INDEX IF NOT EXISTS ix_calendar_events_{column} ON calendar_events ({column})")
 
 
 def _ensure_local_goal_schema(connection) -> None:
@@ -98,6 +220,14 @@ def _ensure_local_core_schema(connection) -> None:
     if memory_columns and "source" not in memory_columns:
         connection.exec_driver_sql("ALTER TABLE memories ADD COLUMN source VARCHAR(80) NOT NULL DEFAULT 'system'")
         connection.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_memories_source ON memories (source)")
+
+
+def _ensure_local_conversation_schema(connection) -> None:
+    """Add local conversation schema updates for existing SQLite databases."""
+    conversation_columns = {row[1] for row in connection.exec_driver_sql("PRAGMA table_info(conversations)")}
+    if conversation_columns and "pinned" not in conversation_columns:
+        connection.exec_driver_sql("ALTER TABLE conversations ADD COLUMN pinned BOOLEAN NOT NULL DEFAULT 0")
+        connection.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_conversations_pinned ON conversations (pinned)")
 
 
 def _ensure_local_knows_you_schema(connection) -> None:
@@ -267,6 +397,7 @@ def _ensure_local_subscription_schema(connection) -> None:
             provider VARCHAR(40) NOT NULL DEFAULT 'razorpay',
             provider_order_id VARCHAR(120),
             provider_payment_id VARCHAR(120),
+            provider_subscription_id VARCHAR(120),
             provider_signature TEXT,
             amount FLOAT NOT NULL DEFAULT 0,
             currency VARCHAR(10) NOT NULL DEFAULT 'INR',
@@ -284,7 +415,14 @@ def _ensure_local_subscription_schema(connection) -> None:
     connection.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_payment_transactions_user_id ON payment_transactions (user_id)")
     connection.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_payment_transactions_subscription_id ON payment_transactions (subscription_id)")
     connection.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_payment_transactions_provider_order_id ON payment_transactions (provider_order_id)")
-    connection.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_payment_transactions_provider_payment_id ON payment_transactions (provider_payment_id)")
+    connection.exec_driver_sql("CREATE UNIQUE INDEX IF NOT EXISTS uq_payment_transactions_provider_payment_id ON payment_transactions (provider_payment_id)")
+    columns = {row[1] for row in connection.exec_driver_sql("PRAGMA table_info(payment_transactions)")}
+    if "provider_subscription_id" not in columns:
+        connection.exec_driver_sql("ALTER TABLE payment_transactions ADD COLUMN provider_subscription_id VARCHAR(120)")
+    connection.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_payment_transactions_provider_subscription_id ON payment_transactions (provider_subscription_id)")
+    if "provider_event_id" not in columns:
+        connection.exec_driver_sql("ALTER TABLE payment_transactions ADD COLUMN provider_event_id VARCHAR(160)")
+    connection.exec_driver_sql("CREATE UNIQUE INDEX IF NOT EXISTS ix_payment_transactions_provider_event_id ON payment_transactions (provider_event_id)")
     connection.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_payment_transactions_status ON payment_transactions (status)")
 
 

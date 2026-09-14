@@ -19,6 +19,7 @@ def dispatch(job_name: str, payload: dict) -> None:
         JobType.DAILY_SUMMARY.value: generate_daily_summary,
         JobType.CONVERSATION_SUMMARIZE.value: summarize_conversation,
         JobType.MEMORY_CONSOLIDATION.value: consolidate_memories,
+        JobType.ACTION_EXECUTE.value: execute_action,
     }
     actor = actors.get(job_name)
     if actor:
@@ -45,3 +46,8 @@ def summarize_conversation(payload: dict) -> None:
 @dramatiq.actor(max_retries=2, time_limit=180_000)
 def consolidate_memories(payload: dict) -> None:
     asyncio.run(execute_job(JobType.MEMORY_CONSOLIDATION, payload))
+
+
+@dramatiq.actor(max_retries=2, time_limit=300_000)
+def execute_action(payload: dict) -> None:
+    asyncio.run(execute_job(JobType.ACTION_EXECUTE, payload))

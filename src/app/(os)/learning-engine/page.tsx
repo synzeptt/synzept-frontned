@@ -98,11 +98,11 @@ export default function LearningEnginePage() {
   };
 
   return (
-    <div className="h-full overflow-y-auto">
+    <div className="min-h-full">
       <PageHeader label="Transparent learning" title="Learning Suggestions" />
 
       <ProGate feature="Learning Suggestions" description="Transparent learning is a Synzept Pro system that suggests insights, explains why, and waits for your approval before updating what Synzept knows.">
-      <div className="mx-auto max-w-5xl space-y-5 px-4 py-5 md:px-8">
+      <div className="mx-auto max-w-5xl space-y-5 px-4 py-5 pb-8 md:px-8">
         {message && <p className="rounded-md border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700">{message}</p>}
 
         <section className="rounded-lg border border-border bg-white p-5 shadow-soft">

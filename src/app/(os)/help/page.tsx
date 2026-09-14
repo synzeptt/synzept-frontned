@@ -1,4 +1,6 @@
-import Link from "next/link";
+"use client";
+
+import { openPreferencesModal } from "@/components/preferences/PreferencesModal";
 import type { ReactNode } from "react";
 import { AlertCircle, BookOpen, CheckCircle2, LifeBuoy, Shield } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
@@ -41,9 +43,9 @@ const recovery = [
 
 export default function HelpPage() {
   return (
-    <div className="h-[100dvh] overflow-y-auto">
+    <div className="min-h-full">
       <PageHeader label="Support" title="Help" />
-      <main className="mx-auto max-w-5xl space-y-6 px-5 py-6 md:px-8">
+      <main className="mx-auto max-w-5xl space-y-6 px-5 py-6 pb-8 md:px-8">
         <section className="rounded-md border border-border bg-white p-5">
           <div className="flex items-start gap-4">
             <div>
@@ -119,9 +121,9 @@ export default function HelpPage() {
                 </p>
               ))}
             </div>
-            <Link href="/settings" className="mt-4 inline-block text-sm text-accent hover:underline">
+            <button type="button" onClick={() => openPreferencesModal()} className="mt-4 inline-block text-sm text-accent hover:underline">
               Open Settings
-            </Link>
+            </button>
           </div>
         </section>
       </main>

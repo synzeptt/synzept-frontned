@@ -1,3 +1,5 @@
-import DashboardPage from "@frontend/app/dashboard-page";
+import { redirect } from "next/navigation";
 
-export default DashboardPage;
+export default function DashboardPage() {
+	redirect("/home");
+}

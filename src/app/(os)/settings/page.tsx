@@ -1,510 +1,166 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
-import { Bell, Check, CreditCard, Download, LogOut, Mail, Save, ShieldCheck, Sparkles, Smartphone, Trash2, X } from "lucide-react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { PageHeader } from "@/components/layout/page-header";
-import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { UpgradeCta } from "@/components/pro/upgrade-cta";
-import { Textarea } from "@/components/ui/textarea";
-import { api, type NotificationSettings } from "@/lib/api";
+import { Loader2, CheckCircle2 } from "lucide-react";
+import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth";
-import { useSettingsStore } from "@/stores/settings";
+import { useConnectedAppsStore } from "@/stores/connected-apps";
+import { Page, PageHeader, SettingsRow, SettingsSection } from "@/components/design-system/workspace-primitives";
 
 export default function SettingsPage() {
-  const router = useRouter();
-  const { user, logout, deleteAccount, refreshUser } = useAuthStore();
-  const {
-    memoryEnabled,
-    personalizationEnabled,
-    analyticsEnabled,
-    setMemoryEnabled,
-    setPersonalizationEnabled,
-    setAnalyticsEnabled,
-  } = useSettingsStore();
-  const [feedback, setFeedback] = useState("");
-  const [supportMessage, setSupportMessage] = useState<string | null>(null);
-  const [settingsError, setSettingsError] = useState<string | null>(null);
-  const [savingPreference, setSavingPreference] = useState<string | null>(null);
-  const [notificationSettings, setNotificationSettings] = useState<NotificationSettings | null>(null);
-  const [savingNotifications, setSavingNotifications] = useState(false);
-  const [deleteOpen, setDeleteOpen] = useState(false);
-  const [deletePassword, setDeletePassword] = useState("");
-  const [deleteConfirmation, setDeleteConfirmation] = useState("");
-  const [deleteError, setDeleteError] = useState<string | null>(null);
-  const [deleteLoading, setDeleteLoading] = useState(false);
+  const user = useAuthStore((state) => state.user);
+  const { apps, refresh: refreshApps, isLoading: appsLoading } = useConnectedAppsStore();
+  const [updating, setUpdating] = useState(false);
   const [displayName, setDisplayName] = useState(user?.display_name || "");
-  const [profileSummary, setProfileSummary] = useState(user?.profile_summary || "");
-  const [savingProfile, setSavingProfile] = useState(false);
-  const [exporting, setExporting] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
 
   useEffect(() => {
-    const prefs = user?.preferences || {};
-    if (typeof prefs.memory_enabled === "boolean") setMemoryEnabled(prefs.memory_enabled);
-    if (typeof prefs.personalization_enabled === "boolean") setPersonalizationEnabled(prefs.personalization_enabled);
-    if (typeof prefs.analytics_enabled === "boolean") setAnalyticsEnabled(prefs.analytics_enabled);
-  }, [setAnalyticsEnabled, setMemoryEnabled, setPersonalizationEnabled, user]);
+    void refreshApps(true);
+  }, [refreshApps]);
 
-  useEffect(() => {
-    setDisplayName(user?.display_name || "");
-    setProfileSummary(user?.profile_summary || "");
-  }, [user?.display_name, user?.profile_summary]);
-
-  useEffect(() => {
-    api.getNotifications().then((data) => setNotificationSettings(data.settings)).catch(() => null);
-  }, []);
-
-  const handleLogout = async () => {
-    await logout();
-    router.replace("/login");
-  };
-
-  const updateTrustPreference = async (
-    key: "memory_enabled" | "personalization_enabled" | "analytics_enabled",
-    value: boolean,
-  ) => {
-    setSavingPreference(key);
-    setSettingsError(null);
-    const previous = {
-      memory_enabled: memoryEnabled,
-      personalization_enabled: personalizationEnabled,
-      analytics_enabled: analyticsEnabled,
-    }[key];
-    if (key === "memory_enabled") setMemoryEnabled(value);
-    if (key === "personalization_enabled") setPersonalizationEnabled(value);
-    if (key === "analytics_enabled") setAnalyticsEnabled(value);
+  const handleSaveName = async () => {
+    setUpdating(true);
     try {
-      await api.updatePreferences({ [key]: value });
-      void api.trackEvent("trust_preference_changed", "settings", { key, value });
-    } catch {
-      if (key === "memory_enabled") setMemoryEnabled(previous);
-      if (key === "personalization_enabled") setPersonalizationEnabled(previous);
-      if (key === "analytics_enabled") setAnalyticsEnabled(previous);
-      setSettingsError("Preference could not be saved. Nothing was changed on the server.");
-    } finally {
-      setSavingPreference(null);
-    }
-  };
-
-  const sendSupport = async () => {
-    if (!feedback.trim()) return;
-    setSettingsError(null);
-    setSupportMessage(null);
-    try {
-      await api.sendFeedback({ feedback_type: "support", message: feedback.trim() });
-      setFeedback("");
-      setSupportMessage("Sent. Thank you for helping make Synzept clearer.");
-    } catch {
-      setSettingsError("Support message could not be sent. Your text is still here.");
-    }
-  };
-
-  const updateNotificationSetting = async (patch: Partial<NotificationSettings>) => {
-    if (!notificationSettings) return;
-    const previous = notificationSettings;
-    const next = { ...notificationSettings, ...patch };
-    setNotificationSettings(next);
-    setSavingNotifications(true);
-    setSettingsError(null);
-    try {
-      setNotificationSettings(await api.updateNotificationSettings(patch));
-    } catch {
-      setNotificationSettings(previous);
-      setSettingsError("Notification settings could not be saved.");
-    } finally {
-      setSavingNotifications(false);
-    }
-  };
-
-  const handleDeleteAccount = async () => {
-    setDeleteLoading(true);
-    setDeleteError(null);
-    try {
-      await deleteAccount(deletePassword || undefined, deleteConfirmation);
-      router.replace("/login?accountDeleted=1");
+      await api.updateProfile({ display_name: displayName });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
     } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : "Synzept could not delete the account. Please try again.");
+      setMessage(err instanceof Error ? err.message : "Profile could not be saved.");
     } finally {
-      setDeleteLoading(false);
+      setUpdating(false);
     }
   };
 
-  const saveProfile = async () => {
-    setSavingProfile(true);
-    setSettingsError(null);
+  const disconnect = async (provider: string) => {
+    setMessage(null);
     try {
-      await api.updateProfile({ display_name: displayName.trim() || null, profile_summary: profileSummary.trim() || null });
-      await refreshUser();
-    } catch {
-      setSettingsError("Profile changes could not be saved.");
-    } finally {
-      setSavingProfile(false);
+      if (provider === "google_calendar") await api.disconnectGoogleCalendar();
+      else await api.disconnectGoogleWorkspaceService(provider);
+      await refreshApps(true);
+      setMessage("Connected service disconnected.");
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "The connected service could not be disconnected.");
     }
   };
 
-  const exportData = async () => {
-    setExporting(true);
-    setSettingsError(null);
+  const updateNotifications = async (enabled: boolean) => {
+    setNotificationsEnabled(enabled);
     try {
-      const data = await api.exportAccountData();
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = `synzept-data-${new Date().toISOString().slice(0, 10)}.json`;
-      anchor.click();
-      URL.revokeObjectURL(url);
-    } catch {
-      setSettingsError("Your data export could not be prepared.");
-    } finally {
-      setExporting(false);
+      await api.updateNotificationSettings({ email: enabled });
+      setMessage("Notification preferences saved.");
+    } catch (err) {
+      setNotificationsEnabled(!enabled);
+      setMessage(err instanceof Error ? err.message : "Notification preferences could not be saved.");
     }
   };
+
+  const sendPasswordReset = async () => {
+    if (!user?.email) return;
+    setMessage(null);
+    try {
+      await api.forgotPassword(user.email);
+      setMessage("Password reset instructions were sent to your email.");
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Password reset could not be requested.");
+    }
+  };
+
+  const deleteAccount = async () => {
+    if (!window.confirm("Delete your account and all workspace data? This cannot be undone.")) return;
+    const confirmation = window.prompt('Type DELETE to confirm account deletion.')?.trim();
+    if (confirmation !== "DELETE") return;
+    const password = window.prompt("Enter your password, or leave blank for a social-login account.") || undefined;
+    setMessage(null);
+    try {
+      await useAuthStore.getState().deleteAccount(password, confirmation);
+      window.location.assign("/login");
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Account deletion could not be completed.");
+    }
+  };
+
+  const connectedCount = Object.values(apps).filter(
+    (app) => app?.connected === true
+  ).length;
 
   return (
-    <div className="h-full overflow-y-auto">
-      <PageHeader label="Account" title="Settings" />
+    <Page>
+      <div className="mx-auto max-w-3xl space-y-8 px-5 py-12 sm:px-8 sm:py-16">
+        <PageHeader eyebrow="System" title="Settings" description="Account, workspace, and connection preferences." />
+        {message && <p role="status" className="border-y border-[var(--border)] py-3 text-sm text-[var(--text-secondary)]">{message}</p>}
 
-      <div className="mx-auto max-w-3xl space-y-5 px-4 py-5 md:px-8">
-        {settingsError && (
-          <p className="rounded-md border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
-            {settingsError}
-          </p>
-        )}
-        <section className="rounded-lg border border-border bg-white p-5 shadow-soft">
-          <div className="flex min-w-0 items-center gap-4">
-            <Avatar name={user?.display_name} email={user?.email} src={user?.avatar_url} size="lg" />
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium text-stone-950">{user?.display_name || "Workspace"}</p>
-              <p className="mt-0.5 truncate text-xs text-muted">{user?.email}</p>
+        <SettingsSection title="Account" description="Your profile, plan, and account details.">
+          <SettingsRow label="Display name" description="This is how Synzept refers to you in the workspace.">
+            <div className="flex w-full min-w-[220px] gap-2 sm:w-auto">
+              <input
+                type="text"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                className="h-10 min-w-0 flex-1 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-3.5 text-sm text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/10"
+              />
+              <Button onClick={handleSaveName} disabled={updating || displayName === user?.display_name} loading={updating} variant="secondary">
+                Save
+              </Button>
             </div>
-          </div>
-          <div className="mt-5 grid gap-3">
-            <label className="block">
-              <span className="mb-1.5 block text-xs font-medium text-muted">Display name</span>
-              <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} maxLength={120} className="h-10 w-full rounded-lg border border-border bg-white px-3 text-sm outline-none focus:border-accent/40 focus:ring-2 focus:ring-accent/10" />
-            </label>
-            <label className="block">
-              <span className="mb-1.5 block text-xs font-medium text-muted">Profile summary</span>
-              <Textarea value={profileSummary} onChange={(event) => setProfileSummary(event.target.value)} maxLength={1000} placeholder="A short description Synzept can use as stable context." className="min-h-20" />
-            </label>
-            <Button size="sm" onClick={saveProfile} disabled={savingProfile} className="w-fit">
-              <Save className="mr-1.5 h-4 w-4" />
-              {savingProfile ? "Saving..." : "Save profile"}
-            </Button>
-          </div>
-        </section>
+          </SettingsRow>
+          {saved && <p className="flex items-center gap-2 text-sm text-[var(--success)]"><CheckCircle2 className="h-4 w-4" /> Saved successfully</p>}
+          <SettingsRow label="Email" description="Used for login, billing, and important account notices."><span className="text-sm text-[var(--text-primary)]">{user?.email}</span></SettingsRow>
+          <SettingsRow label="Plan" description="Your current Synzept plan."><span className="text-sm text-[var(--text-primary)]">{user?.is_pro ? "Pro" : "Free"}</span></SettingsRow>
+        </SettingsSection>
 
-        <section className="rounded-lg border border-border bg-white p-5 shadow-soft">
-          <SectionTitle title="Plan" description="Manage Synzept Pro access, billing status, and renewal." />
-          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="flex items-center gap-2 text-lg font-semibold text-stone-950">
-                {user?.is_pro ? <Sparkles className="h-5 w-5 text-accent" /> : <CreditCard className="h-5 w-5 text-muted" />}
-                Current Plan: {user?.is_pro ? "Pro" : "Free"}
-              </p>
-              <p className="mt-1 text-sm text-muted">{user?.is_pro ? "Pro features are unlocked." : "Upgrade to Synzept Pro for ₹399/month."}</p>
-            </div>
-            {user?.is_pro ? (
-              <Link href="/billing" className="inline-flex h-10 items-center justify-center rounded-lg border border-border px-4 text-sm font-medium text-stone-700 hover:bg-stone-50">
-                Manage Billing
-              </Link>
-            ) : (
-              <UpgradeCta />
-            )}
+        <SettingsSection title="Connected services" description="Infrastructure Synzept can use when relevant.">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-medium uppercase tracking-[0.16em] text-[var(--text-muted)]">{connectedCount} active</span>
+            <Link href="/connected-apps" className="text-sm font-medium text-[var(--text-primary)] underline underline-offset-4">Manage connected apps</Link>
           </div>
-        </section>
 
-        <section className="rounded-lg border border-border bg-white p-5 shadow-soft">
-          <SectionTitle title="Trust Preferences" description="Only controls that affect continuity, Synzept Knows You, and product telemetry are shown here." />
-          <div className="mt-3 divide-y divide-border">
-            <ToggleRow
-              label="Synzept Knows You"
-              description="Preserve useful context so Synzept can restore where you left off."
-              checked={memoryEnabled}
-              disabled={savingPreference === "memory_enabled"}
-              onChange={() => updateTrustPreference("memory_enabled", !memoryEnabled)}
-            />
-            <ToggleRow
-              label="Personalization"
-              description="Use profile and memory to keep recommendations relevant."
-              checked={personalizationEnabled}
-              disabled={savingPreference === "personalization_enabled"}
-              onChange={() => updateTrustPreference("personalization_enabled", !personalizationEnabled)}
-            />
-            <ToggleRow
-              label="Usefulness analytics"
-              description="Share lightweight events that help improve clarity and retention."
-              checked={analyticsEnabled}
-              disabled={savingPreference === "analytics_enabled"}
-              onChange={() => updateTrustPreference("analytics_enabled", !analyticsEnabled)}
-            />
-          </div>
-        </section>
-
-        <section className="rounded-lg border border-border bg-white p-5 shadow-soft">
-          <SectionTitle title="Habit Notifications" description="Let Synzept bring you back to unfinished work at the right time." />
-          {notificationSettings ? (
-            <div className="mt-3 divide-y divide-border">
-              <ToggleRow
-                label="Enable notifications"
-                description="Receive daily habit prompts and important continuity reminders."
-                checked={notificationSettings.enabled}
-                disabled={savingNotifications}
-                onChange={() => updateNotificationSetting({ enabled: !notificationSettings.enabled })}
-              />
-              <div className="grid gap-3 py-4 sm:grid-cols-2">
-                <label className="block">
-                  <span className="mb-1.5 block text-xs font-medium text-muted">Frequency</span>
-                  <select
-                    value={notificationSettings.frequency}
-                    onChange={(event) => updateNotificationSetting({ frequency: event.target.value as NotificationSettings["frequency"] })}
-                    disabled={savingNotifications}
-                    className="h-10 w-full rounded-lg border border-border bg-white px-3 text-sm text-stone-800 outline-none focus:border-accent/40 focus:ring-2 focus:ring-accent/10"
-                  >
-                    <option value="daily">Daily</option>
-                    <option value="weekdays">Weekdays</option>
-                    <option value="important_only">Important only</option>
-                    <option value="off">Off</option>
-                  </select>
-                </label>
-                <label className="block">
-                  <span className="mb-1.5 block text-xs font-medium text-muted">Morning brief time</span>
-                  <input
-                    type="time"
-                    value={notificationSettings.morningTime}
-                    onChange={(event) => updateNotificationSetting({ morningTime: event.target.value })}
-                    disabled={savingNotifications}
-                    className="h-10 w-full rounded-lg border border-border bg-white px-3 text-sm text-stone-800 outline-none focus:border-accent/40 focus:ring-2 focus:ring-accent/10"
-                  />
-                </label>
-              </div>
-              <ToggleRow
-                label="Daily Brief"
-                description="Your Daily Brief is ready every morning."
-                checked={notificationSettings.dailyBrief}
-                disabled={savingNotifications}
-                onChange={() => updateNotificationSetting({ dailyBrief: !notificationSettings.dailyBrief })}
-              />
-              <ToggleRow
-                label="Open Loops"
-                description="Important unfinished work, pending decisions, and overdue follow-ups."
-                checked={notificationSettings.openLoops}
-                disabled={savingNotifications}
-                onChange={() => updateNotificationSetting({ openLoops: !notificationSettings.openLoops })}
-              />
-              <ToggleRow
-                label="Project Attention"
-                description="Inactive projects, blocked projects, and approaching milestones."
-                checked={notificationSettings.projectAttention}
-                disabled={savingNotifications}
-                onChange={() => updateNotificationSetting({ projectAttention: !notificationSettings.projectAttention })}
-              />
-              <ToggleRow
-                label="Return to Work"
-                description="Come back after 3, 7, or 14 days away when unfinished work is waiting."
-                checked={notificationSettings.returnToWork}
-                disabled={savingNotifications}
-                onChange={() => updateNotificationSetting({ returnToWork: !notificationSettings.returnToWork })}
-              />
-              <div className="grid gap-3 py-4 sm:grid-cols-2">
-                <ChannelButton
-                  icon={<Mail className="h-4 w-4" />}
-                  label="Email notifications"
-                  active={notificationSettings.email}
-                  disabled={savingNotifications}
-                  onClick={() => updateNotificationSetting({ email: !notificationSettings.email })}
-                />
-                <ChannelButton
-                  icon={<Smartphone className="h-4 w-4" />}
-                  label="Push notifications"
-                  active={notificationSettings.push}
-                  disabled={savingNotifications}
-                  onClick={() => updateNotificationSetting({ push: !notificationSettings.push })}
-                />
-              </div>
-            </div>
+          {appsLoading ? (
+            <div className="flex items-center justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-[var(--text-muted)]" /></div>
           ) : (
-            <p className="mt-3 text-sm text-muted">Loading notification controls...</p>
+            <div className="space-y-3">
+              {Object.entries(apps).filter(([, app]) => app !== undefined).map(([provider, app]) => (
+                <SettingsRow key={provider} label={app?.provider || provider.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase())} description={app?.connected ? "Connected and available to Synzept when relevant" : "Not currently connected"}>
+                  {app?.connected ? (
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-[var(--success)]" />
+                      <Button variant="ghost" size="sm" onClick={() => void disconnect(provider)}>
+                        Disconnect
+                      </Button>
+                    </div>
+                  ) : (
+                    <span className="text-xs font-medium uppercase tracking-[0.14em] text-[var(--text-muted)]">Connect</span>
+                  )}
+                </SettingsRow>
+              ))}
+            </div>
           )}
-        </section>
+        </SettingsSection>
 
-        <section className="rounded-lg border border-border bg-white p-5 shadow-soft">
-          <SectionTitle title="Support" description="Send friction, missing context, or broken-action reports." />
-          <Textarea
-            value={feedback}
-            onChange={(event) => setFeedback(event.target.value)}
-            placeholder="What felt unclear or did not work?"
-            className="mt-3 min-h-24"
-          />
-          {supportMessage && <p className="mt-3 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{supportMessage}</p>}
-          <Button size="sm" onClick={sendSupport} disabled={!feedback.trim()} className="mt-3">
-            <Check className="mr-1.5 h-4 w-4" />
-            Send
-          </Button>
-        </section>
+        <SettingsSection title="Notifications" description="Updates and reminders from your workflow.">
+          <SettingsRow label="Email when tasks complete" description="Get notified when Synzept finishes working on your requests.">
+            <label className="inline-flex cursor-pointer items-center gap-3">
+              <input type="checkbox" checked={notificationsEnabled} onChange={(event) => void updateNotifications(event.target.checked)} className="h-4 w-4 rounded border-[var(--border)] text-[var(--accent)]" />
+            </label>
+          </SettingsRow>
+        </SettingsSection>
 
-        <section className="rounded-lg border border-border bg-white p-5 shadow-soft">
-          <SectionTitle title="Data Management" description="Review, export, or permanently remove the data Synzept keeps for you." />
-          <div className="mt-4 grid gap-2 sm:grid-cols-2">
-            <Link href="/memory" className="rounded-lg border border-border px-3 py-3 text-sm font-medium text-stone-700 hover:bg-stone-50">Open Synzept Knows You</Link>
-          </div>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Button variant="outline" onClick={exportData} disabled={exporting}>
-              <Download className="mr-1.5 h-4 w-4" />
-              {exporting ? "Preparing..." : "Export my data"}
-            </Button>
-            <Button variant="outline" onClick={handleLogout}>
-              <LogOut className="mr-1.5 h-4 w-4" />
-              Sign out
-            </Button>
-            <Button variant="outline" onClick={() => setDeleteOpen(true)} className="text-stone-700">
-              <Trash2 className="mr-1.5 h-4 w-4" />
-              Delete account
-            </Button>
-          </div>
-        </section>
+        <SettingsSection title="Security" description="Account and access controls.">
+          <SettingsRow label="Change password" description="Update your account password.">
+            <Button variant="secondary" onClick={() => void sendPasswordReset()}>Send reset email</Button>
+          </SettingsRow>
+        </SettingsSection>
+
+        <SettingsSection title="Danger zone" description="Permanent account actions.">
+          <SettingsRow label="Delete account" description="Permanently delete your account and all workspace data." className="border-[var(--danger)]/25 bg-[var(--danger-soft)]">
+            <Button variant="destructive" onClick={() => void deleteAccount()}>Delete account</Button>
+          </SettingsRow>
+        </SettingsSection>
       </div>
-
-      {deleteOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/20 px-4">
-          <div className="w-full max-w-lg rounded-lg border border-border bg-white p-6 shadow-panel">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h2 className="text-lg font-semibold text-stone-950">Delete account</h2>
-                <p className="mt-2 text-sm leading-6 text-muted">
-                  This permanently removes your Synzept account and workspace data. This cannot be undone.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setDeleteOpen(false)}
-                className="rounded-md p-2 text-muted hover:bg-stone-50 hover:text-stone-950"
-                aria-label="Close delete account dialog"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="mt-5 space-y-4">
-              {user?.auth_provider !== "google" && (
-                <div>
-                  <label className="mb-1.5 block text-xs text-muted">Password</label>
-                  <input
-                    type="password"
-                    value={deletePassword}
-                    onChange={(event) => setDeletePassword(event.target.value)}
-                    className="h-10 w-full rounded-lg border border-border bg-white px-3.5 text-sm text-stone-900 outline-none transition placeholder:text-muted focus:border-accent/40 focus:ring-2 focus:ring-accent/10"
-                    placeholder="Confirm your password"
-                  />
-                </div>
-              )}
-              <div>
-                <label className="mb-1.5 block text-xs text-muted">Type DELETE to confirm</label>
-                <input
-                  value={deleteConfirmation}
-                  onChange={(event) => setDeleteConfirmation(event.target.value)}
-                  className="h-10 w-full rounded-lg border border-border bg-white px-3.5 text-sm text-stone-900 outline-none transition placeholder:text-muted focus:border-accent/40 focus:ring-2 focus:ring-accent/10"
-                  placeholder="DELETE"
-                />
-              </div>
-              {deleteError && (
-                <p className="rounded-md border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
-                  {deleteError}
-                </p>
-              )}
-            </div>
-
-            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-              <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleteLoading}>
-                Keep account
-              </Button>
-              <Button
-                onClick={handleDeleteAccount}
-                disabled={deleteLoading || deleteConfirmation !== "DELETE" || (user?.auth_provider !== "google" && !deletePassword)}
-                className="bg-stone-800 hover:bg-stone-900"
-              >
-                {deleteLoading ? "Deleting..." : "Delete account"}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+    </Page>
   );
 }
 
-function SectionTitle({ title, description }: { title: string; description?: string }) {
-  return (
-    <div>
-      <p className="flex items-center gap-2 text-sm font-semibold text-stone-950">
-        {title === "Habit Notifications" ? <Bell className="h-4 w-4 text-muted" /> : <ShieldCheck className="h-4 w-4 text-muted" />}
-        {title}
-      </p>
-      {description && <p className="mt-1 text-sm leading-6 text-muted">{description}</p>}
-    </div>
-  );
-}
-
-function ChannelButton({
-  icon,
-  label,
-  active,
-  disabled,
-  onClick,
-}: {
-  icon: ReactNode;
-  label: string;
-  active: boolean;
-  disabled: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      className={`flex h-11 items-center justify-center gap-2 rounded-lg border px-3 text-sm font-medium transition disabled:opacity-60 ${
-        active ? "border-stone-900 bg-stone-950 text-white" : "border-border bg-white text-stone-700 hover:bg-stone-50"
-      }`}
-    >
-      {icon}
-      {label}
-    </button>
-  );
-}
-
-function ToggleRow({
-  label,
-  description,
-  checked,
-  disabled,
-  onChange,
-}: {
-  label: string;
-  description: string;
-  checked: boolean;
-  disabled: boolean;
-  onChange: () => void;
-}) {
-  return (
-    <div className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
-      <div>
-        <p className="text-sm font-medium text-stone-950">{label}</p>
-        <p className="mt-0.5 text-xs leading-5 text-muted">{description}</p>
-      </div>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={checked}
-        disabled={disabled}
-        onClick={onChange}
-        className={`relative h-6 w-11 rounded-full transition disabled:opacity-60 ${checked ? "bg-accent" : "bg-stone-200"}`}
-      >
-        <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition ${checked ? "left-[22px]" : "left-0.5"}`} />
-      </button>
-    </div>
-  );
-}

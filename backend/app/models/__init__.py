@@ -1,7 +1,34 @@
 from app.models.ai_interaction import AIInteraction
+from app.models.action_execution import ActionExecution
 from app.models.autonomous_workspace import AutonomousSuggestion, ExecutionPlan
+from app.models.confirmation import Confirmation
 from app.models.conversation import Conversation
 from app.models.context_engine_phase6 import ContextSnapshot
+from app.models.connected_app import (
+    CalendarEvent,
+    ConnectedAppAccount,
+    GoogleContact,
+    GoogleTask,
+    GoogleTaskList,
+    MicrosoftContact,
+    MicrosoftDriveItem,
+    MicrosoftMailMessage,
+    MicrosoftTeam,
+    MicrosoftTeamChannel,
+    MicrosoftTeamMembership,
+    MicrosoftTeamsActivity,
+    MicrosoftTask,
+    MicrosoftTaskList,
+    NotionResource,
+    GitHubCommit,
+    GitHubIssue,
+    GitHubPullRequest,
+    GitHubRelease,
+    GitHubRepository,
+    SlackChannel,
+    SlackConversationActivity,
+    SlackUser,
+)
 from app.models.chief_of_staff import ChiefOfStaffSnapshot, Commitment
 from app.models.continuity_assistant_phase7 import ContinuityAssistantSnapshot
 from app.models.daily_brief_phase8 import DailyBriefSnapshot
@@ -29,6 +56,7 @@ from app.models.password_reset_token import PasswordResetToken
 from app.models.task import Task
 from app.models.timeline_event import TimelineEvent
 from app.models.subscription import PaymentTransaction, Subscription
+from app.models.execution_state import ExecutionState, ExecutionMetrics, ExecutionTimeline
 from app.models.user import User
 from app.models.user_profile import UserProfile
 from app.models.user_understanding import UserUnderstanding
@@ -42,6 +70,29 @@ __all__ = [
     "PasswordResetToken",
     "Conversation",
     "ContextSnapshot",
+    "ConnectedAppAccount",
+    "CalendarEvent",
+    "GoogleTaskList",
+    "GoogleTask",
+    "GoogleContact",
+    "MicrosoftMailMessage",
+    "MicrosoftDriveItem",
+    "MicrosoftTaskList",
+    "MicrosoftTask",
+    "MicrosoftContact",
+    "MicrosoftTeam",
+    "MicrosoftTeamChannel",
+    "MicrosoftTeamMembership",
+    "MicrosoftTeamsActivity",
+    "NotionResource",
+    "GitHubRepository",
+    "GitHubIssue",
+    "GitHubPullRequest",
+    "GitHubCommit",
+    "GitHubRelease",
+    "SlackChannel",
+    "SlackUser",
+    "SlackConversationActivity",
     "ChiefOfStaffSnapshot",
     "Commitment",
     "ContinuityAssistantSnapshot",
@@ -79,10 +130,15 @@ __all__ = [
     "DailySummary",
     "DailyBrief",
     "AIInteraction",
+    "ActionExecution",
     "AutonomousSuggestion",
     "ExecutionPlan",
+    "Confirmation",
     "WorkspaceActivity",
     "TimelineEvent",
     "Subscription",
     "PaymentTransaction",
+    "ExecutionState",
+    "ExecutionMetrics",
+    "ExecutionTimeline",
 ]
