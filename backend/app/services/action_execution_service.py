@@ -142,7 +142,6 @@ class ActionExecutionService:
             detail="Goal understood and execution plan created." if not requires_approval else "Goal understood; execution is paused for approval.",
             project_id=project_id,
             task_id=task.id,
-            execution_id=action.id,
             metadata={"action_id": str(action.id), "status": action.status},
         )
         return action
