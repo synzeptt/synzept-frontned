@@ -13,6 +13,7 @@ settings = get_settings()
 
 
 class JobType(StrEnum):
+    ACTION_EXECUTE = "action_execute"
     MEMORY_POST_RESPONSE = "memory_post_response"
     CONVERSATION_SUMMARIZE = "conversation_summarize"
     DAILY_SUMMARY = "daily_summary"
