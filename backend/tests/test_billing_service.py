@@ -5,7 +5,7 @@ import pytest
 
 from app.core.exceptions import AppError
 from app.models.subscription import PaymentTransaction
-from app.schemas.billing import CheckoutCreateIn, PaymentVerifyIn
+from app.schemas.billing import CheckoutCreateIn, PaymentVerifyIn, SubscriptionStatusOut
 from app.services.billing_service import BillingService
 
 
@@ -14,8 +14,8 @@ def _service() -> BillingService:
     service.settings = SimpleNamespace(
         razorpay_key_id="rzp_live_testkey",
         razorpay_key_secret="live-secret",
-        pro_monthly_price_inr=399,
-        pro_yearly_price_inr=3999,
+        pro_monthly_price_inr=499,
+        pro_yearly_price_inr=4999,
     )
     return service
 
@@ -27,7 +27,7 @@ def _transaction() -> PaymentTransaction:
         provider="razorpay",
         provider_order_id="order_live_123",
         provider_payment_id="pay_live_123",
-        amount=399,
+        amount=499,
         currency="INR",
         status="created",
         plan_type="pro",
@@ -54,8 +54,20 @@ def test_plans_include_yearly_price_and_savings() -> None:
 
     yearly_plan = next(plan for plan in plans if plan["billingCycle"] == "yearly")
 
-    assert yearly_plan["priceInr"] == 3999
-    assert yearly_plan["savings"] == "Save ₹789"
+    assert yearly_plan["priceInr"] == 4999
+    assert yearly_plan["savings"] == "Save ₹989"
+
+
+def test_monthly_plan_matches_production_price() -> None:
+    monthly_plan = next(plan for plan in _service().plans() if plan["planType"] == "pro" and plan["billingCycle"] == "monthly")
+
+    assert monthly_plan["priceInr"] == 499
+
+
+def test_subscription_status_default_matches_production_price() -> None:
+    status = SubscriptionStatusOut(userId=uuid4(), planType="free", status="inactive", paymentStatus="none", isPro=False)
+
+    assert status.priceInr == 499
 
 
 def test_payment_verify_accepts_razorpay_standard_payload() -> None:
@@ -83,7 +95,7 @@ def test_captured_razorpay_payment_passes_validation() -> None:
         {
             "id": "pay_live_123",
             "order_id": "order_live_123",
-            "amount": 39900,
+            "amount": 49900,
             "currency": "INR",
             "status": "captured",
         },
@@ -96,9 +108,9 @@ def test_captured_razorpay_payment_passes_validation() -> None:
 @pytest.mark.parametrize(
     ("payment", "code"),
     [
-        ({"id": "pay_live_123", "order_id": "wrong", "amount": 39900, "currency": "INR", "status": "captured"}, "payment_order_mismatch"),
+        ({"id": "pay_live_123", "order_id": "wrong", "amount": 49900, "currency": "INR", "status": "captured"}, "payment_order_mismatch"),
         ({"id": "pay_live_123", "order_id": "order_live_123", "amount": 100, "currency": "INR", "status": "captured"}, "payment_amount_mismatch"),
-        ({"id": "pay_live_123", "order_id": "order_live_123", "amount": 39900, "currency": "INR", "status": "authorized"}, "payment_not_captured"),
+        ({"id": "pay_live_123", "order_id": "order_live_123", "amount": 49900, "currency": "INR", "status": "authorized"}, "payment_not_captured"),
     ],
 )
 def test_invalid_razorpay_payment_is_rejected(payment: dict, code: str) -> None:

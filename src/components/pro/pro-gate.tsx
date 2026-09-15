@@ -48,7 +48,7 @@ export function ProGate({
             <UpgradeCta />
             <span className="inline-flex items-center gap-1 text-sm text-stone-300">
               <Sparkles className="h-4 w-4" />
-              ₹399/month
+              ₹499/month
             </span>
           </div>
         </section>

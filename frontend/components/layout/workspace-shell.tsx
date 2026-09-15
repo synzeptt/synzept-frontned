@@ -114,7 +114,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
       <div className="m-3 space-y-3">
         <div className="rounded-lg border border-border bg-stone-50 p-3">
           <p className="text-xs font-medium text-stone-950">Current Plan: {user?.is_pro ? "Pro" : "Free"}</p>
-          <p className="mt-1 text-[11px] leading-4 text-stone-500">{user?.is_pro ? "Pro features are unlocked." : "Upgrade for ₹399/month."}</p>
+          <p className="mt-1 text-[11px] leading-4 text-stone-500">{user?.is_pro ? "Pro features are unlocked." : "Upgrade for ₹499/month."}</p>
           {!user?.is_pro && <UpgradeCta compact className="mt-3 w-full" />}
         </div>
         <Link

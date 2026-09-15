@@ -29,7 +29,7 @@ class SubscriptionStatusOut(BaseModel):
     renewalDate: datetime | None = None
     cancelAtPeriodEnd: bool = False
     provider: str = "manual"
-    priceInr: int = 399
+    priceInr: int = 499
 
 
 class PaymentTransactionOut(BaseModel):

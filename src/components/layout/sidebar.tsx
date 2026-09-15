@@ -54,7 +54,7 @@ export function Sidebar() {
       <div className="px-3 pb-3">
         <div className="rounded-lg border border-border bg-white p-3">
           <p className="text-xs font-medium text-stone-950">Current Plan: {isPro ? "Pro" : "Free"}</p>
-          <p className="mt-1 text-[11px] leading-4 text-muted">{isPro ? "Pro continuity features are unlocked." : "Unlock Pro for ₹399/month."}</p>
+          <p className="mt-1 text-[11px] leading-4 text-muted">{isPro ? "Pro continuity features are unlocked." : "Unlock Pro for ₹499/month."}</p>
           {!isPro && <UpgradeCta compact className="mt-3 w-full" />}
           {isPro && (
             <Link href="/billing" className="mt-3 inline-flex h-8 w-full items-center justify-center rounded-lg border border-border text-xs font-medium text-stone-700 hover:bg-stone-50">

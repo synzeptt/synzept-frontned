@@ -114,7 +114,7 @@ export default function PricingPage() {
             <PricingCard
               name="Synzept Pro"
               description="For builders, founders, freelancers, and professionals."
-              price="₹399"
+              price="₹499"
               cadence="per month"
               features={proFeatures}
               cta="Sign In To Upgrade"

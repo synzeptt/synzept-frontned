@@ -2,6 +2,12 @@ export type ResultArtifact = { name?: string; title?: string; content?: string; 
 
 export const DEFAULT_EXECUTION_DETAILS_EXPANDED = false;
 
+export function resolveArtifactUrl(source: string): string {
+  if (!source.startsWith("/api/")) return source;
+  const apiBase = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
+  return apiBase ? `${apiBase}${source}` : source;
+}
+
 export function isSimpleInformationalResult(execution: { action_type: string }): boolean {
   return execution.action_type === "gmail_unread";
 }
@@ -14,7 +20,7 @@ export function downloadResultArtifact(artifact: ResultArtifact | undefined, doc
   if (!artifact || !documentRef || !hasUsableArtifact(artifact)) return false;
   const source = artifact.download_url || artifact.downloadUrl || artifact.url || artifact.href;
   const link = documentRef.createElement("a");
-  link.href = source || `data:text/plain;charset=utf-8,${encodeURIComponent(artifact.content || "")}`;
+  link.href = source ? resolveArtifactUrl(source) : `data:text/plain;charset=utf-8,${encodeURIComponent(artifact.content || "")}`;
   link.download = artifact.name || artifact.title || "synzept-result.txt";
   link.target = "_blank";
   link.rel = "noreferrer";
@@ -26,7 +32,7 @@ export function downloadResultArtifact(artifact: ResultArtifact | undefined, doc
 
 export function openResultArtifact(artifact: ResultArtifact | undefined, windowRef?: Window): boolean {
   if (!artifact || !windowRef || !hasUsableArtifact(artifact)) return false;
-  const source = artifact.url || artifact.href || artifact.file_path || `data:text/plain;charset=utf-8,${encodeURIComponent(artifact.content || "")}`;
-  windowRef.open(source, "_blank", "noopener,noreferrer");
+  const source = artifact.url || artifact.href || artifact.file_path;
+  windowRef.open(source ? resolveArtifactUrl(source) : `data:text/plain;charset=utf-8,${encodeURIComponent(artifact.content || "")}`, "_blank", "noopener,noreferrer");
   return true;
 }
