@@ -39,6 +39,7 @@ class PaymentTransaction(Base):
     subscription_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("subscriptions.id", ondelete="SET NULL"), nullable=True, index=True)
     provider: Mapped[str] = mapped_column(String(40), default="razorpay", nullable=False, index=True)
     provider_order_id: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
+    provider_subscription_id: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
     provider_payment_id: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
     provider_signature: Mapped[str | None] = mapped_column(Text, nullable=True)
     amount: Mapped[float] = mapped_column(Float, nullable=False, default=0)
@@ -51,3 +52,13 @@ class PaymentTransaction(Base):
 
     subscription = relationship("Subscription", back_populates="transactions")
     user = relationship("User")
+
+
+class BillingWebhookEvent(Base):
+    __tablename__ = "billing_webhook_events"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    provider: Mapped[str] = mapped_column(String(40), nullable=False, default="razorpay")
+    provider_event_id: Mapped[str] = mapped_column(String(160), nullable=False, unique=True, index=True)
+    event_name: Mapped[str] = mapped_column(String(80), nullable=False)
+    processed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

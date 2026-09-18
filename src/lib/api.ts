@@ -1349,6 +1349,7 @@ export type PaymentTransaction = {
   id: string;
   provider: string;
   providerOrderId: string | null;
+  providerSubscriptionId: string | null;
   providerPaymentId: string | null;
   amount: number;
   currency: string;
@@ -1368,7 +1369,6 @@ export type CheckoutSession = {
   checkoutId: string;
   provider: "razorpay";
   keyId: string | null;
-  orderId: string | null;
   subscriptionId: string;
   amount: number;
   currency: string;
@@ -1648,7 +1648,7 @@ export type FirstRunIntelligenceInput = {
   generated_suggested_actions?: string[];
 };
 
-export function clearSynzeptContextCache(_key?: string) {
+export function clearSynzeptContextCache() {
   calendarContextCache = null;
   calendarContextPromise = null;
   if (typeof window !== "undefined") {
@@ -2429,5 +2429,5 @@ export const api = {
 };
 
 export function routeAfterAuth(onboardingState: string): string {
-  return onboardingState === "complete" ? "/dashboard" : "/onboarding";
+  return onboardingState === "complete" ? "/today" : "/onboarding";
 }

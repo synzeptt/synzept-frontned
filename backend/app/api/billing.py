@@ -1,9 +1,11 @@
+import json
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Header, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import get_current_user, get_db
+from app.core.exceptions import AppError
 from app.models.user import User
 from app.schemas.billing import (
     BillingOverviewOut,
@@ -43,7 +45,7 @@ async def create_order(
         **checkout,
         "checkout_id": checkout["checkoutId"],
         "key_id": checkout["keyId"],
-        "order_id": checkout["orderId"],
+        "subscription_id": checkout["subscriptionId"],
         "price_inr": checkout["priceInr"],
     }
 
@@ -64,6 +66,26 @@ async def verify_standard_payment(
     session: AsyncSession = Depends(get_db),
 ):
     return await BillingService(session).verify_payment(user, body)
+
+
+@payments_router.post("/billing/webhook")
+async def razorpay_webhook(
+    request: Request,
+    x_razorpay_signature: str = Header(default=""),
+    x_razorpay_event_id: str = Header(default=""),
+    session: AsyncSession = Depends(get_db),
+):
+    payload = await request.body()
+    try:
+        event = json.loads(payload)
+    except json.JSONDecodeError as exc:
+        raise AppError("Invalid webhook payload", status_code=400, code="invalid_webhook_payload") from exc
+    return await BillingService(session).handle_webhook(
+        payload,
+        event,
+        signature=x_razorpay_signature,
+        event_id=x_razorpay_event_id,
+    )
 
 
 @router.post("/checkout/{checkout_id}/cancel", response_model=SubscriptionStatusOut)

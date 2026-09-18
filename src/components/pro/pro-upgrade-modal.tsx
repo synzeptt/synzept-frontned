@@ -117,11 +117,9 @@ export function UpgradePlanExperience({ inline = false, onClose, source = "upgra
 
     const options = {
       key: checkout.keyId,
-      amount: checkout.amount,
-      currency: checkout.currency,
+      subscription_id: checkout.subscriptionId,
       name: "Synzept",
       description: checkout.description,
-      subscription_id: checkout.subscriptionId,
       prefill: { email, name },
       theme: { color: "#24231f" },
       handler: async (response: Record<string, string>) => {

@@ -36,6 +36,7 @@ class PaymentTransactionOut(BaseModel):
     id: UUID
     provider: str
     providerOrderId: str | None = None
+    providerSubscriptionId: str | None = None
     providerPaymentId: str | None = None
     amount: float
     currency: str
@@ -60,7 +61,7 @@ class CheckoutCreateOut(BaseModel):
     checkoutId: UUID
     provider: Literal["razorpay"]
     keyId: str | None = None
-    orderId: str
+    subscriptionId: str
     amount: int
     currency: str = "INR"
     planType: Literal["pro"] = "pro"
@@ -71,6 +72,6 @@ class CheckoutCreateOut(BaseModel):
 
 class PaymentVerifyIn(BaseModel):
     checkoutId: UUID = Field(validation_alias=AliasChoices("checkoutId", "checkout_id"))
-    providerOrderId: str = Field(validation_alias=AliasChoices("providerOrderId", "razorpay_order_id", "order_id"))
+    providerSubscriptionId: str = Field(validation_alias=AliasChoices("providerSubscriptionId", "razorpay_subscription_id", "subscription_id"))
     providerPaymentId: str = Field(validation_alias=AliasChoices("providerPaymentId", "razorpay_payment_id", "payment_id"))
     providerSignature: str = Field(validation_alias=AliasChoices("providerSignature", "razorpay_signature", "signature"))
