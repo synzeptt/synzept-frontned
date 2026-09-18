@@ -55,12 +55,14 @@ class NotionService:
         account.status = "connecting"
         account.last_error_code = None
         account.last_error_message = None
+        state = self._encode_state(user.id)
+        await self.oauth.store_state_nonce(account, self._state_nonce(state))
         params = {
             "client_id": self.settings.notion_client_id,
             "redirect_uri": self._redirect_uri(),
             "response_type": "code",
             "owner": "user",
-            "state": self._encode_state(user.id),
+            "state": state,
         }
         return {"authorizationUrl": f"{AUTHORIZE_URL}?{urlencode(params)}"}
 
@@ -70,12 +72,13 @@ class NotionService:
         if expected_user_id is not None and user_id != expected_user_id:
             raise AppError("Invalid Notion OAuth state", status_code=400, code="invalid_oauth_state")
         account = await self.oauth.ensure_account(user_id, PROVIDER, SCOPES)
+        await self.oauth.consume_state_nonce(account, self._state_nonce(state or ""), "Notion")
         if error:
             await self._set_error(account, "oauth_cancelled", "Notion connection was cancelled.")
-            return f"{frontend}/connected-apps?notion=cancelled"
+            return f"{frontend}/connected?notion=cancelled"
         if not code:
             await self._set_error(account, "oauth_missing_code", "Notion did not return an authorization code.")
-            return f"{frontend}/connected-apps?notion=error"
+            return f"{frontend}/connected?notion=error"
         try:
             tokens = await self._exchange_code(code)
             access = str(tokens.get("access_token") or "")
@@ -100,10 +103,10 @@ class NotionService:
             account.last_error_message = None
             await self.session.flush()
             await self.sync(user_id)
-            return f"{frontend}/connected-apps?notion=connected"
+            return f"{frontend}/connected?notion=connected"
         except AppError as exc:
             await self._set_error(account, exc.code or "oauth_exchange_failed", exc.user_message or "Notion could not connect.")
-            return f"{frontend}/connected-apps?notion=error"
+            return f"{frontend}/connected?notion=error"
 
     async def sync(self, user_id: UUID) -> NotionSyncResult:
         account = await self.oauth.required_account(user_id, PROVIDER)
@@ -326,6 +329,13 @@ class NotionService:
                 raise ValueError
             return UUID(str(payload["sub"]))
         except (JWTError, ValueError, KeyError) as exc:
+            raise AppError("Invalid Notion OAuth state", status_code=400, code="invalid_oauth_state") from exc
+
+    def _state_nonce(self, state: str) -> str:
+        try:
+            payload = jwt.decode(state, self.settings.jwt_secret_key, algorithms=[self.settings.jwt_algorithm])
+            return str(payload["nonce"])
+        except (JWTError, KeyError, TypeError) as exc:
             raise AppError("Invalid Notion OAuth state", status_code=400, code="invalid_oauth_state") from exc
 
     def _require_config(self) -> None:

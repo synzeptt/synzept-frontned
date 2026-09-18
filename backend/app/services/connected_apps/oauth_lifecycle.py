@@ -40,6 +40,27 @@ class ConnectedAppOAuthLifecycle:
         await self.session.flush()
         return account
 
+    async def store_state_nonce(self, account: ConnectedAppAccount, nonce: str) -> None:
+        account.app_metadata = {**(account.app_metadata or {}), "oauth_state_nonce": nonce}
+        await self.session.flush()
+
+    async def consume_state_nonce(self, account: ConnectedAppAccount, nonce: str, label: str) -> None:
+        result = await self.session.execute(
+            select(ConnectedAppAccount).where(ConnectedAppAccount.id == account.id).with_for_update()
+        )
+        locked_account = result.scalar_one()
+        if (locked_account.app_metadata or {}).get("oauth_state_nonce") != nonce:
+            raise AppError(
+                f"Invalid {label} OAuth state",
+                status_code=400,
+                code="invalid_oauth_state",
+                user_message=f"The {label} connection could not be verified. Start the connection again.",
+            )
+        metadata = dict(locked_account.app_metadata or {})
+        metadata.pop("oauth_state_nonce", None)
+        locked_account.app_metadata = metadata
+        await self.session.flush()
+
     async def required_account(self, user_id: UUID, provider: str) -> ConnectedAppAccount:
         account = await self.account(user_id, provider)
         if not account or account.status == "not_connected":

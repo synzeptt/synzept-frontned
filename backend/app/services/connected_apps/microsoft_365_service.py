@@ -139,6 +139,7 @@ class Microsoft365Service:
         account.last_error_code = None
         account.last_error_message = None
         state = self._encode_state(user.id, provider)
+        await self.oauth.store_state_nonce(account, self._state_nonce(state))
         params = {
             "client_id": self.settings.microsoft_client_id,
             "response_type": "code",
@@ -157,12 +158,13 @@ class Microsoft365Service:
             raise AppError("Invalid Microsoft OAuth state", status_code=400, code="invalid_oauth_state")
         spec = self._spec(provider)
         account = await self.oauth.ensure_account(user_id, provider, spec.scopes)
+        await self.oauth.consume_state_nonce(account, self._state_nonce(state or ""), "Microsoft")
         if error:
             await self._set_error(account, "oauth_cancelled", f"{spec.label} connection was cancelled.")
-            return f"{frontend}/connected-apps?microsoft365=cancelled&microsoftService={provider}"
+            return f"{frontend}/connected?microsoft365=cancelled&microsoftService={provider}"
         if not code:
             await self._set_error(account, "oauth_missing_code", f"{spec.label} did not return an authorization code.")
-            return f"{frontend}/connected-apps?microsoft365=error&microsoftService={provider}"
+            return f"{frontend}/connected?microsoft365=error&microsoftService={provider}"
         try:
             tokens = await self._exchange_code(code, spec)
             refresh = tokens.get("refresh_token") or self.oauth.try_decrypt(account.encrypted_refresh_token)
@@ -182,10 +184,10 @@ class Microsoft365Service:
             await self._load_profile(account, str(tokens.get("access_token") or ""))
             await self.session.flush()
             await self.sync(provider, user_id)
-            return f"{frontend}/connected-apps?microsoft365=connected&microsoftService={provider}"
+            return f"{frontend}/connected?microsoft365=connected&microsoftService={provider}"
         except AppError as exc:
             await self._set_error(account, exc.code or "oauth_exchange_failed", exc.user_message or f"{spec.label} could not connect.")
-            return f"{frontend}/connected-apps?microsoft365=error&microsoftService={provider}"
+            return f"{frontend}/connected?microsoft365=error&microsoftService={provider}"
 
     async def sync(self, provider: str, user_id: UUID) -> MicrosoftSyncResult:
         spec = self._spec(provider)
@@ -780,6 +782,13 @@ class Microsoft365Service:
                 raise ValueError
             return UUID(str(payload["sub"])), provider
         except (JWTError, ValueError, KeyError) as exc:
+            raise AppError("Invalid Microsoft OAuth state", status_code=400, code="invalid_oauth_state") from exc
+
+    def _state_nonce(self, state: str) -> str:
+        try:
+            payload = jwt.decode(state, self.settings.jwt_secret_key, algorithms=[self.settings.jwt_algorithm])
+            return str(payload["nonce"])
+        except (JWTError, KeyError, TypeError) as exc:
             raise AppError("Invalid Microsoft OAuth state", status_code=400, code="invalid_oauth_state") from exc
 
     def _require_config(self, spec: MicrosoftProviderSpec) -> None:

@@ -91,15 +91,18 @@ class GoogleCalendarService:
             if user_id:
                 await self._consume_state_nonce(user_id, self._state_nonce(state or ""))
                 await self._mark_error(user_id, "oauth_cancelled", "Google Calendar connection was cancelled before permission was granted.")
-            return f"{frontend}/connected-apps?googleCalendar=cancelled"
-        if not code or not state:
-            return f"{frontend}/connected-apps?googleCalendar=error"
+            return f"{frontend}/connected?googleCalendar=cancelled"
+        if not state:
+            return f"{frontend}/connected?googleCalendar=error"
 
         user_id = self._decode_state(state)
         if expected_user_id is not None and user_id != expected_user_id:
             raise AppError("Invalid Google OAuth state", status_code=400, code="invalid_oauth_state")
         await self._consume_state_nonce(user_id, self._state_nonce(state))
         account = await self._ensure_account(user_id)
+        if not code:
+            await self._set_account_error(account, "oauth_missing_code", "Google Calendar did not return an authorization code.")
+            return f"{frontend}/connected?googleCalendar=error"
         try:
             tokens = await self._exchange_code(code)
         except AppError as exc:
@@ -115,14 +118,14 @@ class GoogleCalendarService:
             params = {"googleCalendar": "error"}
             if self._is_development():
                 params["googleCalendarError"] = self._safe_development_error(exc)
-            return f"{frontend}/connected-apps?{urlencode(params)}"
+            return f"{frontend}/connected?{urlencode(params)}"
 
         refresh_token = tokens.get("refresh_token")
         if not refresh_token and account.encrypted_refresh_token:
             refresh_token = self._decrypt(account.encrypted_refresh_token)
         if not refresh_token:
             await self._set_account_error(account, "missing_refresh_token", "Google did not return offline access. Reconnect and approve Calendar access again.")
-            return f"{frontend}/connected-apps?googleCalendar=reconnect"
+            return f"{frontend}/connected?googleCalendar=reconnect"
 
         account.encrypted_refresh_token = self._encrypt(refresh_token)
         account.encrypted_access_token = self._encrypt(str(tokens.get("access_token") or ""))
@@ -139,7 +142,7 @@ class GoogleCalendarService:
             account.status = "error"
             account.last_error_code = "sync_failed"
             account.last_error_message = "Calendar connected, but the first sync did not complete. Try manual sync."
-        return f"{frontend}/connected-apps?googleCalendar=connected"
+        return f"{frontend}/connected?googleCalendar=connected"
 
     async def sync(self, user_id: UUID, *, full: bool = False) -> SyncResult:
         account = await self._required_account(user_id)

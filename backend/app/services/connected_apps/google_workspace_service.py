@@ -181,11 +181,11 @@ class GoogleWorkspaceService:
                 account.last_error_code = None
                 account.last_error_message = None
                 await self.session.flush()
-                return f"{frontend}/connected-apps?googleWorkspace=connected&googleService={spec.provider}"
+                return f"{frontend}/connected?googleWorkspace=connected&googleService={spec.provider}"
             await self._mark_error(user_id, spec, "oauth_cancelled", f"Google {spec.label} connection was cancelled before permission was granted.")
-            return f"{frontend}/connected-apps?googleService={spec.provider}&googleWorkspace=cancelled"
-        if not code or not state:
-            return f"{frontend}/connected-apps?googleService={spec.provider}&googleWorkspace=error"
+            return f"{frontend}/connected?googleService={spec.provider}&googleWorkspace=cancelled"
+        if not state:
+            return f"{frontend}/connected?googleService={spec.provider}&googleWorkspace=error"
 
         user_id, state_provider = self._decode_state(state)
         if expected_user_id is not None and user_id != expected_user_id:
@@ -193,6 +193,9 @@ class GoogleWorkspaceService:
         spec = self._spec(state_provider)
         await self._consume_state_nonce(user_id, self._state_nonce(state), spec.provider)
         account = await self._ensure_account(user_id, spec.provider, spec.scope)
+        if not code:
+            await self._set_account_error(account, "oauth_missing_code", f"Google {spec.label} did not return an authorization code.")
+            return f"{frontend}/connected?googleService={spec.provider}&googleWorkspace=error"
         try:
             tokens = await self._exchange_code(spec, code)
         except AppError as exc:
@@ -209,14 +212,14 @@ class GoogleWorkspaceService:
             params = {"googleWorkspace": "error", "googleService": spec.provider}
             if self._is_development():
                 params["googleWorkspaceError"] = self._safe_development_error(exc)
-            return f"{frontend}/connected-apps?{urlencode(params)}"
+            return f"{frontend}/connected?{urlencode(params)}"
 
         refresh_token = tokens.get("refresh_token")
         if not refresh_token and account.encrypted_refresh_token:
             refresh_token = self._decrypt(account.encrypted_refresh_token)
         if not refresh_token:
             await self._set_account_error(account, "missing_refresh_token", f"Google {spec.label} did not return offline access. Reconnect and approve access again.")
-            return f"{frontend}/connected-apps?googleWorkspace=reconnect&googleService={spec.provider}"
+            return f"{frontend}/connected?googleWorkspace=reconnect&googleService={spec.provider}"
 
         account.encrypted_refresh_token = self._encrypt(refresh_token)
         account.encrypted_access_token = self._encrypt(str(tokens.get("access_token") or ""))
@@ -232,7 +235,7 @@ class GoogleWorkspaceService:
                 spec.scope,
                 account.scopes,
             )
-            return f"{frontend}/connected-apps?{urlencode({'googleWorkspace': 'error', 'googleService': spec.provider, 'googleWorkspaceError': message} if self._is_development() else {'googleWorkspace': 'error', 'googleService': spec.provider})}"
+            return f"{frontend}/connected?{urlencode({'googleWorkspace': 'error', 'googleService': spec.provider, 'googleWorkspaceError': message} if self._is_development() else {'googleWorkspace': 'error', 'googleService': spec.provider})}"
         account.status = "connected"
         account.last_error_code = None
         account.last_error_message = None
@@ -254,7 +257,7 @@ class GoogleWorkspaceService:
             account.status = "error"
             account.last_error_code = "sync_failed"
             account.last_error_message = f"Google {spec.label} connected, but the first sync did not complete. Try manual sync."
-        return f"{frontend}/connected-apps?googleWorkspace=connected&googleService={spec.provider}"
+        return f"{frontend}/connected?googleWorkspace=connected&googleService={spec.provider}"
 
     async def sync(self, provider: str, user_id: UUID) -> WorkspaceSyncResult:
         spec = self._spec(provider)
