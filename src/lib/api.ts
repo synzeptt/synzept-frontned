@@ -1648,7 +1648,7 @@ export type FirstRunIntelligenceInput = {
   generated_suggested_actions?: string[];
 };
 
-export function clearSynzeptContextCache() {
+export function clearSynzeptContextCache(_key?: string) {
   calendarContextCache = null;
   calendarContextPromise = null;
   if (typeof window !== "undefined") {
