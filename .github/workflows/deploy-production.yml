@@ -158,9 +158,13 @@ jobs:
 
           sudo systemctl restart "$BACKEND_SERVICE_NAME"
 
+          HEALTH_TMP_DIR="$(mktemp -d /tmp/synzept-health.XXXXXX)"
+          HEALTH_RESPONSE_FILE="$HEALTH_TMP_DIR/health.json"
+          trap 'rm -rf -- "$HEALTH_TMP_DIR"' EXIT
+
           for attempt in $(seq 1 30); do
-            if curl --fail --silent --show-error "$BACKEND_HEALTH_URL" >/tmp/synzept-health.json; then
-              cat /tmp/synzept-health.json
+            if curl --fail --silent --show-error "$BACKEND_HEALTH_URL" >"$HEALTH_RESPONSE_FILE"; then
+              cat "$HEALTH_RESPONSE_FILE"
               echo
               echo "Backend health check passed on attempt $attempt"
               echo "$GITHUB_SHA" > /tmp/synzept-last-successful-sha
