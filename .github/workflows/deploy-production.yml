@@ -128,6 +128,7 @@ jobs:
           umask "$LOCK_UMASK"
           flock -n 9
 
+          git config --global --add safe.directory "$BACKEND_DEPLOY_PATH"
           cd "$BACKEND_DEPLOY_PATH"
           PREVIOUS_SHA="$(git rev-parse HEAD)"
           echo "Previous backend revision: $PREVIOUS_SHA"
