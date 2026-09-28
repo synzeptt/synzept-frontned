@@ -114,8 +114,18 @@ jobs:
           : "${BACKEND_HEALTH_URL:?BACKEND_HEALTH_URL is required}"
           : "${GITHUB_SHA:?GITHUB_SHA is required}"
 
-          LOCK_FILE="/tmp/synzept-production-deploy.lock"
+          LOCK_FILE="/tmp/synzept-production-deploy-${EUID}.lock"
+          if [[ -e "$LOCK_FILE" || -L "$LOCK_FILE" ]]; then
+            if [[ -L "$LOCK_FILE" || ! -f "$LOCK_FILE" || ! -O "$LOCK_FILE" ]]; then
+              echo "Deployment lock file is not a regular file owned by UID $EUID." >&2
+              exit 1
+            fi
+            chmod 600 "$LOCK_FILE"
+          fi
+          LOCK_UMASK="$(umask)"
+          umask 077
           exec 9>"$LOCK_FILE"
+          umask "$LOCK_UMASK"
           flock -n 9
 
           cd "$BACKEND_DEPLOY_PATH"
